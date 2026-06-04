@@ -4,6 +4,16 @@
 시각화하고, 외부 기상 데이터와 비교 분석하며, 안전관리용 리포트(PDF/Excel)를 자동 출력하는
 **안전보건 대시보드 솔루션**입니다. (PRD 기반 구현)
 
+## 🌐 라이브 데모
+
+- **대시보드:** https://kweather-dashboard-web.vercel.app
+- **API:** https://kweather-dashboard-api.vercel.app/api/health
+- 데모 로그인 키(`X-API-Key`): `demo-key`
+
+> 배포: 프론트(Vercel 정적) + FastAPI(Vercel Python 서버리스) + Supabase Postgres(`kweather` 스키마).
+> 서버리스 용량 한도(250MB) 때문에 PDF의 차트 이미지(matplotlib)는 배포본에서 생략되며(표·안전가이드·Excel은 유지),
+> 인터랙티브 차트는 웹 대시보드에서 그대로 제공됩니다.
+
 ## 기술 스택
 
 | 영역 | 사용 기술 |
