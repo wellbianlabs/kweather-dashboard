@@ -10,6 +10,9 @@
 - **API:** https://kweather-dashboard-api.vercel.app/api/health
 - 데모 로그인 키(`X-API-Key`): `demo-key`
 
+> **자동 배포(CI/CD):** `main` 브랜치에 push 하면 Vercel이 두 프로젝트를 자동 배포합니다.
+> (kweather-dashboard-api → `backend/`, kweather-dashboard-web → `frontend/` 루트 디렉터리)
+>
 > 배포: 프론트(Vercel 정적) + FastAPI(Vercel Python 서버리스) + Supabase Postgres(`kweather` 스키마).
 > 서버리스 용량 한도(250MB) 때문에 PDF의 차트 이미지(matplotlib)는 배포본에서 생략되며(표·안전가이드·Excel은 유지),
 > 인터랙티브 차트는 웹 대시보드에서 그대로 제공됩니다.
