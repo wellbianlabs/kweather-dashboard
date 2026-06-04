@@ -43,7 +43,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> "Settings":
     s = Settings()
-    s.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    # 로컬에선 export 디렉터리를 생성하되, 서버리스(읽기전용 FS)에서는 무시.
+    try:
+        s.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     return s
 
 
