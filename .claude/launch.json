@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kweather",
+      "runtimeExecutable": "C:\\project\\KWEATHER_STS\\backend\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "cwd": "C:\\project\\KWEATHER_STS\\backend",
+      "port": 8000
+    }
+  ]
+}

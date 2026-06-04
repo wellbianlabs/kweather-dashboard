@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/components/devicemanager.tsx","./src/components/heatbadge.tsx","./src/components/kpicards.tsx","./src/components/mapview.tsx","./src/components/reportpanel.tsx","./src/components/timeserieschart.tsx","./src/components/uploadpanel.tsx","./src/components/weathercomparechart.tsx"],"version":"5.9.3"}

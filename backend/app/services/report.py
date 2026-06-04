@@ -1,0 +1,299 @@
+"""리포트 자동 생성 (PRD 3.4).
+
+- PDF: (있으면) matplotlib 차트(서버 렌더) + Jinja2 HTML + xhtml2pdf (A4, page-break)
+- Excel: openpyxl (요약 + 로우데이터, 정렬된 .xlsx)
+한글 폰트는 번들된 NanumGothic 우선, 없으면 Windows '맑은 고딕'.
+
+서버리스(Vercel) 용량 한도를 위해 matplotlib 는 선택적 의존성으로 처리한다.
+설치되어 있으면 PDF 에 차트 이미지를 임베드하고, 없으면 표·가이드만 출력한다.
+"""
+from __future__ import annotations
+
+import base64
+import io
+import os
+from datetime import date as date_cls, datetime, time
+
+import pandas as pd
+from jinja2 import Template
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from sqlalchemy.orm import Session
+from xhtml2pdf import pisa
+
+from .. import heat
+from ..config import settings
+from ..models import Device, Tenant
+from . import analytics
+
+# ---- matplotlib (선택적): 없으면 차트 이미지 생략 ----
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")  # GUI 없는 서버 렌더
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+
+    HAS_MPL = True
+except Exception:  # noqa: BLE001
+    HAS_MPL = False
+
+# ---- 한글 폰트 등록 ----
+from reportlab.pdfbase import pdfmetrics  # noqa: E402
+from reportlab.pdfbase.ttfonts import TTFont as RLTTFont  # noqa: E402
+
+_BUNDLED_FONT = os.path.join(os.path.dirname(__file__), "..", "fonts", "NanumGothic-Regular.ttf")
+_FONT_CANDIDATES = [
+    os.path.normpath(_BUNDLED_FONT),  # 배포(Linux)/로컬 공통 — 저장소에 동봉
+    r"C:\Windows\Fonts\malgun.ttf",
+    r"C:\Windows\Fonts\malgunsl.ttf",
+]
+_FONT_PATH = next((p for p in _FONT_CANDIDATES if os.path.exists(p)), None)
+_PDF_FONT = "Helvetica"  # 폴백
+if _FONT_PATH:
+    if HAS_MPL:
+        font_manager.fontManager.addfont(_FONT_PATH)
+        plt.rcParams["font.family"] = font_manager.FontProperties(fname=_FONT_PATH).get_name()
+    # reportlab/xhtml2pdf (PDF 본문용) — @font-face 대신 직접 등록
+    try:
+        pdfmetrics.registerFont(RLTTFont("KFont", _FONT_PATH))
+        _PDF_FONT = "KFont"
+    except Exception:  # noqa: BLE001
+        _PDF_FONT = "Helvetica"
+if HAS_MPL:
+    plt.rcParams["axes.unicode_minus"] = False
+
+
+def _fig_to_data_uri(fig) -> str:
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
+def _daily_chart(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls) -> str | None:
+    if not HAS_MPL:
+        return None
+    start = datetime.combine(on_date, time.min)
+    end = datetime.combine(on_date, time.max)
+    ts = analytics.time_series(db, tenant, device_sn, start, end, 10)
+    if not ts.points:
+        return None
+    xs = [p.t for p in ts.points]
+    feels = [p.feels_like for p in ts.points]
+    temps = [p.temperature for p in ts.points]
+
+    fig, ax = plt.subplots(figsize=(9, 3.6))
+    ax.plot(xs, feels, color="#dc2626", linewidth=2, label="체감온도(A-TEMP)")
+    ax.plot(xs, temps, color="#2563eb", linewidth=1.2, alpha=0.7, label="온도(TEMP)")
+    for key, lvl in (("attention", "관심"), ("caution", "주의"), ("warning", "경고"), ("danger", "위험")):
+        ax.axhline(heat.thresholds()[key], color=heat.LEVELS[key].color, linestyle="--", linewidth=0.9, alpha=0.7)
+    ax.set_ylabel("온도 (°C)")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(True, alpha=0.25)
+    ax.set_title(f"{device_sn} — {on_date.isoformat()} 체감온도 추이")
+    return _fig_to_data_uri(fig)
+
+
+_DAILY_TEMPLATE = Template(
+    """
+<html><head><style>
+body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
+h1 { font-size: 16pt; border-bottom: 2px solid #1e293b; padding-bottom:4px; }
+.sub { color:#475569; font-size:9pt; margin-bottom:10px; }
+table { width:100%; border-collapse: collapse; margin: 8px 0; }
+th, td { border:1px solid #cbd5e1; padding:5px 7px; text-align:left; }
+th { background:#f1f5f9; }
+.badge { display:inline-block; padding:3px 10px; border-radius:10px; color:#fff; font-weight:bold; }
+.guide li { margin: 3px 0; }
+.pb { page-break-after: always; }
+.footer { color:#94a3b8; font-size:8pt; margin-top:16px; }
+</style></head><body>
+<h1>일일 안전관리 보고서</h1>
+<div class="sub">
+  사업장: {{ d.company_name or '-' }} / 설치위치: {{ d.location_name or '-' }}<br/>
+  기기: {{ d.device_sn }} &nbsp;|&nbsp; 일자: {{ d.date }} &nbsp;|&nbsp;
+  최고 위험단계: <span class="badge" style="background:{{ d.peak_level.color }}">{{ d.peak_level.label }}</span>
+</div>
+
+<table>
+  <tr><th>최고 체감온도</th><td>{{ d.max_feels_like if d.max_feels_like is not none else '-' }} °C ({{ d.max_feels_like_time or '-' }})</td>
+      <th>최고 온도</th><td>{{ d.max_temperature if d.max_temperature is not none else '-' }} °C</td></tr>
+  <tr><th>평균 습도</th><td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }} %</td>
+      <th>측정 건수</th><td>{{ record_count }} 건</td></tr>
+  <tr><th>33°C 이상 누적</th><td>{{ d.minutes_over_33 }} 분</td>
+      <th>35°C / 38°C 이상</th><td>{{ d.minutes_over_35 }} 분 / {{ d.minutes_over_38 }} 분</td></tr>
+</table>
+
+{% if chart %}<img src="{{ chart }}" style="width:480pt;"/>{% else %}<p style="color:#94a3b8; font-size:9pt;">※ 상세 체감온도 추이 차트는 웹 대시보드에서 인터랙티브로 확인하실 수 있습니다.</p>{% endif %}
+
+<h3>안전조치 이행 가이드</h3>
+<ul class="guide">{% for g in d.guidance %}<li>{{ g }}</li>{% endfor %}</ul>
+
+<div class="footer">본 보고서는 케이웨더 체감온도계 대시보드에서 자동 생성되었습니다. (생성일 {{ generated }})</div>
+</body></html>
+"""
+)
+
+
+def _html_to_pdf(html: str) -> bytes:
+    buf = io.BytesIO()
+    pisa.CreatePDF(src=html, dest=buf, encoding="utf-8")
+    return buf.getvalue()
+
+
+def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
+    data = analytics.daily_report_data(db, tenant, device_sn, on_date)
+    chart = _daily_chart(db, tenant, device_sn, on_date)
+    kpi = analytics.kpi_summary(
+        db, tenant, device_sn,
+        datetime.combine(on_date, time.min), datetime.combine(on_date, time.max),
+    )
+    html = _DAILY_TEMPLATE.render(
+        d=data, chart=chart, record_count=kpi.record_count,
+        pdf_font=_PDF_FONT, generated=generated,
+    )
+    return _html_to_pdf(html)
+
+
+_PERIODIC_TEMPLATE = Template(
+    """
+<html><head><style>
+body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
+h1 { font-size: 16pt; border-bottom: 2px solid #1e293b; padding-bottom:4px; }
+.sub { color:#475569; font-size:9pt; margin-bottom:10px; }
+table { width:100%; border-collapse: collapse; margin: 8px 0; }
+th, td { border:1px solid #cbd5e1; padding:4px 6px; text-align:center; }
+th { background:#f1f5f9; }
+.footer { color:#94a3b8; font-size:8pt; margin-top:16px; }
+</style></head><body>
+<h1>기간 통계 보고서 (주간/월간)</h1>
+<div class="sub">대상: {{ scope }} &nbsp;|&nbsp; 기간: {{ s.start }} ~ {{ s.end }}</div>
+
+<table>
+  <tr><th>기간 최고 체감온도</th><td>{{ s.overall_max_feels if s.overall_max_feels is not none else '-' }} °C</td>
+      <th>기간 평균 체감온도</th><td>{{ s.overall_avg_feels if s.overall_avg_feels is not none else '-' }} °C</td></tr>
+</table>
+
+<h3>위험 단계 도달 일수</h3>
+<table><tr>
+  {% for code, lvl in levels.items() %}<th style="background:{{ lvl.color }}; color:#fff">{{ lvl.label }}</th>{% endfor %}
+</tr><tr>
+  {% for code in levels %}<td>{{ s.level_counts[code] }} 일</td>{% endfor %}
+</tr></table>
+
+{% if chart %}<img src="{{ chart }}" style="width:480pt;"/>{% endif %}
+
+<h3>일자별 트렌드</h3>
+<table>
+<tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>평균습도(%)</th><th>33°C↑(분)</th><th>단계</th></tr>
+{% for row in s.daily %}
+<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td><td>{{ row.avg_feels }}</td>
+<td>{{ row.max_temp }}</td><td>{{ row.avg_humidity if row.avg_humidity is not none else '-' }}</td>
+<td>{{ row.minutes_over_33 }}</td><td>{{ row.peak_label }}</td></tr>
+{% endfor %}
+</table>
+<div class="footer">자동 생성 {{ generated }}</div>
+</body></html>
+"""
+)
+
+
+def _periodic_chart(stats: dict) -> str | None:
+    if not HAS_MPL or not stats["daily"]:
+        return None
+    days = [r["date"] for r in stats["daily"]]
+    maxf = [r["max_feels"] for r in stats["daily"]]
+    avgf = [r["avg_feels"] for r in stats["daily"]]
+    fig, ax = plt.subplots(figsize=(9, 3.4))
+    ax.plot(days, maxf, "o-", color="#dc2626", label="일 최고 체감온도")
+    ax.plot(days, avgf, "o-", color="#f59e0b", label="일 평균 체감온도")
+    ax.set_ylabel("체감온도 (°C)")
+    ax.tick_params(axis="x", rotation=45, labelsize=7)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.25)
+    return _fig_to_data_uri(fig)
+
+
+def periodic_pdf(
+    db: Session, tenant: Tenant, device_sn: str | None, start: date_cls, end: date_cls, generated: str
+) -> bytes:
+    stats = analytics.periodic_stats(db, tenant, device_sn, start, end)
+    scope = device_sn or "전체 기기"
+    if device_sn:
+        dev = db.get(Device, device_sn)
+        if dev and dev.company_name:
+            scope = f"{dev.company_name} ({device_sn})"
+    html = _PERIODIC_TEMPLATE.render(
+        s=stats, scope=scope, levels=heat.LEVELS, chart=_periodic_chart(stats),
+        pdf_font=_PDF_FONT, generated=generated,
+    )
+    return _html_to_pdf(html)
+
+
+# ---------------- Excel ----------------
+_HEADER_FILL = PatternFill("solid", fgColor="1E293B")
+_HEADER_FONT = Font(color="FFFFFF", bold=True)
+
+
+def _style_header(ws, ncols: int):
+    for c in range(1, ncols + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.fill = _HEADER_FILL
+        cell.font = _HEADER_FONT
+        cell.alignment = Alignment(horizontal="center")
+
+
+def export_excel(
+    db: Session, tenant: Tenant, device_sn: str | None, start: datetime, end: datetime
+) -> bytes:
+    sns = analytics._resolve_scope(db, tenant, device_sn)
+    df = analytics.load_logs(db, sns, start, end)
+
+    wb = Workbook()
+
+    # --- 시트1: 일자별 요약 ---
+    ws1 = wb.active
+    ws1.title = "일자별요약"
+    headers1 = ["일자", "기기SN", "최고체감(°C)", "평균체감(°C)", "최고온도(°C)", "평균습도(%)", "33°C↑(분)", "최고단계"]
+    ws1.append(headers1)
+    if not df.empty:
+        df["day"] = df["measured_at"].dt.date
+        for (day, sn), g in df.groupby(["day", "device_sn"]):
+            lvl = heat.classify(float(g["feels_like"].max()))
+            ws1.append([
+                day.isoformat(), sn,
+                round(float(g["feels_like"].max()), 1),
+                round(float(g["feels_like"].mean()), 1),
+                round(float(g["temperature"].max()), 1),
+                round(float(g["humidity"].mean()), 1) if g["humidity"].notna().any() else None,
+                int((g["feels_like"] >= settings.HEAT_CAUTION).sum()),
+                lvl.label,
+            ])
+    _style_header(ws1, len(headers1))
+
+    # --- 시트2: 로우데이터 ---
+    ws2 = wb.create_sheet("로우데이터")
+    headers2 = ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)"]
+    ws2.append(headers2)
+    if not df.empty:
+        for r in df.sort_values(["device_sn", "measured_at"]).itertuples(index=False):
+            ws2.append([
+                pd.Timestamp(r.measured_at).strftime("%Y-%m-%d %H:%M:%S"),
+                r.device_sn,
+                None if pd.isna(r.temperature) else round(float(r.temperature), 1),
+                None if pd.isna(r.humidity) else int(r.humidity),
+                None if pd.isna(r.feels_like) else round(float(r.feels_like), 1),
+            ])
+    _style_header(ws2, len(headers2))
+
+    for ws, widths in ((ws1, [12, 16, 12, 12, 12, 12, 10, 10]), (ws2, [22, 16, 10, 10, 12])):
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

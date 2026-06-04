@@ -1,0 +1,28 @@
+# Vercel 서버리스 배포용 (250MB 한도 내). 로컬 차트 렌더용 matplotlib 는 requirements-dev.txt 참고.
+
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Settings / validation ---
+pydantic==2.10.5
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+
+# --- Data / ORM ---
+SQLAlchemy==2.0.37
+pandas==2.2.3
+numpy==2.2.1
+
+# --- PostgreSQL driver (Supabase) ---
+psycopg2-binary==2.9.10
+
+# --- HTTP client (weather API) ---
+httpx==0.28.1
+
+# --- Reporting ---
+openpyxl==3.1.5          # Excel export
+xhtml2pdf==0.2.16        # HTML -> PDF (pure python)
+reportlab==4.2.5         # PDF 엔진 + 한글 TTF 등록
+Jinja2==3.1.5            # report HTML templating

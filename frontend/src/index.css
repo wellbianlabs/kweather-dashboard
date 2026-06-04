@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body { background: #f1f5f9; }
+
+/* Leaflet 지도 컨테이너 높이 보정 */
+.leaflet-container { font-family: inherit; }

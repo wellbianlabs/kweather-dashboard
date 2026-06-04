@@ -1,0 +1,29 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+backend/kweather.db
+backend/exports/
+backend/.env
+backend/_uvicorn.*
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# Vercel
+.vercel/
+
+# 임시/테스트 산출물 / 백업
+_test_*
+_verify_*
+*.bak
+_pgsetup/
+
+# 샘플 데이터(시드로 재생성)
+sample_data/
+
+# 폰트는 배포에 필요하므로 포함 (NanumGothic, OFL 라이선스)
+!backend/app/fonts/

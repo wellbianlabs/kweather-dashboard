@@ -1,0 +1,5 @@
+# 로컬 개발용 추가 의존성 (Vercel 배포에는 포함하지 않음).
+-r requirements.txt
+
+# 리포트 PDF 에 차트 이미지를 서버 렌더하려면 필요. (Vercel 은 용량 한도로 제외)
+matplotlib==3.10.0

@@ -1,0 +1,123 @@
+"""Pydantic 입출력 스키마."""
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# ---------- Device ----------
+class DeviceBase(BaseModel):
+    company_name: str | None = None
+    location_name: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    region_code: str | None = None
+
+
+class DeviceCreate(DeviceBase):
+    device_sn: str
+
+
+class DeviceUpdate(DeviceBase):
+    pass
+
+
+class DeviceOut(DeviceBase):
+    model_config = ConfigDict(from_attributes=True)
+    device_sn: str
+
+
+# ---------- Upload ----------
+class UploadResult(BaseModel):
+    filename: str
+    rows_parsed: int
+    rows_inserted: int
+    rows_updated: int
+    rows_skipped: int
+    new_devices: list[str]
+    encoding: str
+    errors: list[str] = Field(default_factory=list)
+
+
+# ---------- Dashboard ----------
+class HeatLevelOut(BaseModel):
+    code: str
+    label: str
+    color: str
+    rank: int
+
+
+class KpiSummary(BaseModel):
+    device_sn: str | None
+    company_name: str | None = None
+    location_name: str | None = None
+    range_start: datetime | None
+    range_end: datetime | None
+    record_count: int
+    max_feels_like: float | None
+    max_temperature: float | None
+    avg_humidity: float | None
+    avg_feels_like: float | None
+    current_level: HeatLevelOut
+    # 단계별 임계값(℃) 노출 — 프론트 배지/범례용
+    thresholds: dict[str, float]
+
+
+class SeriesPoint(BaseModel):
+    t: datetime
+    temperature: float | None
+    feels_like: float | None
+    humidity: float | None
+
+
+class TimeSeriesOut(BaseModel):
+    device_sn: str
+    interval_minutes: int
+    points: list[SeriesPoint]
+
+
+class MapMarker(BaseModel):
+    device_sn: str
+    company_name: str | None
+    location_name: str | None
+    latitude: float | None
+    longitude: float | None
+    max_feels_like: float | None
+    level: HeatLevelOut
+
+
+# ---------- Weather compare ----------
+class WeatherComparePoint(BaseModel):
+    t: datetime
+    indoor_feels_like: float | None
+    outdoor_temperature: float | None
+    delta: float | None  # 내부-외부 차이
+
+
+class WeatherCompareOut(BaseModel):
+    device_sn: str
+    provider: str
+    interval_minutes: int
+    points: list[WeatherComparePoint]
+    max_delta: float | None
+    enclosed_alert: bool          # 밀폐형 폭염 경고
+    enclosed_threshold: float
+
+
+# ---------- Reports ----------
+class DailyReportData(BaseModel):
+    device_sn: str
+    date: str
+    company_name: str | None
+    location_name: str | None
+    max_feels_like: float | None
+    max_feels_like_time: str | None
+    max_temperature: float | None
+    avg_humidity: float | None
+    minutes_over_33: int          # 33℃ 이상 누적 지속(분)
+    minutes_over_35: int
+    minutes_over_38: int
+    peak_level: HeatLevelOut
+    guidance: list[str]           # 안전조치 가이드 텍스트
