@@ -42,6 +42,7 @@ except Exception:  # noqa: BLE001
 # ---- 한글 폰트 등록 ----
 from reportlab.pdfbase import pdfmetrics  # noqa: E402
 from reportlab.pdfbase.ttfonts import TTFont as RLTTFont  # noqa: E402
+from xhtml2pdf.default import DEFAULT_FONT  # noqa: E402
 
 _BUNDLED_FONT = os.path.join(os.path.dirname(__file__), "..", "fonts", "NanumGothic-Regular.ttf")
 _FONT_CANDIDATES = [
@@ -55,9 +56,15 @@ if _FONT_PATH:
     if HAS_MPL:
         font_manager.fontManager.addfont(_FONT_PATH)
         plt.rcParams["font.family"] = font_manager.FontProperties(fname=_FONT_PATH).get_name()
-    # reportlab/xhtml2pdf (PDF 본문용) — @font-face 대신 직접 등록
+    # reportlab 에 폰트 등록 + 패밀리(굵게/기울임도 동일 한글 폰트로) 매핑.
+    # @font-face 는 Windows 에서 임시파일 잠금 버그가 있으므로 사용하지 않고,
+    # xhtml2pdf 의 폰트 매핑 테이블(DEFAULT_FONT)에 직접 등록해 font-family 를 해석시킨다.
     try:
         pdfmetrics.registerFont(RLTTFont("KFont", _FONT_PATH))
+        pdfmetrics.registerFontFamily(
+            "KFont", normal="KFont", bold="KFont", italic="KFont", boldItalic="KFont"
+        )
+        DEFAULT_FONT["kfont"] = "KFont"
         _PDF_FONT = "KFont"
     except Exception:  # noqa: BLE001
         _PDF_FONT = "Helvetica"
