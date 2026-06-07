@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import type { Device, Kpi, MapMarker, TimeSeries, WeatherCompare } from "./types";
+import type { Device, Kpi, TimeSeries, UploadResult, WeatherCompare } from "./types";
 import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
-import { MapView } from "./components/MapView";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
 import { UploadPanel } from "./components/UploadPanel";
 import { DeviceManager } from "./components/DeviceManager";
@@ -22,9 +21,9 @@ export default function App() {
 
   const [kpi, setKpi] = useState<Kpi | null>(null);
   const [ts, setTs] = useState<TimeSeries | null>(null);
-  const [markers, setMarkers] = useState<MapMarker[]>([]);
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
@@ -37,11 +36,27 @@ export default function App() {
 
   useEffect(() => { loadDevices().catch((e) => setLoadErr(String(e))); }, [loadDevices]);
 
+  // 업로드 직후: 업로드한 기기/일자로 대시보드 자동 이동 (핵심 기능)
+  const handleUploaded = useCallback(async (results: UploadResult[]) => {
+    await loadDevices();
+    const r = results.find((x) => x.affected_devices.length > 0);
+    if (r) {
+      setDeviceSn(r.affected_devices[0]);
+      if (r.min_date) setRangeStart(r.min_date);
+      if (r.max_date) { setRangeEnd(r.max_date); setDate(r.max_date); }
+      const total = results.reduce((s, x) => s + x.rows_inserted + x.rows_updated, 0);
+      setUploadNotice(
+        `업로드 완료: ${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
+        `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`
+      );
+    }
+    setTab("dashboard");
+  }, [loadDevices]);
+
   // 대시보드 데이터 로드
   useEffect(() => {
     setLoadErr(null);
     api.kpi(deviceSn, dayStart, dayEnd).then(setKpi).catch((e) => setLoadErr(String(e)));
-    api.map(date).then(setMarkers).catch(() => {});
     if (deviceSn) {
       api.timeseries(deviceSn, dayStart, dayEnd, interval).then(setTs).catch(() => setTs(null));
       api.weatherCompare(deviceSn, dayStart, dayEnd, 30).then(setCmp).catch(() => setCmp(null));
@@ -121,19 +136,23 @@ export default function App() {
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadErr}</div>
         )}
 
+        {uploadNotice && tab === "dashboard" && (
+          <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <span>✅ {uploadNotice}</span>
+            <button onClick={() => setUploadNotice(null)} className="text-emerald-600 hover:text-emerald-800">✕</button>
+          </div>
+        )}
+
         {tab === "dashboard" ? (
           <>
             <KpiCards kpi={kpi} />
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2"><TimeSeriesChart ts={ts} kpi={kpi} /></div>
-              <MapView markers={markers} />
-            </div>
+            <TimeSeriesChart ts={ts} kpi={kpi} />
             <WeatherCompareChart cmp={cmp} />
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />
           </>
         ) : (
           <>
-            <UploadPanel onDone={loadDevices} />
+            <UploadPanel onUploaded={handleUploaded} />
             <DeviceManager devices={devices} onChange={loadDevices} />
           </>
         )}

@@ -2,7 +2,6 @@ import type {
   Device,
   Kpi,
   TimeSeries,
-  MapMarker,
   WeatherCompare,
   UploadResult,
   DailyReport,
@@ -54,12 +53,6 @@ export const api = {
   timeseries: (deviceSn: string, start: string, end: string, interval: number) => {
     const p = new URLSearchParams({ device_sn: deviceSn, start, end, interval: String(interval) });
     return getJSON<TimeSeries>(`/api/dashboard/timeseries?${p}`);
-  },
-
-  map: (onDate?: string) => {
-    const p = new URLSearchParams();
-    if (onDate) p.set("on_date", onDate);
-    return getJSON<MapMarker[]>(`/api/dashboard/map?${p}`);
   },
 
   weatherCompare: (deviceSn: string, start: string, end: string, interval: number) => {

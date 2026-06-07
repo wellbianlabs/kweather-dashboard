@@ -17,7 +17,6 @@ from ..schemas import (
     DailyReportData,
     HeatLevelOut,
     KpiSummary,
-    MapMarker,
     SeriesPoint,
     TimeSeriesOut,
 )
@@ -138,36 +137,6 @@ def time_series(
         for idx, r in s.iterrows()
     ]
     return TimeSeriesOut(device_sn=device_sn, interval_minutes=interval, points=points)
-
-
-# ---------------- Map markers ----------------
-def map_markers(db: Session, tenant: Tenant, on_date: date_cls | None) -> list[MapMarker]:
-    devices = list(db.scalars(select(Device).where(Device.tenant_id == tenant.id)))
-    if not devices:
-        return []
-    start = end = None
-    if on_date:
-        start = datetime.combine(on_date, time.min)
-        end = datetime.combine(on_date, time.max)
-    df = load_logs(db, [d.device_sn for d in devices], start, end)
-
-    markers: list[MapMarker] = []
-    for d in devices:
-        sub = df[df["device_sn"] == d.device_sn] if not df.empty else df
-        max_feels = float(sub["feels_like"].max()) if not sub.empty else None
-        level = heat.classify(max_feels)
-        markers.append(
-            MapMarker(
-                device_sn=d.device_sn,
-                company_name=d.company_name,
-                location_name=d.location_name,
-                latitude=d.latitude,
-                longitude=d.longitude,
-                max_feels_like=round(max_feels, 1) if max_feels is not None else None,
-                level=_level_out(level),
-            )
-        )
-    return markers
 
 
 # ---------------- Daily report ----------------

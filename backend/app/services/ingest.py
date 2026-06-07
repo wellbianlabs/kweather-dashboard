@@ -147,6 +147,13 @@ def ingest_csv(db: Session, tenant: Tenant, filename: str, raw: bytes) -> Upload
     inserted, updated = _upsert_logs(db, df)
     db.commit()
 
+    # 대시보드 자동 이동용: 파일에 포함된 기기/일자 범위
+    affected = sorted(df["sn"].unique().tolist()) if not df.empty else []
+    min_date = max_date = None
+    if not df.empty:
+        min_date = df["measured_at"].min().strftime("%Y-%m-%d")
+        max_date = df["measured_at"].max().strftime("%Y-%m-%d")
+
     return UploadResult(
         filename=filename,
         rows_parsed=parsed,
@@ -154,6 +161,9 @@ def ingest_csv(db: Session, tenant: Tenant, filename: str, raw: bytes) -> Upload
         rows_updated=updated,
         rows_skipped=skipped,
         new_devices=new_devices,
+        affected_devices=affected,
+        min_date=min_date,
+        max_date=max_date,
         encoding=encoding,
         errors=errors,
     )

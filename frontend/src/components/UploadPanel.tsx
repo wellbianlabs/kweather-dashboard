@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { api } from "../api";
 import type { UploadResult } from "../types";
 
-export function UploadPanel({ onDone }: { onDone: () => void }) {
+export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult[]) => void }) {
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
@@ -16,7 +16,7 @@ export function UploadPanel({ onDone }: { onDone: () => void }) {
     try {
       const res = await api.upload(files);
       setResults(res);
-      onDone();
+      onUploaded(res);
     } catch (e: any) {
       setError(String(e.message || e));
     } finally {

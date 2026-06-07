@@ -37,6 +37,9 @@ class UploadResult(BaseModel):
     rows_updated: int
     rows_skipped: int
     new_devices: list[str]
+    affected_devices: list[str] = Field(default_factory=list)  # 파일에 포함된 모든 기기 SN
+    min_date: str | None = None  # 데이터 최소 일자 (YYYY-MM-DD) — 대시보드 자동 이동용
+    max_date: str | None = None  # 데이터 최대 일자 (YYYY-MM-DD)
     encoding: str
     errors: list[str] = Field(default_factory=list)
 
@@ -76,16 +79,6 @@ class TimeSeriesOut(BaseModel):
     device_sn: str
     interval_minutes: int
     points: list[SeriesPoint]
-
-
-class MapMarker(BaseModel):
-    device_sn: str
-    company_name: str | None
-    location_name: str | None
-    latitude: float | None
-    longitude: float | None
-    max_feels_like: float | None
-    level: HeatLevelOut
 
 
 # ---------- Weather compare ----------

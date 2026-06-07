@@ -43,16 +43,6 @@ export interface TimeSeries {
   points: SeriesPoint[];
 }
 
-export interface MapMarker {
-  device_sn: string;
-  company_name: string | null;
-  location_name: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  max_feels_like: number | null;
-  level: HeatLevel;
-}
-
 export interface WeatherComparePoint {
   t: string;
   indoor_feels_like: number | null;
@@ -77,6 +67,9 @@ export interface UploadResult {
   rows_updated: number;
   rows_skipped: number;
   new_devices: string[];
+  affected_devices: string[];
+  min_date: string | null;
+  max_date: string | null;
   encoding: string;
   errors: string[];
 }
