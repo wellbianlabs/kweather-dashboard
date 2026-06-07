@@ -170,52 +170,79 @@ def ingest_csv(db: Session, tenant: Tenant, filename: str, raw: bytes) -> Upload
 
 
 def _upsert_logs(db: Session, df: pd.DataFrame) -> tuple[int, int]:
-    """DB-agnostic Upsert: 기존 키는 update, 신규는 bulk insert (청크 처리)."""
-    inserted = updated = 0
-    records = df.to_dict("records")
+    """고속 벌크 Upsert.
 
-    for start in range(0, len(records), CHUNK_ROWS):
-        chunk = records[start : start + CHUNK_ROWS]
-        keys = [(r["sn"], r["measured_at"].to_pydatetime()) for r in chunk]
+    행 단위 ORM 업데이트(수천 회 왕복) 대신 DB 네이티브
+    ``INSERT ... ON CONFLICT (device_sn, measured_at) DO UPDATE`` 를 배치로 실행한다.
+    대용량 파일도 서버리스 시간제한 내에 처리되도록 왕복 횟수를 최소화한다.
+    """
+    if df.empty:
+        return 0, 0
 
-        # 이 청크에 해당하는 기존 로그 조회 -> 키맵
-        sns = {k[0] for k in keys}
-        existing_rows = db.scalars(
-            select(SensorLog).where(SensorLog.device_sn.in_(sns))
-        ).all()
-        existing_map = {(r.device_sn, r.measured_at): r for r in existing_rows}
+    # 레코드 변환 + 파일 내 (sn, measured_at) 중복 제거 (마지막 값 우선)
+    dedup: dict[tuple, dict] = {}
+    for r in df.to_dict("records"):
+        mt = r["measured_at"].to_pydatetime()
+        dedup[(r["sn"], mt)] = {
+            "device_sn": r["sn"],
+            "measured_at": mt,
+            "temperature": float(r["temperature"]),
+            "humidity": None if pd.isna(r["humidity"]) else int(r["humidity"]),
+            "feels_like_temperature": float(r["feels_like"]),
+        }
+    records = list(dedup.values())
+    total = len(records)
 
-        new_objs: list[SensorLog] = []
-        seen: set[tuple] = set()
-        for r in chunk:
-            mt = r["measured_at"].to_pydatetime()
-            key = (r["sn"], mt)
-            if key in seen:
-                continue  # 파일 내 중복 -> 마지막 값 유지(아래 덮어씀)
-            seen.add(key)
-            temp = float(r["temperature"])
-            feels = float(r["feels_like"])
-            humi = None if pd.isna(r["humidity"]) else int(r["humidity"])
-
-            row = existing_map.get(key)
-            if row is not None:
-                row.temperature = temp
-                row.humidity = humi
-                row.feels_like_temperature = feels
-                updated += 1
-            else:
-                new_objs.append(
-                    SensorLog(
-                        device_sn=r["sn"],
-                        measured_at=mt,
-                        temperature=temp,
-                        humidity=humi,
-                        feels_like_temperature=feels,
-                    )
+    # inserted/updated 집계: 기기별 시간범위 1회 인덱스 조회로 기존 키 파악
+    by_dev: dict[str, list] = {}
+    for rec in records:
+        by_dev.setdefault(rec["device_sn"], []).append(rec["measured_at"])
+    updated = 0
+    for sn, times in by_dev.items():
+        existing = set(
+            db.scalars(
+                select(SensorLog.measured_at).where(
+                    SensorLog.device_sn == sn,
+                    SensorLog.measured_at >= min(times),
+                    SensorLog.measured_at <= max(times),
                 )
-                inserted += 1
-        if new_objs:
-            db.bulk_save_objects(new_objs)
-        db.flush()
+            )
+        )
+        if existing:
+            updated += sum(1 for t in times if t in existing)
+    inserted = total - updated
 
+    # DB 방언별 네이티브 upsert
+    dialect = db.bind.dialect.name
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as _insert
+    elif dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert as _insert
+    else:
+        _insert = None
+
+    BATCH = 1000
+    if _insert is not None:
+        for i in range(0, total, BATCH):
+            batch = records[i : i + BATCH]
+            stmt = _insert(SensorLog).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["device_sn", "measured_at"],
+                set_={
+                    "temperature": stmt.excluded.temperature,
+                    "humidity": stmt.excluded.humidity,
+                    "feels_like_temperature": stmt.excluded.feels_like_temperature,
+                },
+            )
+            db.execute(stmt)
+    else:
+        # 폴백(기타 방언): 기존 키 삭제 후 일괄 삽입
+        for sn, times in by_dev.items():
+            db.query(SensorLog).filter(
+                SensorLog.device_sn == sn,
+                SensorLog.measured_at.in_(times),
+            ).delete(synchronize_session=False)
+        db.bulk_insert_mappings(SensorLog, records)
+
+    db.flush()
     return inserted, updated
