@@ -90,6 +90,7 @@ class KpiSummary(BaseModel):
 class DataRangeOut(BaseModel):
     min_date: str | None
     max_date: str | None
+    dates: list[str] = Field(default_factory=list)  # 데이터가 있는 일자 목록(YYYY-MM-DD)
 
 
 class SeriesPoint(BaseModel):

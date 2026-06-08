@@ -20,6 +20,7 @@ export default function App() {
   const [date, setDate] = useState("2026-06-03");
   const [rangeStart, setRangeStart] = useState("2026-06-01");
   const [rangeEnd, setRangeEnd] = useState("2026-06-03");
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [interval, setIntervalMin] = useState(10);
 
   const [kpi, setKpi] = useState<Kpi | null>(null);
@@ -51,8 +52,12 @@ export default function App() {
   const loadRange = useCallback(async (sn: string | null) => {
     try {
       const r = await api.dataRange(sn);
+      setAvailableDates(r.dates || []);
+      // 리포트 기간 = 업로드 데이터 전체 바운더리(가장 이른 날 ~ 최근 날)
       if (r.min_date) setRangeStart(r.min_date);
-      if (r.max_date) { setRangeEnd(r.max_date); setDate(r.max_date); }
+      if (r.max_date) setRangeEnd(r.max_date);
+      // 대시보드 기준 일자 = 가장 최근 날
+      if (r.max_date) setDate(r.max_date);
     } catch { /* 데이터 없으면 기본값 유지 */ }
   }, []);
 
@@ -82,9 +87,9 @@ export default function App() {
     await loadDevices();
     const r = results.find((x) => x.affected_devices.length > 0);
     if (r) {
-      setDeviceSn(r.affected_devices[0]);
-      if (r.min_date) setRangeStart(r.min_date);
-      if (r.max_date) { setRangeEnd(r.max_date); setDate(r.max_date); }
+      const sn = r.affected_devices[0];
+      setDeviceSn(sn);
+      await loadRange(sn);  // 전체 바운더리·날짜목록·기준일자 갱신(업로드 데이터 기준)
       const total = results.reduce((s, x) => s + x.rows_inserted + x.rows_updated, 0);
       setUploadNotice(
         `업로드 완료: ${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
@@ -92,7 +97,7 @@ export default function App() {
       );
       setStep(3);  // 대시보드로 자동 진행
     }
-  }, [loadDevices]);
+  }, [loadDevices, loadRange]);
 
   // 대시보드 데이터 로드
   useEffect(() => {
@@ -152,9 +157,16 @@ export default function App() {
                 ))}
               </select>
             </Field>
-            <Field label="기준 일자">
-              <input type="date" className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-                value={date} onChange={(e) => setDate(e.target.value)} />
+            <Field label="기준 일자 (데이터 보유일)">
+              {availableDates.length > 0 ? (
+                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={date} onChange={(e) => setDate(e.target.value)}>
+                  {availableDates.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              ) : (
+                <input type="date" className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                  value={date} onChange={(e) => setDate(e.target.value)} />
+              )}
             </Field>
             <Field label="다운샘플링">
               <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"

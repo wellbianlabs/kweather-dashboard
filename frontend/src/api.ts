@@ -83,7 +83,9 @@ export const api = {
   dataRange: (deviceSn: string | null) => {
     const p = new URLSearchParams();
     if (deviceSn) p.set("device_sn", deviceSn);
-    return getJSON<{ min_date: string | null; max_date: string | null }>(`/api/dashboard/data-range?${p}`);
+    return getJSON<{ min_date: string | null; max_date: string | null; dates: string[] }>(
+      `/api/dashboard/data-range?${p}`,
+    );
   },
 
   timeseries: (deviceSn: string, start: string, end: string, interval: number) => {

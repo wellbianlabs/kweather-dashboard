@@ -61,19 +61,36 @@ def load_logs(
 
 
 def data_range(db: Session, tenant: Tenant, device_sn: str | None) -> dict:
-    """테넌트(또는 특정 기기)의 데이터 일자 범위 — 대시보드 기본 날짜 설정용."""
-    from sqlalchemy import func
+    """테넌트(또는 특정 기기)의 데이터 일자 범위 + 데이터가 있는 날짜 목록.
+
+    리포트 기간(바운더리)과 대시보드 날짜 드롭다운 구성에 사용.
+    """
+    from sqlalchemy import Date, cast, distinct, func
 
     sns = _resolve_scope(db, tenant, device_sn)
     if not sns:
-        return {"min_date": None, "max_date": None}
+        return {"min_date": None, "max_date": None, "dates": []}
+
     mn, mx = db.execute(
         select(func.min(SensorLog.measured_at), func.max(SensorLog.measured_at))
         .where(SensorLog.device_sn.in_(sns))
     ).one()
+
+    # 데이터가 존재하는 distinct 일자 (방언 호환: 라벨 + 인덱스 접근)
+    date_expr = (
+        func.date(SensorLog.measured_at)
+        if db.bind.dialect.name == "sqlite"
+        else cast(SensorLog.measured_at, Date)
+    ).label("d")
+    rows = db.execute(
+        select(date_expr).where(SensorLog.device_sn.in_(sns)).distinct()
+    ).all()
+    dates = sorted({pd.to_datetime(r[0]).strftime("%Y-%m-%d") for r in rows if r[0] is not None})
+
     return {
         "min_date": pd.to_datetime(mn).strftime("%Y-%m-%d") if mn else None,
         "max_date": pd.to_datetime(mx).strftime("%Y-%m-%d") if mx else None,
+        "dates": dates,
     }
 
 
