@@ -87,6 +87,11 @@ class KpiSummary(BaseModel):
     thresholds: dict[str, float]
 
 
+class DataRangeOut(BaseModel):
+    min_date: str | None
+    max_date: str | None
+
+
 class SeriesPoint(BaseModel):
     t: datetime
     temperature: float | None

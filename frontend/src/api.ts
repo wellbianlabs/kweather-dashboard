@@ -80,6 +80,12 @@ export const api = {
     return getJSON<Kpi>(`/api/dashboard/kpi?${p}`);
   },
 
+  dataRange: (deviceSn: string | null) => {
+    const p = new URLSearchParams();
+    if (deviceSn) p.set("device_sn", deviceSn);
+    return getJSON<{ min_date: string | null; max_date: string | null }>(`/api/dashboard/data-range?${p}`);
+  },
+
   timeseries: (deviceSn: string, start: string, end: string, interval: number) => {
     const p = new URLSearchParams({ device_sn: deviceSn, start, end, interval: String(interval) });
     return getJSON<TimeSeries>(`/api/dashboard/timeseries?${p}`);

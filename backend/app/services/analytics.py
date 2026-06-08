@@ -60,6 +60,23 @@ def load_logs(
     return df
 
 
+def data_range(db: Session, tenant: Tenant, device_sn: str | None) -> dict:
+    """테넌트(또는 특정 기기)의 데이터 일자 범위 — 대시보드 기본 날짜 설정용."""
+    from sqlalchemy import func
+
+    sns = _resolve_scope(db, tenant, device_sn)
+    if not sns:
+        return {"min_date": None, "max_date": None}
+    mn, mx = db.execute(
+        select(func.min(SensorLog.measured_at), func.max(SensorLog.measured_at))
+        .where(SensorLog.device_sn.in_(sns))
+    ).one()
+    return {
+        "min_date": pd.to_datetime(mn).strftime("%Y-%m-%d") if mn else None,
+        "max_date": pd.to_datetime(mx).strftime("%Y-%m-%d") if mx else None,
+    }
+
+
 def _resolve_scope(db: Session, tenant: Tenant, device_sn: str | None) -> list[str]:
     """device_sn 이 주어지면 테넌트 소유 검증 후 단일, 아니면 전체 기기."""
     owned = _tenant_device_sns(db, tenant)

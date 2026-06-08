@@ -9,10 +9,19 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_tenant
 from ..models import Tenant
-from ..schemas import KpiSummary, TimeSeriesOut
+from ..schemas import DataRangeOut, KpiSummary, TimeSeriesOut
 from ..services import analytics
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+
+
+@router.get("/data-range", response_model=DataRangeOut)
+def data_range(
+    device_sn: str | None = None,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    return analytics.data_range(db, tenant, device_sn)
 
 
 @router.get("/kpi", response_model=KpiSummary)

@@ -47,6 +47,15 @@ export default function App() {
     return ds;
   }, []);
 
+  // 데이터가 있는 최근 날짜로 기본 설정 (해당 기기 또는 전체)
+  const loadRange = useCallback(async (sn: string | null) => {
+    try {
+      const r = await api.dataRange(sn);
+      if (r.min_date) setRangeStart(r.min_date);
+      if (r.max_date) { setRangeEnd(r.max_date); setDate(r.max_date); }
+    } catch { /* 데이터 없으면 기본값 유지 */ }
+  }, []);
+
   // 인증 직후
   const onAuthed = useCallback((a: AuthData) => {
     setAuth(a);
@@ -60,11 +69,13 @@ export default function App() {
     setStep(2);
   }
 
-  // 로그인 후 기기 목록 로드
+  // 로그인 후 기기 목록 로드 + 데이터 최근 날짜로 기본 설정
   useEffect(() => {
     if (!auth) return;
-    loadDevices().catch((e) => setLoadErr(String(e)));
-  }, [auth, loadDevices]);
+    loadDevices()
+      .then((ds) => loadRange(ds[0]?.device_sn ?? null))
+      .catch((e) => setLoadErr(String(e)));
+  }, [auth, loadDevices, loadRange]);
 
   // 업로드 직후: 업로드한 기기/일자로 대시보드 자동 이동
   const handleUploaded = useCallback(async (results: UploadResult[]) => {
@@ -131,7 +142,8 @@ export default function App() {
           <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
             <Field label="기기 선택">
               <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-                value={deviceSn ?? ""} onChange={(e) => setDeviceSn(e.target.value || null)}>
+                value={deviceSn ?? ""}
+                onChange={(e) => { const v = e.target.value || null; setDeviceSn(v); loadRange(v); }}>
                 <option value="">(전체 사업장)</option>
                 {devices.map((d) => (
                   <option key={d.device_sn} value={d.device_sn}>
