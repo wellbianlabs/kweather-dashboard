@@ -105,42 +105,197 @@ def _daily_chart(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls)
     return _fig_to_data_uri(fig)
 
 
+def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls) -> dict:
+    """일일 상세 리포트용 데이터 — KPI, 단계별 지속시간, 시간대별 집계, 내부 vs 외부(기상청) 비교, 분석 코멘트."""
+    from . import weather as weather_svc  # 지연 임포트(순환 방지)
+
+    start = datetime.combine(on_date, time.min)
+    end = datetime.combine(on_date, time.max)
+    dev = db.get(Device, device_sn)
+    th = heat.thresholds()
+    df = analytics.load_logs(db, [device_sn], start, end)
+
+    out: dict = {
+        "device_sn": device_sn,
+        "company_name": dev.company_name if dev else None,
+        "location_name": dev.location_name if dev else None,
+        "address": dev.address if dev else None,
+        "date": on_date.isoformat(),
+        "levels": heat.LEVELS,
+        "has_data": not df.empty,
+    }
+    if df.empty:
+        safe = heat.LEVELS["safe"]
+        out.update(
+            peak_label=safe.label, peak_color=safe.color, guidance=analytics._GUIDANCE["safe"],
+            hours=[], level_minutes={}, total_minutes=0, weather=None, analysis=[],
+        )
+        return out
+
+    feels, temps, humi = df["feels_like"], df["temperature"], df["humidity"]
+    n = len(df)
+    idx_max = feels.idxmax()
+    max_feels = round(float(feels.loc[idx_max]), 1)
+    max_time = pd.to_datetime(df.loc[idx_max, "measured_at"]).strftime("%H:%M")
+    peak = heat.classify(max_feels)
+
+    # 단계별 누적 분 (1분 주기 가정)
+    lm = {
+        "danger": int((feels >= th["danger"]).sum()),
+        "warning": int(((feels >= th["warning"]) & (feels < th["danger"])).sum()),
+        "caution": int(((feels >= th["caution"]) & (feels < th["warning"])).sum()),
+        "attention": int(((feels >= th["attention"]) & (feels < th["caution"])).sum()),
+        "safe": int((feels < th["attention"]).sum()),
+    }
+
+    # 시간대별 평균
+    s = df.set_index("measured_at")[["temperature", "feels_like", "humidity"]].resample("1h").mean()
+
+    # 외부(기상청) 비교 — 시간단위
+    try:
+        cmp = weather_svc.compare(db, tenant, device_sn, start, end, 60)
+    except Exception:  # noqa: BLE001
+        cmp = None
+    out_by_h = {pd.Timestamp(p.t).hour: p.outdoor_temperature for p in cmp.points} if cmp else {}
+    del_by_h = {pd.Timestamp(p.t).hour: p.delta for p in cmp.points} if cmp else {}
+
+    hours = []
+    for idx, row in s.iterrows():
+        h = idx.hour
+        f = None if pd.isna(row["feels_like"]) else round(float(row["feels_like"]), 1)
+        lvl = heat.classify(f)
+        hours.append({
+            "hour": h, "feels": f,
+            "temp": None if pd.isna(row["temperature"]) else round(float(row["temperature"]), 1),
+            "humidity": None if pd.isna(row["humidity"]) else int(round(float(row["humidity"]))),
+            "label": lvl.label, "color": lvl.color,
+            "outdoor": out_by_h.get(h), "delta": del_by_h.get(h),
+        })
+
+    deltas = [x["delta"] for x in hours if x["delta"] is not None]
+    avg_delta = round(sum(deltas) / len(deltas), 1) if deltas else None
+    avg_humi = round(float(humi.mean()), 1) if humi.notna().any() else None
+
+    weather = None
+    if cmp:
+        weather = {
+            "provider": cmp.provider, "max_delta": cmp.max_delta, "avg_delta": avg_delta,
+            "enclosed_alert": cmp.enclosed_alert, "threshold": cmp.enclosed_threshold,
+        }
+
+    # 자동 분석 코멘트
+    analysis: list[str] = []
+    if lm["danger"]:
+        analysis.append(f"체감온도 38°C(위험) 이상이 하루 {lm['danger']}분 지속되어 옥외작업 원칙적 중지 기준에 해당합니다.")
+    analysis.append(f"최고 체감온도는 {max_time}에 {max_feels}°C 로 정점에 도달했습니다.")
+    if weather and cmp.enclosed_alert:
+        analysis.append(
+            f"내부 체감온도가 외부({cmp.provider}) 기온보다 최대 {cmp.max_delta}°C 높아 '밀폐형 폭염 사업장'으로 "
+            f"분류됩니다(경고 임계 {cmp.enclosed_threshold}°C). 환기·차열·국소냉방 등 작업환경 개선이 시급합니다."
+        )
+    elif weather and avg_delta is not None:
+        analysis.append(f"내부 체감온도가 외부 기온보다 평균 {avg_delta}°C 높습니다(최대 {cmp.max_delta}°C).")
+    if avg_humi is not None and avg_humi >= 70:
+        analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 땀 증발이 저해되어 온열질환 위험이 가중됩니다.")
+
+    out.update(
+        max_feels=max_feels, max_time=max_time, max_temp=round(float(temps.max()), 1),
+        avg_feels=round(float(feels.mean()), 1), avg_humidity=avg_humi, record_count=n,
+        range_start=pd.to_datetime(df["measured_at"].min()).strftime("%H:%M"),
+        range_end=pd.to_datetime(df["measured_at"].max()).strftime("%H:%M"),
+        peak_label=peak.label, peak_color=peak.color, guidance=analytics._GUIDANCE[peak.code],
+        level_minutes=lm, total_minutes=n, hours=hours, weather=weather, analysis=analysis,
+    )
+    return out
+
+
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
-h1 { font-size: 16pt; border-bottom: 2px solid #1e293b; padding-bottom:4px; }
-.sub { color:#475569; font-size:9pt; margin-bottom:10px; }
-table { width:100%; border-collapse: collapse; margin: 8px 0; }
-th, td { border:1px solid #cbd5e1; padding:5px 7px; text-align:left; }
-th { background:#f1f5f9; }
-.badge { display:inline-block; padding:3px 10px; border-radius:10px; color:#fff; font-weight:bold; }
-.guide li { margin: 3px 0; }
-.pb { page-break-after: always; }
-.footer { color:#94a3b8; font-size:8pt; margin-top:16px; }
+@page { size: A4; margin: 1.4cm; }
+body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1e293b; }
+h1 { font-size: 15pt; margin:0 0 2px 0; }
+h2 { font-size: 10.5pt; margin:12px 0 4px 0; padding-bottom:2px; border-bottom:1.5px solid #1e293b; }
+.sub { color:#64748b; font-size:8.5pt; }
+.hr { border:0; border-top:2px solid #1e293b; margin:4px 0 8px 0; }
+table { width:100%; border-collapse: collapse; }
+.kpi td { border:1px solid #e2e8f0; padding:6px 8px; }
+.kpi .k { background:#f8fafc; color:#475569; font-size:8pt; width:16%; }
+.kpi .v { font-weight:bold; font-size:11pt; width:17%; }
+.badge { display:inline-block; padding:2px 9px; border-radius:9px; color:#fff; font-weight:bold; }
+.bars td { padding:2px 4px; vertical-align:middle; }
+.bars .bl { width:120px; font-size:8.5pt; }
+.bars .bv { width:70px; text-align:right; font-size:8.5pt; color:#334155; }
+.track { background:#f1f5f9; width:100%; }
+.strip { table-layout:fixed; margin-top:4px; }
+.strip td { border:1px solid #fff; padding:3px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.15; }
+.cmp th, .cmp td { border:1px solid #e2e8f0; padding:3px 4px; text-align:center; font-size:8pt; }
+.cmp .rowh { background:#f8fafc; text-align:left; color:#475569; }
+.alert { border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; padding:6px 9px; border-radius:6px; font-size:8.5pt; margin:4px 0; }
+.note li, .guide li { margin:2px 0; font-size:8.8pt; }
+.footer { color:#94a3b8; font-size:7.5pt; margin-top:12px; border-top:1px solid #e2e8f0; padding-top:4px; }
 </style></head><body>
-<h1>일일 안전관리 보고서</h1>
-<div class="sub">
-  사업장: {{ d.company_name or '-' }} / 설치위치: {{ d.location_name or '-' }}<br/>
-  기기: {{ d.device_sn }} &nbsp;|&nbsp; 일자: {{ d.date }} &nbsp;|&nbsp;
-  최고 위험단계: <span class="badge" style="background:{{ d.peak_level.color }}">{{ d.peak_level.label }}</span>
-</div>
 
-<table>
-  <tr><th>최고 체감온도</th><td>{{ d.max_feels_like if d.max_feels_like is not none else '-' }} °C ({{ d.max_feels_like_time or '-' }})</td>
-      <th>최고 온도</th><td>{{ d.max_temperature if d.max_temperature is not none else '-' }} °C</td></tr>
-  <tr><th>평균 습도</th><td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }} %</td>
-      <th>측정 건수</th><td>{{ record_count }} 건</td></tr>
-  <tr><th>33°C 이상 누적</th><td>{{ d.minutes_over_33 }} 분</td>
-      <th>35°C / 38°C 이상</th><td>{{ d.minutes_over_35 }} 분 / {{ d.minutes_over_38 }} 분</td></tr>
+<h1>일일 안전관리 종합 보고서</h1>
+<div class="sub">
+  사업장: <b>{{ d.company_name or '-' }}</b> &nbsp;|&nbsp; 설치위치: {{ d.location_name or '-' }} &nbsp;|&nbsp; {{ d.address or '' }}<br/>
+  기기 SN: {{ d.device_sn }} &nbsp;|&nbsp; 일자: {{ d.date }} ({{ d.range_start }}~{{ d.range_end }}, {{ d.record_count }}건)
+  &nbsp;|&nbsp; 최고 위험단계: <span class="badge" style="background:{{ d.peak_color }}">{{ d.peak_label }}</span>
+</div>
+<hr class="hr"/>
+
+<h2>1. 측정 요약</h2>
+<table class="kpi">
+  <tr>
+    <td class="k">최고 체감온도</td><td class="v" style="color:{{ d.peak_color }}">{{ d.max_feels }}°C</td>
+    <td class="k">발생 시각</td><td class="v">{{ d.max_time }}</td>
+    <td class="k">최고 온도</td><td class="v">{{ d.max_temp }}°C</td>
+  </tr>
+  <tr>
+    <td class="k">평균 체감온도</td><td class="v">{{ d.avg_feels }}°C</td>
+    <td class="k">평균 습도</td><td class="v">{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td>
+    <td class="k">위험(38°C↑) 지속</td><td class="v" style="color:#dc2626">{{ d.level_minutes['danger'] }}분</td>
+  </tr>
 </table>
 
-{% if chart %}<img src="{{ chart }}" style="width:480pt;"/>{% else %}<p style="color:#94a3b8; font-size:9pt;">※ 상세 체감온도 추이 차트는 웹 대시보드에서 인터랙티브로 확인하실 수 있습니다.</p>{% endif %}
+<h2>2. 폭염 위험 단계별 지속시간</h2>
+<table class="cmp">
+  <tr><th class="rowh">위험 단계</th>{% for code in ['safe','attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
+  <tr><td class="rowh">지속시간</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ d.level_minutes[code] }}분</td>{% endfor %}</tr>
+  <tr><td class="rowh">비율</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ ((d.level_minutes[code] / d.total_minutes * 100) | round(0) | int) if d.total_minutes else 0 }}%</td>{% endfor %}</tr>
+</table>
 
-<h3>안전조치 이행 가이드</h3>
+<h2>3. 시간대별 체감온도 추이 (시간평균, 단계 색상)</h2>
+<table class="strip"><tr>
+{% for h in d.hours %}
+  <td style="background:{{ h.color }}">{{ '%02d'|format(h.hour) }}시<br/><b>{{ h.feels if h.feels is not none else '-' }}</b></td>
+{% endfor %}
+</tr></table>
+{% if chart %}<div style="margin-top:6px;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
+
+<h2>4. 내부(현장) vs 외부(기상청) 비교 분석</h2>
+{% if d.weather %}
+  {% if d.weather.enclosed_alert %}
+  <div class="alert">⚠️ <b>밀폐형 폭염 사업장 경고</b> — 내부 체감온도가 외부({{ d.weather.provider }}) 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높습니다(경고 임계 {{ d.weather.threshold }}°C 초과).</div>
+  {% endif %}
+  <table class="cmp">
+    <tr><th class="rowh">시각</th>{% for h in d.hours if h.hour % 2 == 0 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
+    <tr><td class="rowh">내부 체감(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="rowh">외부 기온(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.outdoor if h.outdoor is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="rowh">격차(내부-외부)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
+  </table>
+  <div class="sub" style="margin-top:3px;">※ 외부 데이터 출처: {{ d.weather.provider }} ({{ '기상청 ASOS' if d.weather.provider == 'kma' else '시뮬레이션(키 미설정)' }}). 격차가 클수록 복사열·밀폐 영향이 큼.</div>
+{% else %}
+  <p class="sub">외부 비교 데이터를 불러올 수 없습니다.</p>
+{% endif %}
+
+<h2>5. 종합 분석</h2>
+<ul class="note">{% for a in d.analysis %}<li>{{ a }}</li>{% endfor %}</ul>
+
+<h2>6. 안전조치 이행 가이드</h2>
 <ul class="guide">{% for g in d.guidance %}<li>{{ g }}</li>{% endfor %}</ul>
 
-<div class="footer">본 보고서는 케이웨더 체감온도계 대시보드에서 자동 생성되었습니다. (생성일 {{ generated }})</div>
+<div class="footer">본 보고서는 케이웨더 체감온도계 연동 대시보드에서 자동 생성되었습니다. · 위험단계 기준(체감온도): 관심 31 / 주의 33 / 경고 35 / 위험 38°C · 생성일 {{ generated }}</div>
 </body></html>
 """
 )
@@ -153,16 +308,9 @@ def _html_to_pdf(html: str) -> bytes:
 
 
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
-    data = analytics.daily_report_data(db, tenant, device_sn, on_date)
-    chart = _daily_chart(db, tenant, device_sn, on_date)
-    kpi = analytics.kpi_summary(
-        db, tenant, device_sn,
-        datetime.combine(on_date, time.min), datetime.combine(on_date, time.max),
-    )
-    html = _DAILY_TEMPLATE.render(
-        d=data, chart=chart, record_count=kpi.record_count,
-        pdf_font=_PDF_FONT, generated=generated,
-    )
+    # 시간대별 히트스트립(섹션3)이 추이를 시각화하므로, 한 페이지에 담기 위해 별도 라인차트는 생략.
+    d = _daily_detail(db, tenant, device_sn, on_date)
+    html = _DAILY_TEMPLATE.render(d=d, chart=None, pdf_font=_PDF_FONT, generated=generated)
     return _html_to_pdf(html)
 
 

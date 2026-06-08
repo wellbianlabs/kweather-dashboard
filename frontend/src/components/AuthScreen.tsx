@@ -1,0 +1,108 @@
+import { useState } from "react";
+import { api, setToken } from "../api";
+import type { AuthData } from "../types";
+
+export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [company, setCompany] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const auth = mode === "login"
+        ? await api.login(email, password)
+        : await api.signup(email, password, company);
+      setToken(auth.token);
+      onAuthed(auth);
+    } catch (err: any) {
+      setError(String(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function demo() {
+    setBusy(true);
+    setError(null);
+    try {
+      setToken("demo-key");
+      const auth = await api.me();
+      onAuthed(auth);
+    } catch (err: any) {
+      setError("데모 로그인 실패: " + String(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inp = "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700 px-4">
+      <div className="w-full max-w-md">
+        <div className="mb-6 text-center text-white">
+          <div className="text-4xl">🌡️</div>
+          <h1 className="mt-2 text-xl font-bold">케이웨더 체감온도계 대시보드</h1>
+          <p className="text-sm text-slate-300">폭염·체감온도 안전보건 모니터링</p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-6 shadow-xl">
+          <div className="mb-5 flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
+            <button
+              onClick={() => { setMode("login"); setError(null); }}
+              className={`flex-1 rounded-md py-2 ${mode === "login" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
+            >로그인</button>
+            <button
+              onClick={() => { setMode("signup"); setError(null); }}
+              className={`flex-1 rounded-md py-2 ${mode === "signup" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
+            >회원가입</button>
+          </div>
+
+          <form onSubmit={submit} className="space-y-3">
+            {mode === "signup" && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">회사명 / 사업장명</label>
+                <input className={inp} value={company} onChange={(e) => setCompany(e.target.value)}
+                       placeholder="(주)한국제강" required />
+              </div>
+            )}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">이메일</label>
+              <input type="email" className={inp} value={email} onChange={(e) => setEmail(e.target.value)}
+                     placeholder="safety@company.com" required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">비밀번호</label>
+              <input type="password" className={inp} value={password} onChange={(e) => setPassword(e.target.value)}
+                     placeholder="••••••••" required minLength={4} />
+            </div>
+
+            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+
+            <button type="submit" disabled={busy}
+                    className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              {busy ? "처리 중..." : mode === "login" ? "로그인" : "회원가입하고 시작하기"}
+            </button>
+          </form>
+
+          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+            <div className="h-px flex-1 bg-slate-200" /> 또는 <div className="h-px flex-1 bg-slate-200" />
+          </div>
+          <button onClick={demo} disabled={busy}
+                  className="w-full rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            데모 계정으로 둘러보기
+          </button>
+        </div>
+        <p className="mt-4 text-center text-xs text-slate-400">
+          가입하면 회사별로 격리된 안전한 공간에서 데이터를 관리합니다.
+        </p>
+      </div>
+    </div>
+  );
+}

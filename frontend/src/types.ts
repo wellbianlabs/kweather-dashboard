@@ -1,3 +1,10 @@
+export interface AuthData {
+  token: string;
+  email: string | null;
+  company_name: string;
+  has_data: boolean;
+}
+
 export interface Device {
   device_sn: string;
   company_name: string | null;

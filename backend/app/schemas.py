@@ -6,6 +6,25 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ---------- Auth ----------
+class SignupIn(BaseModel):
+    email: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=4, max_length=128)
+    company_name: str = Field(min_length=1, max_length=120)
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class AuthOut(BaseModel):
+    token: str           # X-API-Key 로 사용
+    email: str | None
+    company_name: str
+    has_data: bool = False  # 기존 업로드 데이터 유무 (온보딩 단계 결정용)
+
+
 # ---------- Device ----------
 class DeviceBase(BaseModel):
     company_name: str | None = None

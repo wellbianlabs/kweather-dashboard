@@ -5,18 +5,43 @@ import type {
   WeatherCompare,
   UploadResult,
   DailyReport,
+  AuthData,
 } from "./types";
 
-// 데모 테넌트 키. 실제 환경에서는 로그인/발급된 키로 대체.
-const API_KEY = localStorage.getItem("kw_api_key") || "demo-key";
 // 배포 시 백엔드 URL(VITE_API_BASE). 로컬/단일오리진은 빈 값(개발 시 Vite 프록시가 8000으로 전달).
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
+export const TOKEN_KEY = "kw_api_key";
 
 // 모든 요청 경로에 BASE 접두
 const u = (path: string) => BASE + path;
 
+// 토큰은 매 요청마다 localStorage 에서 최신값을 읽는다(로그인/로그아웃 즉시 반영).
+export function getToken(): string {
+  return localStorage.getItem(TOKEN_KEY) || "";
+}
+export function setToken(t: string) {
+  localStorage.setItem(TOKEN_KEY, t);
+}
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 function headers(extra: Record<string, string> = {}) {
-  return { "X-API-Key": API_KEY, ...extra };
+  return { "X-API-Key": getToken(), ...extra };
+}
+
+async function postJSON<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(u(url), {
+    method: "POST",
+    headers: headers({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = await r.text();
+    try { detail = JSON.parse(detail).detail ?? detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
 }
 
 async function getJSON<T>(url: string): Promise<T> {
@@ -26,7 +51,12 @@ async function getJSON<T>(url: string): Promise<T> {
 }
 
 export const api = {
-  apiKey: API_KEY,
+  // ---- Auth ----
+  signup: (email: string, password: string, company_name: string) =>
+    postJSON<AuthData>("/api/auth/signup", { email, password, company_name }),
+  login: (email: string, password: string) =>
+    postJSON<AuthData>("/api/auth/login", { email, password }),
+  me: () => getJSON<AuthData>("/api/auth/me"),
 
   health: () => getJSON<any>("/api/health"),
 
