@@ -27,3 +27,6 @@ sample_data/
 
 # 폰트는 배포에 필요하므로 포함 (NanumGothic, OFL 라이선스)
 !backend/app/fonts/
+
+# TS build info
+frontend/tsconfig.tsbuildinfo
