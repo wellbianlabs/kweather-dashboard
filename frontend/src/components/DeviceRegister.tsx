@@ -13,11 +13,33 @@ export function DeviceRegister({
 }: { devices: Device[]; defaultCompany: string; onChange: () => void }) {
   const [form, setForm] = useState(EMPTY(defaultCompany));
   const [busy, setBusy] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm({ ...form, [k]: v });
+  }
+
+  async function geocode() {
+    const addr = (form.address || "").trim();
+    setGeoMsg(null); setError(null);
+    if (!addr) { setError("주소를 먼저 입력하세요."); return; }
+    setGeoBusy(true);
+    try {
+      const r = await api.geocode(addr);
+      setForm((f) => ({ ...f, latitude: r.lat, longitude: r.lon }));
+      setGeoMsg(
+        `매칭됨(${r.provider === "kakao" ? "카카오" : "OSM·근사"}): ${r.matched} → 위도 ${r.lat}, 경도 ${r.lon}` +
+        (r.provider === "nominatim" ? " · 정확도가 낮을 수 있어 확인 후 사용하세요." : "")
+      );
+    } catch (e: any) {
+      const m = String(e.message || e);
+      setError(m.includes("404") || m.includes("찾지") ? "주소를 찾지 못했습니다. 더 구체적으로(시/구/도로명) 입력해 주세요." : m);
+    } finally {
+      setGeoBusy(false);
+    }
   }
 
   async function register() {
@@ -37,6 +59,7 @@ export function DeviceRegister({
       setOkMsg(`기기 ${form.device_sn.trim()} 등록 완료. 같은 회사의 다른 장소·기기도 계속 추가할 수 있습니다.`);
       // 회사명은 유지하고 나머지 비움 → 연속 등록 편의
       setForm({ ...EMPTY(form.company_name) });
+      setGeoMsg(null);
       onChange();
     } catch (e: any) {
       const msg = String(e.message || e);
@@ -72,21 +95,33 @@ export function DeviceRegister({
             <input className={inp} value={form.location_name} onChange={(e) => set("location_name", e.target.value)}
                    placeholder="예: 제2공장 정련로 앞" />
           </label>
-          <label className="flex flex-col gap-1 md:col-span-1">
-            <span className="text-xs font-medium text-slate-600">주소</span>
-            <input className={inp} value={form.address} onChange={(e) => set("address", e.target.value)}
-                   placeholder="예: 부산 사하구 다대로" />
-          </label>
+          <div className="md:col-span-3">
+            <span className="mb-1 block text-xs font-medium text-slate-600">
+              주소 <span className="text-slate-400">— 입력 후 '좌표 찾기'를 누르면 위경도가 자동 입력됩니다</span>
+            </span>
+            <div className="flex gap-2">
+              <input className={`${inp} flex-1`} value={form.address} onChange={(e) => set("address", e.target.value)}
+                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); geocode(); } }}
+                     placeholder="예: 부산 사하구 다대로 627" />
+              <button type="button" onClick={geocode} disabled={geoBusy}
+                      className="shrink-0 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50">
+                {geoBusy ? "찾는 중..." : "📍 좌표 찾기"}
+              </button>
+            </div>
+          </div>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-slate-600">위도</span>
             <input className={inp} value={form.latitude} onChange={(e) => set("latitude", e.target.value)}
-                   placeholder="예: 35.0966" />
+                   placeholder="자동/직접 입력" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-slate-600">경도</span>
             <input className={inp} value={form.longitude} onChange={(e) => set("longitude", e.target.value)}
-                   placeholder="예: 128.9663" />
+                   placeholder="자동/직접 입력" />
           </label>
+          {geoMsg && (
+            <div className="rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700 md:col-span-3">{geoMsg}</div>
+          )}
         </div>
 
         {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}

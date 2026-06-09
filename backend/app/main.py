@@ -16,7 +16,7 @@ from sqlalchemy import select
 from .config import settings
 from .database import SessionLocal, init_db
 from .models import Tenant
-from .routers import auth, dashboard, devices, reports, upload, weather
+from .routers import auth, dashboard, devices, geocode, reports, upload, weather
 
 DEMO_API_KEY = "demo-key"
 
@@ -39,6 +39,7 @@ app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(devices.router)
 app.include_router(dashboard.router)
+app.include_router(geocode.router)
 app.include_router(weather.router)
 app.include_router(reports.router)
 

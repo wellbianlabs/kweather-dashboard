@@ -91,6 +91,11 @@ export const api = {
     return getJSON<Kpi>(`/api/dashboard/kpi?${p}`);
   },
 
+  geocode: (address: string) =>
+    getJSON<{ lat: number; lon: number; matched: string; provider: string }>(
+      `/api/geocode?address=${encodeURIComponent(address)}`,
+    ),
+
   dataRange: (deviceSn: string | null) => {
     const p = new URLSearchParams();
     if (deviceSn) p.set("device_sn", deviceSn);

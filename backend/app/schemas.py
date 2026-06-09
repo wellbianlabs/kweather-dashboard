@@ -87,6 +87,13 @@ class KpiSummary(BaseModel):
     thresholds: dict[str, float]
 
 
+class GeocodeOut(BaseModel):
+    lat: float
+    lon: float
+    matched: str       # 매칭된 주소(확인용)
+    provider: str      # kakao | nominatim
+
+
 class DataRangeOut(BaseModel):
     min_date: str | None
     max_date: str | None

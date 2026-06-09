@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     WEATHER_PROVIDER: str = "mock"
     KMA_API_KEY: str = ""  # 공공데이터포털 서비스키 (WEATHER_PROVIDER=kma 일 때 사용)
 
+    # 지오코딩(주소 -> 위경도). 카카오 REST 키가 있으면 한국 주소 정확도가 높아짐.
+    # 없으면 Nominatim(OpenStreetMap, 키 불필요)으로 폴백.
+    KAKAO_REST_KEY: str = ""
+
     # 폭염 위험 단계 임계값 (체감온도 A-TEMP, 단위 ℃)  — 고용노동부/기상청 기준
     HEAT_ATTENTION: float = 31.0  # 관심
     HEAT_CAUTION: float = 33.0    # 주의
