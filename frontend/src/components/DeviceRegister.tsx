@@ -22,24 +22,42 @@ export function DeviceRegister({
     setForm({ ...form, [k]: v });
   }
 
-  async function geocode() {
-    const addr = (form.address || "").trim();
+  async function geocodeAddress(addr: string) {
     setGeoMsg(null); setError(null);
+    addr = (addr || "").trim();
     if (!addr) { setError("주소를 먼저 입력하세요."); return; }
     setGeoBusy(true);
     try {
       const r = await api.geocode(addr);
-      setForm((f) => ({ ...f, latitude: r.lat, longitude: r.lon }));
+      setForm((f) => ({ ...f, address: addr, latitude: r.lat, longitude: r.lon }));
       setGeoMsg(
         `매칭됨(${r.provider === "kakao" ? "카카오" : "OSM·근사"}): ${r.matched} → 위도 ${r.lat}, 경도 ${r.lon}` +
         (r.provider === "nominatim" ? " · 정확도가 낮을 수 있어 확인 후 사용하세요." : "")
       );
     } catch (e: any) {
       const m = String(e.message || e);
-      setError(m.includes("404") || m.includes("찾지") ? "주소를 찾지 못했습니다. 더 구체적으로(시/구/도로명) 입력해 주세요." : m);
+      setError(m.includes("404") || m.includes("찾지") ? "주소를 찾지 못했습니다. 주소 검색으로 선택해 주세요." : m);
     } finally {
       setGeoBusy(false);
     }
+  }
+
+  // 다음(카카오) 우편번호 주소검색 팝업 — 도로명/지번 자동완성. 선택 시 주소+위경도 자동 입력.
+  function openPostcode() {
+    setError(null);
+    const onComplete = (data: any) => {
+      const road = data.roadAddress || data.jibunAddress || data.address;
+      const full = data.buildingName ? `${road} (${data.buildingName})` : road;
+      geocodeAddress(road);          // 공식 주소 → 위경도 (정확)
+      setForm((f) => ({ ...f, address: full }));
+    };
+    const open = () => new (window as any).daum.Postcode({ oncomplete: onComplete }).open();
+    if ((window as any).daum?.Postcode) { open(); return; }
+    const script = document.createElement("script");
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.onload = open;
+    script.onerror = () => setError("주소검색 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    document.body.appendChild(script);
   }
 
   async function register() {
@@ -97,15 +115,19 @@ export function DeviceRegister({
           </label>
           <div className="md:col-span-3">
             <span className="mb-1 block text-xs font-medium text-slate-600">
-              주소 <span className="text-slate-400">— 입력 후 '좌표 찾기'를 누르면 위경도가 자동 입력됩니다</span>
+              주소 <span className="text-slate-400">— '주소 검색'으로 도로명/지번을 선택하면 주소·위경도가 자동 입력됩니다</span>
             </span>
             <div className="flex gap-2">
-              <input className={`${inp} flex-1`} value={form.address} onChange={(e) => set("address", e.target.value)}
-                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); geocode(); } }}
-                     placeholder="예: 부산 사하구 다대로 627" />
-              <button type="button" onClick={geocode} disabled={geoBusy}
-                      className="shrink-0 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50">
-                {geoBusy ? "찾는 중..." : "📍 좌표 찾기"}
+              <input className={`${inp} flex-1`} value={form.address} readOnly onClick={openPostcode}
+                     placeholder="주소 검색을 눌러 도로명·지번 주소를 선택하세요" />
+              <button type="button" onClick={openPostcode}
+                      className="shrink-0 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                🔍 주소 검색
+              </button>
+              <button type="button" onClick={() => geocodeAddress(form.address)} disabled={geoBusy || !form.address}
+                      className="shrink-0 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50"
+                      title="현재 주소로 좌표 다시 찾기">
+                {geoBusy ? "..." : "📍 좌표"}
               </button>
             </div>
           </div>
