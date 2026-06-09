@@ -102,9 +102,86 @@ class KmaWeatherProvider(WeatherProvider):
         return out
 
 
+class KWeatherProvider(WeatherProvider):
+    """케이웨더(Air365) Open API. 환경변수 KW_API_KEY + KW_BASE_URL 로 설정(Vercel 입력).
+
+    위치는 행정동 코드(10자리). device.region_code 에 코드가 있으면 사용,
+    없으면 위경도를 kw-gis-gps 로 변환. 현재 실황은 kw-odam1(t1h/senseTemp/reh).
+    """
+
+    name = "kweather"
+
+    def _get(self, client, sensor: str, code: str | None = None):
+        url = f"{settings.KW_BASE_URL}/{sensor}" + (f"/{code}" if code else "")
+        r = client.get(url, params={"api_key": settings.KW_API_KEY})
+        r.raise_for_status()
+        j = r.json()
+        if str(j.get("error")) != "0":
+            raise RuntimeError(j.get("message") or "KWeather error")
+        return j.get("data") or {}
+
+    def _dong_code(self, client, lat, lon, region_code) -> str | None:
+        if region_code and str(region_code).isdigit() and len(str(region_code)) >= 8:
+            return str(region_code)
+        if lat is None or lon is None:
+            return None
+        try:
+            data = self._get(client, "kw-gis-gps", f"{lat},{lon}")
+            if isinstance(data, dict) and data:
+                # 응답이 {코드:{...}} 또는 {hcode:...} 형태 — 코드 키/필드 추출
+                first = next(iter(data.values()))
+                if isinstance(first, dict):
+                    inner = first.get("data", first)
+                    for k in ("hcode", "code", "admCode", "hCode"):
+                        if inner.get(k):
+                            return str(inner[k])
+                key = next(iter(data.keys()))
+                if str(key).isdigit():
+                    return str(key)
+        except Exception:  # noqa: BLE001
+            return None
+        return None
+
+    def current(self, lat, lon, region_code) -> dict | None:
+        """현재 외부 실황: {temp, feels, humidity, ts, region}."""
+        if not settings.KW_API_KEY:
+            raise RuntimeError("KW_API_KEY 미설정")
+        with httpx.Client(timeout=12.0) as client:
+            code = self._dong_code(client, lat, lon, region_code)
+            if not code:
+                return None
+            data = self._get(client, "kw-odam1", code)
+            entry = data.get(code) or next(iter(data.values()), None)
+            if not entry:
+                return None
+            d = entry.get("data", {})
+            return {
+                "temp": d.get("t1h"),
+                "feels": d.get("senseTemp"),
+                "humidity": d.get("reh"),
+                "ts": entry.get("service", {}).get("timestamp"),
+                "region": " ".join(x for x in [d.get("state"), d.get("city"), d.get("city2")] if x),
+            }
+
+    def hourly_temps(self, lat, lon, region_code, start, end):
+        # 케이웨더 실황은 현재값 1점 — 타임스탬프가 조회 구간에 들면 해당 시각에 매핑.
+        cur = self.current(lat, lon, region_code)
+        if not cur or cur.get("temp") is None:
+            return {}
+        ts = str(cur.get("ts") or "")
+        try:
+            dt = datetime.strptime(ts[:12], "%Y%m%d%H%M").replace(minute=0, second=0, microsecond=0)
+        except Exception:  # noqa: BLE001
+            return {}
+        return {dt: float(cur["temp"])} if start <= dt <= end else {}
+
+
 def get_provider() -> WeatherProvider:
-    if settings.WEATHER_PROVIDER.lower() == "kma":
+    p = settings.WEATHER_PROVIDER.lower()
+    if p == "kma":
         return KmaWeatherProvider()
+    if p in ("kweather", "wellbian"):
+        return KWeatherProvider()
     return MockWeatherProvider()
 
 

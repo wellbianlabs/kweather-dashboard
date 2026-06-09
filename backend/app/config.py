@@ -23,9 +23,14 @@ class Settings(BaseSettings):
     # 기본값은 설정 없이 즉시 실행되는 SQLite. (PostgreSQL 전환은 .env에서 DATABASE_URL만 교체)
     DATABASE_URL: str = f"sqlite:///{(BASE_DIR / 'kweather.db').as_posix()}"
 
-    # 기상청/날씨 어댑터: "mock" | "kma"
+    # 날씨 어댑터: "mock" | "kma" | "kweather"
     WEATHER_PROVIDER: str = "mock"
     KMA_API_KEY: str = ""  # 공공데이터포털 서비스키 (WEATHER_PROVIDER=kma 일 때 사용)
+
+    # 케이웨더(Air365) Open API — WEATHER_PROVIDER=kweather 일 때 사용
+    # Vercel 환경변수로 직접 입력: KW_API_KEY(서비스키), KW_BASE_URL(엔드포인트)
+    KW_API_KEY: str = ""
+    KW_BASE_URL: str = "https://gateway.kweather.co.kr:8443/weather/w3/v2/kw-sensors"
 
     # 지오코딩(주소 -> 위경도). 카카오 REST 키가 있으면 한국 주소 정확도가 높아짐.
     # 없으면 Nominatim(OpenStreetMap, 키 불필요)으로 폴백.
