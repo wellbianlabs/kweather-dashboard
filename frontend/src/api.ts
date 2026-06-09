@@ -62,6 +62,17 @@ export const api = {
 
   listDevices: () => getJSON<Device[]>("/api/devices"),
 
+  createDevice: (payload: Partial<Device> & { device_sn: string }) =>
+    postJSON<Device>("/api/devices", payload),
+
+  deleteDevice: async (sn: string): Promise<void> => {
+    const r = await fetch(u(`/api/devices/${encodeURIComponent(sn)}`), {
+      method: "DELETE",
+      headers: headers(),
+    });
+    if (!r.ok && r.status !== 204) throw new Error(await r.text());
+  },
+
   updateDevice: async (sn: string, patch: Partial<Device>): Promise<Device> => {
     const r = await fetch(u(`/api/devices/${encodeURIComponent(sn)}`), {
       method: "PUT",

@@ -5,7 +5,7 @@ import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
 import { UploadPanel } from "./components/UploadPanel";
-import { DeviceManager } from "./components/DeviceManager";
+import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
 import { AuthScreen } from "./components/AuthScreen";
 import { Stepper, type Step } from "./components/Stepper";
@@ -36,7 +36,7 @@ export default function App() {
   useEffect(() => {
     if (!getToken()) { setBooting(false); return; }
     api.me()
-      .then((a) => { setAuth(a); setStep(a.has_data ? 3 : 2); })
+      .then((a) => { setAuth(a); setStep(a.has_data ? 4 : 2); })
       .catch(() => clearToken())
       .finally(() => setBooting(false));
   }, []);
@@ -61,10 +61,10 @@ export default function App() {
     } catch { /* 데이터 없으면 기본값 유지 */ }
   }, []);
 
-  // 인증 직후
+  // 인증 직후: 데이터 있으면 대시보드(4), 없으면 기기 등록(2)부터
   const onAuthed = useCallback((a: AuthData) => {
     setAuth(a);
-    setStep(a.has_data ? 3 : 2);
+    setStep(a.has_data ? 4 : 2);
   }, []);
 
   function logout() {
@@ -95,13 +95,13 @@ export default function App() {
         `업로드 완료: ${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
         `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`
       );
-      setStep(3);  // 대시보드로 자동 진행
+      setStep(4);  // 대시보드로 자동 진행
     }
   }, [loadDevices, loadRange]);
 
   // 대시보드 데이터 로드
   useEffect(() => {
-    if (!auth || step !== 3) return;
+    if (!auth || step !== 4) return;
     setLoadErr(null);
     api.kpi(deviceSn, dayStart, dayEnd).then(setKpi).catch((e) => setLoadErr(String(e)));
     if (deviceSn) {
@@ -141,8 +141,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* 대시보드 컨트롤 바 (3단계에서만) */}
-      {step === 3 && (
+      {/* 대시보드 컨트롤 바 (대시보드 단계에서만) */}
+      {step === 4 && (
         <div className="border-b border-slate-200 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
             <Field label="기기 선택">
@@ -200,22 +200,44 @@ export default function App() {
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadErr}</div>
         )}
 
-        {step === 2 ? (
+        {step === 2 && (
           <>
             <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              <b>2단계 — 데이터 업로드.</b> 케이웨더 CSV 파일을 올리면 기기가 자동 등록되고,
-              아래에서 사업장 정보(회사·위치·위경도)를 입력할 수 있습니다. 업로드하면 대시보드로 자동 이동합니다.
+              <b>2단계 — 사업장·기기 등록.</b> 데이터를 올리기 전에 먼저 기기를 등록하세요.
+              같은 회사라도 <b>장소·기기별로 각각 추가 등록</b>할 수 있습니다.
+            </div>
+            <DeviceRegister devices={devices} defaultCompany={auth.company_name} onChange={loadDevices} />
+            <button onClick={() => setStep(3)}
+                    className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700">
+              {canDashboard ? "다음: 데이터 업로드 →" : "기기 없이 업로드로 진행 →"}
+            </button>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <b>3단계 — 데이터 업로드.</b> 케이웨더 CSV(탭 구분) 파일을 올리세요.
+              파일의 기기 SN이 2단계에서 등록한 기기와 일치하면 그 사업장 정보에 데이터가 연결됩니다.
+              업로드하면 대시보드로 자동 이동합니다.
             </div>
             <UploadPanel onUploaded={handleUploaded} />
-            <DeviceManager devices={devices} onChange={loadDevices} />
-            {canDashboard && (
-              <button onClick={() => setStep(3)}
-                      className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700">
-                대시보드로 이동 →
+            <div className="flex gap-2">
+              <button onClick={() => setStep(2)}
+                      className="flex-1 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                ← 기기 등록으로
               </button>
-            )}
+              {canDashboard && (
+                <button onClick={() => setStep(4)}
+                        className="flex-1 rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700">
+                  대시보드로 이동 →
+                </button>
+              )}
+            </div>
           </>
-        ) : (
+        )}
+
+        {step === 4 && (
           <>
             {uploadNotice && (
               <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">

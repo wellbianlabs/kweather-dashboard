@@ -30,6 +30,12 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
     }
   }
 
+  async function remove(sn: string) {
+    if (!confirm(`기기 ${sn} 와(과) 해당 측정 데이터를 모두 삭제할까요?`)) return;
+    await api.deleteDevice(sn);
+    onChange();
+  }
+
   const inp = "w-full rounded border border-slate-300 px-2 py-1 text-sm";
 
   return (
@@ -76,7 +82,10 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
                       <td className="pr-2 text-slate-500">{d.latitude ?? "-"}</td>
                       <td className="pr-2 text-slate-500">{d.longitude ?? "-"}</td>
                       <td className="pr-2 text-slate-500">{d.region_code || "-"}</td>
-                      <td><button onClick={() => startEdit(d)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">편집</button></td>
+                      <td className="whitespace-nowrap">
+                        <button onClick={() => startEdit(d)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">편집</button>
+                        <button onClick={() => remove(d.device_sn)} className="ml-1 rounded bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100">삭제</button>
+                      </td>
                     </>
                   )}
                 </tr>
