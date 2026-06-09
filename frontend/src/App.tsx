@@ -28,6 +28,7 @@ export default function App() {
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
@@ -96,6 +97,26 @@ export default function App() {
         `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`
       );
       setStep(4);  // 대시보드로 자동 진행
+    }
+  }, [loadDevices, loadRange]);
+
+  // 케이웨더 IoT 단말기에서 실시간 측정값 가져오기
+  const handleSyncLive = useCallback(async () => {
+    setSyncing(true); setLoadErr(null);
+    try {
+      const res = await api.syncLive();
+      await loadDevices();
+      const sn = res.devices?.[0];
+      if (sn) { setDeviceSn(sn); await loadRange(sn); }
+      const errs = res.errors?.length ? ` (${res.errors.join(", ")})` : "";
+      setUploadNotice(
+        `케이웨더 단말기 실시간 동기화: ${res.devices?.length ?? 0}대 · ${res.ingested}건 반영${errs}`
+      );
+      setStep(4);
+    } catch (e: any) {
+      setLoadErr("실시간 동기화 실패: " + String(e.message || e));
+    } finally {
+      setSyncing(false);
     }
   }, [loadDevices, loadRange]);
 
@@ -222,6 +243,20 @@ export default function App() {
               업로드하면 대시보드로 자동 이동합니다.
             </div>
             <UploadPanel onUploaded={handleUploaded} />
+
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-indigo-900">또는 케이웨더 단말기에서 실시간 가져오기</div>
+                  <div className="text-xs text-indigo-700">CSV 업로드 없이 연동된 단말기의 최신 측정값을 바로 수집합니다.</div>
+                </div>
+                <button onClick={handleSyncLive} disabled={syncing}
+                        className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {syncing ? "가져오는 중..." : "🔄 실시간 측정값 가져오기"}
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button onClick={() => setStep(2)}
                       className="flex-1 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
