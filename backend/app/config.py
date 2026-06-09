@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Vercel 환경변수로 직접 입력: KW_API_KEY(서비스키), KW_BASE_URL(엔드포인트)
     KW_API_KEY: str = ""
     KW_BASE_URL: str = "https://gateway.kweather.co.kr:8443/weather/w3/v2/kw-sensors"
+    # 과거 1년자료(일별) 베이스 — w4/v2/cbko/{행정동코드}?startdate&enddate (별도 상품 권한 필요)
+    KW_PAST_BASE_URL: str = "https://gateway.kweather.co.kr:8443/weather/w4/v2"
 
     # 케이웨더 IoT 플랫폼 — 단말기 실시간 측정값(last-all). Vercel 환경변수로 직접 입력.
     KW_IOT_BASE_URL: str = "https://gateway.kweather.co.kr:8443/iot/groups/v2"

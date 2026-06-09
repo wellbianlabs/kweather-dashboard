@@ -153,6 +153,52 @@ class KWeatherProvider(WeatherProvider):
                 "region": " ".join(x for x in [d.get("state"), d.get("city"), d.get("city2")] if x),
             }
 
+    def past_daily(self, lat, lon, region_code, day) -> dict | None:
+        """특정 과거 일자의 외부 일별 요약(평균/최고/최저 기온, 평균 습도).
+
+        1년자료(w4/v2/cbko)를 우선 조회하고, 비어 있으면 전일날씨(kw-cbko1, w3)로 폴백한다.
+        day: datetime.date
+        """
+        if not settings.KW_API_KEY:
+            return None
+        ds = day.strftime("%Y%m%d")
+        with httpx.Client(timeout=12.0) as client:
+            code = self._dong_code(client, lat, lon, region_code)
+            if not code:
+                return None
+            # 1) 과거 1년자료 (별도 상품 권한 필요)
+            try:
+                r = client.get(
+                    f"{settings.KW_PAST_BASE_URL}/cbko/{code}",
+                    params={"startdate": ds, "enddate": ds, "api_key": settings.KW_API_KEY},
+                )
+                if r.status_code == 200 and str(r.json().get("error")) == "0":
+                    d = r.json().get("data") or {}
+                    avg = (d.get("temp") or {}).get(ds)
+                    mx = (d.get("maxTemp") or {}).get(ds)
+                    mn = (d.get("minTemp") or {}).get(ds)
+                    hu = (d.get("humi") or {}).get(ds)
+                    if avg is not None or mx is not None:
+                        return {"avg": avg, "max": mx, "min": mn, "humi": hu,
+                                "source": "케이웨더 과거자료",
+                                "region": " ".join(x for x in [d.get("state"), d.get("city"), d.get("city2")] if x)}
+            except Exception:  # noqa: BLE001
+                pass
+            # 2) 전일날씨(어제) 폴백 — 요청일이 cbko1 의 데이터 일자와 같을 때만
+            try:
+                data = self._get(client, "kw-cbko1", code)
+                entry = data.get(code) or next(iter(data.values()), None)
+                if entry:
+                    ts = str(entry.get("service", {}).get("timestamp") or "")
+                    dd = entry.get("data", {})
+                    if ts[:8] == ds and (dd.get("temp") is not None or dd.get("maxTemp") is not None):
+                        return {"avg": dd.get("temp"), "max": dd.get("maxTemp"), "min": dd.get("minTemp"),
+                                "humi": dd.get("humi"), "source": "케이웨더 전일",
+                                "region": " ".join(x for x in [dd.get("state"), dd.get("city"), dd.get("city2")] if x)}
+            except Exception:  # noqa: BLE001
+                pass
+        return None
+
     def hourly_temps(self, lat, lon, region_code, start, end):
         # 케이웨더 실황은 현재값 1점 — 타임스탬프가 조회 구간에 들면 해당 시각에 매핑.
         cur = self.current(lat, lon, region_code)
