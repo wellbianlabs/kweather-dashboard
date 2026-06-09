@@ -50,6 +50,9 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
           <div className="text-4xl">🌡️</div>
           <h1 className="mt-2 text-xl font-bold">케이웨더 체감온도계 대시보드</h1>
           <p className="text-sm text-slate-300">폭염·체감온도 안전보건 모니터링</p>
+          <span className="mt-3 inline-block rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/40">
+            🎁 케이웨더 단말기 이용자 평생 무료
+          </span>
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-xl">
@@ -100,7 +103,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
           </button>
         </div>
         <p className="mt-4 text-center text-xs text-slate-400">
-          가입하면 회사별로 격리된 안전한 공간에서 데이터를 관리합니다.
+          케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다.<br/>
+          회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는 <b className="text-slate-300">평생 무료</b>로 사용합니다.
         </p>
       </div>
     </div>
