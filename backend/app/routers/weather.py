@@ -15,32 +15,6 @@ from ..services import weather
 router = APIRouter(prefix="/api/weather", tags=["weather"])
 
 
-@router.get("/past-debug")
-def past_debug(device_sn: str, date: str, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)):
-    """임시 진단: 과거 1년자료(w4/cbko) 라이브 응답 확인."""
-    import httpx as _hx
-
-    from ..config import settings
-    from ..models import Device
-    from ..services import geocode as geo
-
-    dev = db.get(Device, device_sn)
-    if dev is None or dev.tenant_id != tenant.id:
-        raise HTTPException(404, "기기 없음")
-    code = (str(dev.region_code) if (dev.region_code and str(dev.region_code).isdigit() and len(str(dev.region_code)) >= 8) else None) \
-        or geo.region_code(dev.latitude, dev.longitude)
-    out = {"device": device_sn, "lat": dev.latitude, "lon": dev.longitude, "dong_code": code, "key_set": bool(settings.KW_API_KEY)}
-    if code:
-        try:
-            r = _hx.get(f"{settings.KW_PAST_BASE_URL}/cbko/{code}",
-                        params={"startdate": date, "enddate": date, "api_key": settings.KW_API_KEY}, timeout=12)
-            out["w4_status"] = r.status_code
-            out["w4_body"] = r.text[:500]
-        except Exception as e:  # noqa: BLE001
-            out["w4_error"] = repr(e)
-    return out
-
-
 @router.get("/current", response_model=CurrentWeatherOut)
 def current(
     device_sn: str,
