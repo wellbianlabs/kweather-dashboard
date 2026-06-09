@@ -15,11 +15,12 @@ from datetime import datetime, time, timedelta
 
 import httpx
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Device, Tenant
-from ..schemas import WeatherCompareOut, WeatherComparePoint
+from ..models import Device, SensorLog, Tenant
+from ..schemas import CurrentWeatherOut, WeatherCompareOut, WeatherComparePoint
 from . import analytics
 
 
@@ -121,26 +122,15 @@ class KWeatherProvider(WeatherProvider):
         return j.get("data") or {}
 
     def _dong_code(self, client, lat, lon, region_code) -> str | None:
+        # 기기에 행정동 코드가 있으면 사용
         if region_code and str(region_code).isdigit() and len(str(region_code)) >= 8:
             return str(region_code)
+        # 없으면 위경도 -> 행정동 코드(카카오 coord2regioncode, kw-odam1 호환)
         if lat is None or lon is None:
             return None
-        try:
-            data = self._get(client, "kw-gis-gps", f"{lat},{lon}")
-            if isinstance(data, dict) and data:
-                # 응답이 {코드:{...}} 또는 {hcode:...} 형태 — 코드 키/필드 추출
-                first = next(iter(data.values()))
-                if isinstance(first, dict):
-                    inner = first.get("data", first)
-                    for k in ("hcode", "code", "admCode", "hCode"):
-                        if inner.get(k):
-                            return str(inner[k])
-                key = next(iter(data.keys()))
-                if str(key).isdigit():
-                    return str(key)
-        except Exception:  # noqa: BLE001
-            return None
-        return None
+        from . import geocode as geocode_svc
+
+        return geocode_svc.region_code(lat, lon)
 
     def current(self, lat, lon, region_code) -> dict | None:
         """현재 외부 실황: {temp, feels, humidity, ts, region}."""
@@ -242,4 +232,59 @@ def compare(
         device_sn=device_sn, provider=provider.name, interval_minutes=interval,
         points=points, max_delta=max_delta, enclosed_alert=enclosed,
         enclosed_threshold=settings.ENCLOSED_DELTA_ALERT,
+    )
+
+
+def current_external(db: Session, tenant: Tenant, device_sn: str) -> CurrentWeatherOut:
+    """현재 외부 날씨(케이웨더 실측) + 현장 최신 측정값 비교."""
+    dev = db.get(Device, device_sn)
+    if dev is None or dev.tenant_id != tenant.id:
+        raise ValueError("해당 기기에 접근 권한이 없습니다.")
+    provider = get_provider()
+
+    cur = None
+    if hasattr(provider, "current"):
+        try:
+            cur = provider.current(dev.latitude, dev.longitude, dev.region_code)
+        except Exception:  # noqa: BLE001
+            cur = None
+
+    latest = db.scalars(
+        select(SensorLog).where(SensorLog.device_sn == device_sn).order_by(SensorLog.measured_at.desc())
+    ).first()
+    indoor_feels = float(latest.feels_like_temperature) if latest else None
+    indoor_temp = float(latest.temperature) if latest else None
+    indoor_at = latest.measured_at.strftime("%Y-%m-%d %H:%M") if latest else None
+
+    out_temp = cur.get("temp") if cur else None
+    out_feels = cur.get("feels") if cur else None
+    out_humi = cur.get("humidity") if cur else None
+    ts = str(cur.get("ts")) if cur and cur.get("ts") else None
+    observed = None
+    if ts and len(ts) >= 12:
+        observed = f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]} {ts[8:10]}:{ts[10:12]}"
+
+    available = cur is not None and out_temp is not None
+    delta = round(indoor_feels - float(out_temp), 1) if (available and indoor_feels is not None) else None
+    enclosed = delta is not None and delta >= settings.ENCLOSED_DELTA_ALERT
+
+    message = None
+    if not available:
+        if provider.name != "kweather":
+            message = "현재 외부 날씨는 케이웨더 연동(WEATHER_PROVIDER=kweather) 시 제공됩니다."
+        elif not (dev.latitude or dev.region_code):
+            message = "기기에 주소(위경도) 또는 지역코드가 없어 외부 날씨를 조회할 수 없습니다."
+        else:
+            message = "외부 날씨를 불러오지 못했습니다."
+
+    return CurrentWeatherOut(
+        provider=provider.name, available=available,
+        region=(cur.get("region") if cur else None),
+        outdoor_temp=round(float(out_temp), 1) if out_temp is not None else None,
+        outdoor_feels=round(float(out_feels), 1) if out_feels is not None else None,
+        outdoor_humidity=round(float(out_humi), 1) if out_humi is not None else None,
+        observed_at=observed,
+        indoor_feels=indoor_feels, indoor_temp=indoor_temp, indoor_at=indoor_at,
+        delta=delta, enclosed_alert=enclosed, enclosed_threshold=settings.ENCLOSED_DELTA_ALERT,
+        message=message,
     )

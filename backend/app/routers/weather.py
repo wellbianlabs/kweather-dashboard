@@ -9,10 +9,22 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_tenant
 from ..models import Tenant
-from ..schemas import WeatherCompareOut
+from ..schemas import CurrentWeatherOut, WeatherCompareOut
 from ..services import weather
 
 router = APIRouter(prefix="/api/weather", tags=["weather"])
+
+
+@router.get("/current", response_model=CurrentWeatherOut)
+def current(
+    device_sn: str,
+    tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
+):
+    try:
+        return weather.current_external(db, tenant, device_sn)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
 
 
 @router.get("/compare", response_model=WeatherCompareOut)

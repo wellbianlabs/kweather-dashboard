@@ -50,6 +50,23 @@ export interface TimeSeries {
   points: SeriesPoint[];
 }
 
+export interface CurrentWeather {
+  provider: string;
+  available: boolean;
+  region: string | null;
+  outdoor_temp: number | null;
+  outdoor_feels: number | null;
+  outdoor_humidity: number | null;
+  observed_at: string | null;
+  indoor_feels: number | null;
+  indoor_temp: number | null;
+  indoor_at: string | null;
+  delta: number | null;
+  enclosed_alert: boolean;
+  enclosed_threshold: number;
+  message: string | null;
+}
+
 export interface WeatherComparePoint {
   t: string;
   indoor_feels_like: number | null;

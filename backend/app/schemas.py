@@ -114,6 +114,23 @@ class TimeSeriesOut(BaseModel):
 
 
 # ---------- Weather compare ----------
+class CurrentWeatherOut(BaseModel):
+    provider: str
+    available: bool
+    region: str | None = None
+    outdoor_temp: float | None = None
+    outdoor_feels: float | None = None
+    outdoor_humidity: float | None = None
+    observed_at: str | None = None        # 외부 관측 시각
+    indoor_feels: float | None = None      # 현장 최신 체감온도
+    indoor_temp: float | None = None
+    indoor_at: str | None = None           # 현장 최신 측정 시각
+    delta: float | None = None             # 현장 체감 - 외부 기온
+    enclosed_alert: bool = False
+    enclosed_threshold: float = 5.0
+    message: str | None = None
+
+
 class WeatherComparePoint(BaseModel):
     t: datetime
     indoor_feels_like: float | None

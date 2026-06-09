@@ -59,6 +59,25 @@ def _nominatim(address: str) -> dict | None:
     return None
 
 
+def region_code(lat: float, lon: float) -> str | None:
+    """위경도 -> 행정동 코드(10자리). 카카오 coord2regioncode 사용(케이웨더 kw-odam1 호환)."""
+    if not settings.KAKAO_REST_KEY or lat is None or lon is None:
+        return None
+    try:
+        with httpx.Client(timeout=10.0, headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_KEY}"}) as client:
+            r = client.get(
+                "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json",
+                params={"x": lon, "y": lat},
+            )
+            if r.status_code != 200:
+                return None
+            docs = r.json().get("documents", [])
+            h = next((d for d in docs if d.get("region_type") == "H"), None) or (docs[0] if docs else None)
+            return h.get("code") if h else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def geocode(address: str) -> dict | None:
     address = (address or "").strip()
     if not address:

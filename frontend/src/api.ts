@@ -3,6 +3,7 @@ import type {
   Kpi,
   TimeSeries,
   WeatherCompare,
+  CurrentWeather,
   UploadResult,
   DailyReport,
   AuthData,
@@ -120,6 +121,9 @@ export const api = {
     const p = new URLSearchParams({ device_sn: deviceSn, start, end, interval: String(interval) });
     return getJSON<WeatherCompare>(`/api/weather/compare?${p}`);
   },
+
+  currentWeather: (deviceSn: string) =>
+    getJSON<CurrentWeather>(`/api/weather/current?device_sn=${encodeURIComponent(deviceSn)}`),
 
   dailyReport: (deviceSn: string, onDate: string) => {
     const p = new URLSearchParams({ device_sn: deviceSn, on_date: onDate });

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, getToken, clearToken } from "./api";
-import type { AuthData, Device, Kpi, TimeSeries, UploadResult, WeatherCompare } from "./types";
+import type { AuthData, CurrentWeather, Device, Kpi, TimeSeries, UploadResult, WeatherCompare } from "./types";
 import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
+import { CurrentWeatherCard } from "./components/CurrentWeatherCard";
 import { UploadPanel } from "./components/UploadPanel";
 import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
@@ -26,6 +27,7 @@ export default function App() {
   const [kpi, setKpi] = useState<Kpi | null>(null);
   const [ts, setTs] = useState<TimeSeries | null>(null);
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
+  const [curWx, setCurWx] = useState<CurrentWeather | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -128,8 +130,9 @@ export default function App() {
     if (deviceSn) {
       api.timeseries(deviceSn, dayStart, dayEnd, interval).then(setTs).catch(() => setTs(null));
       api.weatherCompare(deviceSn, dayStart, dayEnd, 30).then(setCmp).catch(() => setCmp(null));
+      api.currentWeather(deviceSn).then(setCurWx).catch(() => setCurWx(null));
     } else {
-      setTs(null); setCmp(null);
+      setTs(null); setCmp(null); setCurWx(null);
     }
   }, [auth, step, deviceSn, dayStart, dayEnd, interval, date]);
 
@@ -281,6 +284,7 @@ export default function App() {
               </div>
             )}
             <KpiCards kpi={kpi} />
+            {deviceSn && <CurrentWeatherCard cw={curWx} />}
             <TimeSeriesChart ts={ts} kpi={kpi} />
             <WeatherCompareChart cmp={cmp} />
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />
