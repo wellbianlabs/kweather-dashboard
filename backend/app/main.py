@@ -65,6 +65,7 @@ def health() -> dict:
         "status": "ok",
         "database": "postgresql" if settings.DATABASE_URL.startswith("postgres") else "sqlite",
         "weather_provider": settings.WEATHER_PROVIDER,
+        "geocoder": "kakao" if settings.KAKAO_REST_KEY else "nominatim",
         "thresholds": {
             "attention": settings.HEAT_ATTENTION,
             "caution": settings.HEAT_CAUTION,
