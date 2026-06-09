@@ -27,7 +27,7 @@ def past_debug(device_sn: str, date: str, tenant: Tenant = Depends(get_tenant), 
     dev = db.get(Device, device_sn)
     if dev is None or dev.tenant_id != tenant.id:
         raise HTTPException(404, "기기 없음")
-    code = (dev.region_code if (dev.region_code and str(dev.region_code).isdigit()) else None) \
+    code = (str(dev.region_code) if (dev.region_code and str(dev.region_code).isdigit() and len(str(dev.region_code)) >= 8) else None) \
         or geo.region_code(dev.latitude, dev.longitude)
     out = {"device": device_sn, "lat": dev.latitude, "lon": dev.longitude, "dong_code": code, "key_set": bool(settings.KW_API_KEY)}
     if code:
