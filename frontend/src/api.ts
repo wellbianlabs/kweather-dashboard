@@ -114,12 +114,59 @@ export const api = {
     return getJSON<DailyReport>(`/api/reports/daily?${p}`);
   },
 
-  upload: async (files: FileList | File[]): Promise<UploadResult[]> => {
-    const fd = new FormData();
-    Array.from(files).forEach((f) => fd.append("files", f));
-    const r = await fetch(u("/api/upload"), { method: "POST", headers: headers(), body: fd });
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
+  // 대량 업로드: 서버리스 요청 한도(4.5MB)·시간 제한(60s)을 피하려 파일을 배치로 나눠
+  // 동시성 제한으로 업로드한다. 진행률 콜백(onProgress)으로 UI 갱신.
+  upload: async (
+    files: FileList | File[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<UploadResult[]> => {
+    const arr = Array.from(files);
+    const MAX_BYTES = 3.5 * 1024 * 1024; // 배치당 누적 크기 한도(여유분 포함)
+    const MAX_FILES = 20;                 // 배치당 파일 수 한도(시간 제한 여유)
+
+    const batches: File[][] = [];
+    let cur: File[] = [], bytes = 0;
+    for (const f of arr) {
+      if (cur.length && (bytes + f.size > MAX_BYTES || cur.length >= MAX_FILES)) {
+        batches.push(cur); cur = []; bytes = 0;
+      }
+      cur.push(f); bytes += f.size;
+    }
+    if (cur.length) batches.push(cur);
+
+    const results: UploadResult[] = [];
+    let done = 0;
+    let next = 0;
+    const CONCURRENCY = Math.min(3, batches.length);
+
+    async function runOne(batch: File[]): Promise<UploadResult[]> {
+      const fd = new FormData();
+      batch.forEach((f) => fd.append("files", f));
+      const r = await fetch(u("/api/upload"), { method: "POST", headers: headers(), body: fd });
+      if (!r.ok) {
+        const t = (await r.text()).slice(0, 120);
+        // 배치 실패를 합성 결과로 표면화(전체 중단 대신 계속 진행)
+        return batch.map((f) => ({
+          filename: f.name, rows_parsed: 0, rows_inserted: 0, rows_updated: 0, rows_skipped: 0,
+          new_devices: [], affected_devices: [], min_date: null, max_date: null,
+          encoding: "?", errors: [`업로드 실패 (HTTP ${r.status}) ${t}`],
+        }));
+      }
+      return r.json();
+    }
+
+    async function worker() {
+      while (next < batches.length) {
+        const i = next++;
+        const res = await runOne(batches[i]);
+        results.push(...res);
+        done += batches[i].length;
+        onProgress?.(done, arr.length);
+      }
+    }
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    return results;
   },
 
   // 다운로드 URL (브라우저가 직접 받도록). X-API-Key 헤더 대신 fetch 후 blob 처리.
