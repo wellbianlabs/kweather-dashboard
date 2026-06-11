@@ -295,19 +295,13 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page {
-  size: A4;
-  margin: 2.7cm 1.6cm 1.5cm 1.6cm;
-  @frame header_frame { -pdf-frame-content: header_content; left: 45pt; width: 505pt; top: 20pt; height: 46pt; }
-}
+@page { size: A4; margin: 1.5cm 1.6cm; }
 body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
-/* 매 페이지 반복 제목 */
-.pgtitle { text-align:center; font-size:14pt; font-weight:bold; color:#0f172a; letter-spacing:5pt; padding-left:5pt; }
-.pgrule { border-bottom:1.5px solid #0f499e; margin-top:3pt; }
+.title { text-align:center; font-size:16pt; font-weight:bold; color:#0f172a; margin:0 0 3pt 0; }
 table { width:100%; border-collapse: collapse; }
 
 /* 문서정보 */
-.subtitle { text-align:center; font-size:9pt; color:#64748b; margin:0 0 8pt 0; }
+.subtitle { text-align:center; font-size:9pt; color:#64748b; margin:0 0 6pt 0; padding-bottom:6pt; border-bottom:1.5px solid #0f499e; }
 .docinfo td { border:1px solid #cbd5e1; padding:4px 8px; font-size:8.5pt; }
 .docinfo .k { background:#f8fafc; color:#475569; width:14%; text-align:center; }
 
@@ -332,11 +326,7 @@ h2 .no { color:#0f499e; }
 .footer { margin-top:14pt; border-top:1.5px solid #0f499e; padding-top:5pt; font-size:7.5pt; color:#64748b; }
 </style></head><body>
 
-<div id="header_content">
-  <div class="pgtitle">폭염 안전관리 일일 보고서</div>
-  <div class="pgrule"></div>
-</div>
-
+<div class="title">폭염 안전관리 일일 보고서</div>
 <div class="subtitle">근로자 온열질환 예방을 위한 작업장 체감온도 분석 자료 · 측정장비: 케이웨더(주) 체감온도계</div>
 
 <table class="docinfo">
@@ -477,7 +467,7 @@ _PERIODIC_TEMPLATE = Template(
     """
 <html><head><style>
 body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
-h1 { font-size: 16pt; border-bottom: 2px solid #0f499e; padding-bottom:4px; color:#0f499e; }
+h1 { font-size: 16pt; text-align:center; border-bottom: 2px solid #0f499e; padding-bottom:6px; color:#0f172a; }
 .sub { color:#475569; font-size:9pt; margin-bottom:10px; }
 table { width:100%; border-collapse: collapse; margin: 8px 0; }
 th, td { border:1px solid #cbd5e1; padding:4px 6px; text-align:center; }
@@ -502,7 +492,7 @@ th { background:#f1f5f9; }
 {% if chart %}<img src="{{ chart }}" style="width:480pt;"/>{% endif %}
 
 <h3>일자별 트렌드</h3>
-<table>
+<table repeat="1">
 <tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>평균습도(%)</th><th>33°C↑(분)</th><th>단계</th></tr>
 {% for row in s.daily %}
 <tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td><td>{{ row.avg_feels }}</td>
