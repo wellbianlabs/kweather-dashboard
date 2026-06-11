@@ -117,10 +117,12 @@ class TimeSeriesOut(BaseModel):
 class CurrentWeatherOut(BaseModel):
     provider: str
     available: bool
+    source: str = "기상청"                 # 로우데이터 출처(케이웨더가 기상청 관측을 제공)
     region: str | None = None
     outdoor_temp: float | None = None
     outdoor_feels: float | None = None
     outdoor_humidity: float | None = None
+    outdoor_level: HeatLevelOut | None = None   # 야외 실시간 폭염 위험단계(체감온도 기준)
     observed_at: str | None = None        # 외부 관측 시각
     indoor_feels: float | None = None      # 현장 최신 체감온도
     indoor_temp: float | None = None

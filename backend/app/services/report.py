@@ -326,7 +326,7 @@ table { width:100%; border-collapse: collapse; }
     <tr><td class="rowh">외부 기온(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.outdoor if h.outdoor is not none else '-' }}</td>{% endfor %}</tr>
     <tr><td class="rowh">격차(내부-외부)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
-  <div class="sub" style="margin-top:3px;">※ 외부 데이터 출처: {{ '케이웨더 실측' if d.weather.provider == 'kweather' else ('기상청 ASOS' if d.weather.provider == 'kma' else '시뮬레이션(키 미설정)') }}. 격차가 클수록 복사열·밀폐 영향이 큼.</div>
+  <div class="sub" style="margin-top:3px;">※ 외부 로우데이터 출처: {{ '기상청 관측(케이웨더 제공)' if d.weather.provider == 'kweather' else ('기상청 ASOS' if d.weather.provider == 'kma' else '시뮬레이션(키 미설정)') }}. 격차가 클수록 복사열·밀폐 영향이 큼.</div>
 {% elif not d.external_daily %}
   <p class="sub">해당 일자의 외부 날씨 데이터를 불러올 수 없습니다. (케이웨더 과거자료 권한 필요 — 현재 키 미지원)</p>
 {% endif %}

@@ -18,9 +18,10 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import heat
 from ..config import settings
 from ..models import Device, SensorLog, Tenant
-from ..schemas import CurrentWeatherOut, WeatherCompareOut, WeatherComparePoint
+from ..schemas import CurrentWeatherOut, HeatLevelOut, WeatherCompareOut, WeatherComparePoint
 from . import analytics
 
 
@@ -180,7 +181,7 @@ class KWeatherProvider(WeatherProvider):
                     hu = (d.get("humi") or {}).get(ds)
                     if avg is not None or mx is not None:
                         return {"avg": avg, "max": mx, "min": mn, "humi": hu,
-                                "source": "케이웨더 과거자료",
+                                "source": "기상청 과거관측(케이웨더 제공)",
                                 "region": " ".join(x for x in [d.get("state"), d.get("city"), d.get("city2")] if x)}
             except Exception:  # noqa: BLE001
                 pass
@@ -193,7 +194,7 @@ class KWeatherProvider(WeatherProvider):
                     dd = entry.get("data", {})
                     if ts[:8] == ds and (dd.get("temp") is not None or dd.get("maxTemp") is not None):
                         return {"avg": dd.get("temp"), "max": dd.get("maxTemp"), "min": dd.get("minTemp"),
-                                "humi": dd.get("humi"), "source": "케이웨더 전일",
+                                "humi": dd.get("humi"), "source": "기상청 전일관측(케이웨더 제공)",
                                 "region": " ".join(x for x in [dd.get("state"), dd.get("city"), dd.get("city2")] if x)}
             except Exception:  # noqa: BLE001
                 pass
@@ -314,6 +315,12 @@ def current_external(db: Session, tenant: Tenant, device_sn: str) -> CurrentWeat
     delta = round(indoor_feels - float(out_temp), 1) if (available and indoor_feels is not None) else None
     enclosed = delta is not None and delta >= settings.ENCLOSED_DELTA_ALERT
 
+    # 야외 실시간 폭염 위험단계 (외부 체감온도 기준)
+    outdoor_level = None
+    if out_feels is not None:
+        lv = heat.classify(float(out_feels))
+        outdoor_level = HeatLevelOut(code=lv.code, label=lv.label, color=lv.color, rank=lv.rank)
+
     message = None
     if not available:
         if provider.name != "kweather":
@@ -324,11 +331,12 @@ def current_external(db: Session, tenant: Tenant, device_sn: str) -> CurrentWeat
             message = "외부 날씨를 불러오지 못했습니다."
 
     return CurrentWeatherOut(
-        provider=provider.name, available=available,
+        provider=provider.name, available=available, source="기상청",
         region=(cur.get("region") if cur else None),
         outdoor_temp=round(float(out_temp), 1) if out_temp is not None else None,
         outdoor_feels=round(float(out_feels), 1) if out_feels is not None else None,
         outdoor_humidity=round(float(out_humi), 1) if out_humi is not None else None,
+        outdoor_level=outdoor_level,
         observed_at=observed,
         indoor_feels=indoor_feels, indoor_temp=indoor_temp, indoor_at=indoor_at,
         delta=delta, enclosed_alert=enclosed, enclosed_threshold=settings.ENCLOSED_DELTA_ALERT,

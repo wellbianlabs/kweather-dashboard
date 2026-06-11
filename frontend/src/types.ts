@@ -53,10 +53,12 @@ export interface TimeSeries {
 export interface CurrentWeather {
   provider: string;
   available: boolean;
+  source: string;
   region: string | null;
   outdoor_temp: number | null;
   outdoor_feels: number | null;
   outdoor_humidity: number | null;
+  outdoor_level: HeatLevel | null;
   observed_at: string | null;
   indoor_feels: number | null;
   indoor_temp: number | null;
