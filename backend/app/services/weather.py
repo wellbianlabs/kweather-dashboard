@@ -133,32 +133,34 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
             if r.status_code != 200 or "활용신청" in text or "용량" in text:
                 return None
 
+            import re as _re
+
             lines = text.splitlines()
-            # 헤더: 컬럼명을 담은 주석 라인(TA_AVG, TA_MAX 포함)
-            cols = None
+            # 상단 범례("#  11. TA_AVG : ...")에서 컬럼명 -> 데이터 인덱스(번호-1) 맵 구성
+            idx_map: dict[str, int] = {}
             for ln in lines:
-                if "TA_AVG" in ln and "TA_MAX" in ln:
-                    cols = ln.lstrip("#").split()
-                    break
+                m = _re.match(r"#\s*(\d+)\.\s+([A-Z0-9_]+)\s*:", ln)
+                if m:
+                    idx_map[m.group(2)] = int(m.group(1)) - 1
             # 데이터 라인: 날짜로 시작하는 비주석 라인
             data = None
             for ln in lines:
-                s = ln.strip()
-                if s and not s.startswith("#") and s.split()[0].startswith(ds[:8]):
-                    data = s.split()
+                st = ln.strip()
+                if st and not st.startswith("#") and st.split()[0].startswith(ds[:8]):
+                    data = st.split()
                     break
             if not data:
                 return None
 
             def _pick(name):
-                if cols and name in cols:
-                    i = cols.index(name)
-                    if i < len(data):
-                        try:
-                            v = float(data[i])
-                            return None if v <= -50 else v  # 결측(-9 등) 제외
-                        except ValueError:
-                            return None
+                i = idx_map.get(name)
+                if i is not None and i < len(data):
+                    try:
+                        v = float(data[i])
+                        # KMA 결측 표기(-9, -99 계열) 제외
+                        return None if v in (-9.0, -99.0, -999.0) else v
+                    except ValueError:
+                        return None
                 return None
 
             avg = _pick("TA_AVG"); mx = _pick("TA_MAX"); mn = _pick("TA_MIN")
