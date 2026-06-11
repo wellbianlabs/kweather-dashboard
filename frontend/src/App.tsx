@@ -150,10 +150,11 @@ export default function App() {
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
         <div className="mx-auto max-w-7xl px-5 py-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-lg text-white shadow-card">🌡️</span>
+            <div className="flex min-w-0 items-center gap-3.5">
+              <img src="/kweather-logo.png" alt="KWEATHER" className="h-6 shrink-0 sm:h-7" />
+              <div className="hidden h-8 w-px bg-slate-200 sm:block" />
               <div className="min-w-0">
-                <h1 className="truncate text-[17px] font-bold tracking-tight text-slate-900">케이웨더 체감온도계 대시보드</h1>
+                <h1 className="truncate text-[15px] font-bold tracking-tight text-slate-900">체감온도계 안전보건 대시보드</h1>
                 <p className="truncate text-xs text-slate-400">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
               </div>
             </div>
@@ -296,7 +297,8 @@ export default function App() {
       </main>
 
       <footer className="py-10 text-center text-xs leading-relaxed text-slate-400">
-        케이웨더 안전보건 대시보드 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
+        <img src="/kweather-logo.png" alt="KWEATHER" className="mx-auto mb-2.5 h-4 opacity-50" />
+        체감온도계 안전보건 대시보드 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
       </footer>
     </div>
   );

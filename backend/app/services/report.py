@@ -266,10 +266,10 @@ _DAILY_TEMPLATE = Template(
 <html><head><style>
 @page { size: A4; margin: 1.4cm; }
 body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1e293b; }
-h1 { font-size: 15pt; margin:0 0 2px 0; }
-h2 { font-size: 10.5pt; margin:12px 0 4px 0; padding-bottom:2px; border-bottom:1.5px solid #1e293b; }
+h1 { font-size: 15pt; margin:0 0 2px 0; color:#0f499e; }
+h2 { font-size: 10.5pt; margin:12px 0 4px 0; padding-bottom:2px; border-bottom:1.5px solid #0f499e; }
 .sub { color:#64748b; font-size:8.5pt; }
-.hr { border:0; border-top:2px solid #1e293b; margin:4px 0 8px 0; }
+.hr { border:0; border-top:2px solid #0f499e; margin:4px 0 8px 0; }
 table { width:100%; border-collapse: collapse; }
 .kpi td { border:1px solid #e2e8f0; padding:6px 8px; }
 .kpi .k { background:#f8fafc; color:#475569; font-size:8pt; width:16%; }
@@ -387,7 +387,7 @@ _PERIODIC_TEMPLATE = Template(
     """
 <html><head><style>
 body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
-h1 { font-size: 16pt; border-bottom: 2px solid #1e293b; padding-bottom:4px; }
+h1 { font-size: 16pt; border-bottom: 2px solid #0f499e; padding-bottom:4px; color:#0f499e; }
 .sub { color:#475569; font-size:9pt; margin-bottom:10px; }
 table { width:100%; border-collapse: collapse; margin: 8px 0; }
 th, td { border:1px solid #cbd5e1; padding:4px 6px; text-align:center; }

@@ -41,7 +41,7 @@ export function TimeSeriesChart({ ts, kpi }: { ts: TimeSeries | null; kpi: Kpi |
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Area yAxisId="humi" type="monotone" dataKey="습도" fill="#bae6fd" stroke="#38bdf8"
                   fillOpacity={0.35} dot={false} />
-            <Line yAxisId="temp" type="monotone" dataKey="온도" stroke="#2563eb" dot={false} strokeWidth={1.5} />
+            <Line yAxisId="temp" type="monotone" dataKey="온도" stroke="#1790cd" dot={false} strokeWidth={1.5} />
             <Line yAxisId="temp" type="monotone" dataKey="체감온도" stroke="#dc2626" dot={false} strokeWidth={2.2} />
             {th && (
               <>

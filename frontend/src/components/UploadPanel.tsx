@@ -56,7 +56,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
         onDrop={(e) => { e.preventDefault(); setDrag(false); if (!busy) handleFiles(e.dataTransfer.files); }}
         onClick={() => !busy && inputRef.current?.click()}
         className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition
-          ${busy ? "border-slate-200 bg-slate-100 cursor-wait" : drag ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"}`}
+          ${busy ? "border-slate-200 bg-slate-100 cursor-wait" : drag ? "border-kw bg-kw-50" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"}`}
       >
         <input ref={inputRef} type="file" multiple accept=".csv,.CSV,text/csv,text/plain" className="hidden"
                onChange={(e) => e.target.files && handleFiles(e.target.files)} />
@@ -75,7 +75,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
             <span>{pct}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-            <div className="h-full bg-slate-900 transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-kw transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}

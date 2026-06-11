@@ -42,7 +42,7 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="내외부 격차" fill="#fecaca" barSize={10} />
             <Line type="monotone" dataKey="내부 체감온도" stroke="#dc2626" dot={false} strokeWidth={2.2} />
-            <Line type="monotone" dataKey="외부 기상청온도" stroke="#0ea5e9" dot={false} strokeWidth={2} />
+            <Line type="monotone" dataKey="외부 기상청온도" stroke="#1790cd" dot={false} strokeWidth={2} />
           </ComposedChart>
         </ResponsiveContainer>
       )}

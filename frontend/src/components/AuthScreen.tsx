@@ -47,8 +47,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
     <div className="flex min-h-screen items-center justify-center bg-[#f7f8fa] px-4">
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-slate-900 text-2xl text-white shadow-lift">🌡️</span>
-          <h1 className="mt-4 text-[22px] font-bold tracking-tight text-slate-900">케이웨더 체감온도계 대시보드</h1>
+          <img src="/kweather-logo.png" alt="KWEATHER" className="mx-auto h-9" />
+          <h1 className="mt-5 text-[21px] font-bold tracking-tight text-slate-900">체감온도계 안전보건 대시보드</h1>
           <p className="mt-1 text-sm text-slate-500">폭염·체감온도 안전보건 모니터링</p>
           <span className="mt-3 inline-block rounded-full bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
             🎁 케이웨더 단말기 이용자 평생 무료

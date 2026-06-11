@@ -26,7 +26,7 @@ export function ReportPanel({
         <button
           disabled={!deviceSn}
           onClick={() => deviceSn && api.download(api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
-          className={`${btn} bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40`}
+          className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
         >📄 일일 보고서 PDF</button>
         <button
           onClick={() => api.download(api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
