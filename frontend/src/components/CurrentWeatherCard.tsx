@@ -3,9 +3,9 @@ import { HeatBadge } from "./HeatBadge";
 
 export function CurrentWeatherCard({ cw }: { cw: CurrentWeather | null }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="card">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-700">현재 야외 날씨 · 실시간 폭염지수</h3>
+        <h3 className="font-semibold text-slate-900">현재 야외 날씨 · 실시간 폭염지수</h3>
         <span className="text-xs text-slate-400">
           {cw?.region || ""} {cw?.observed_at ? `· ${cw.observed_at}` : ""}
         </span>

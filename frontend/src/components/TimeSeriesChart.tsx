@@ -19,9 +19,9 @@ export function TimeSeriesChart({ ts, kpi }: { ts: TimeSeries | null; kpi: Kpi |
   const th = kpi?.thresholds;
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="card">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-700">시계열 분석 (온·습도 / 체감온도)</h3>
+        <h3 className="font-semibold text-slate-900">시계열 분석 (온·습도 / 체감온도)</h3>
         <span className="text-xs text-slate-400">
           {ts ? `${ts.interval_minutes}분 평균 다운샘플링` : ""}
         </span>
@@ -31,7 +31,7 @@ export function TimeSeriesChart({ ts, kpi }: { ts: TimeSeries | null; kpi: Kpi |
       ) : (
         <ResponsiveContainer width="100%" height={320}>
           <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
             <XAxis dataKey="time" tick={{ fontSize: 11 }} minTickGap={40} />
             <YAxis yAxisId="temp" tick={{ fontSize: 11 }} unit="℃"
                    domain={["auto", "auto"]} label={{ value: "온도", angle: -90, position: "insideLeft", fontSize: 11 }} />

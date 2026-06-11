@@ -3,4 +3,41 @@
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
-body { background: #f1f5f9; }
+
+body {
+  background: #f7f8fa;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.01em;
+}
+
+@layer components {
+  /* 공통 카드 — 화이트톤 프리미엄 */
+  .card {
+    @apply rounded-2xl border border-slate-200/70 bg-white p-5 shadow-card;
+  }
+  /* 주요 버튼 */
+  .btn-primary {
+    @apply rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition
+           hover:bg-slate-700 disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700
+           transition hover:bg-slate-50 disabled:opacity-40;
+  }
+  /* 입력 */
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800
+           placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5;
+  }
+  .select {
+    @apply rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800
+           focus:border-slate-400 focus:outline-none;
+  }
+}
+
+/* 얇고 차분한 스크롤바 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 8px; border: 3px solid #f7f8fa; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }

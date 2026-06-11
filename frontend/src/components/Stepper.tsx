@@ -28,7 +28,7 @@ export function Stepper({
             >
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 done ? "bg-emerald-500 text-white"
-                : active ? "bg-blue-600 text-white"
+                : active ? "bg-slate-900 text-white"
                 : "bg-slate-200 text-slate-500"
               }`}>
                 {done ? "✓" : s.n}

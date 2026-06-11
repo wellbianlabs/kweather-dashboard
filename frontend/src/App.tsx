@@ -146,20 +146,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-slate-800">
-      {/* 헤더 */}
-      <header className="bg-slate-900 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-3">
+      {/* 헤더 — 화이트톤 */}
+      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-5 py-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold">🌡️ 케이웨더 체감온도계 대시보드</h1>
-              <p className="truncate text-xs text-slate-300">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-lg text-white shadow-card">🌡️</span>
+              <div className="min-w-0">
+                <h1 className="truncate text-[17px] font-bold tracking-tight text-slate-900">케이웨더 체감온도계 대시보드</h1>
+                <p className="truncate text-xs text-slate-400">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
+              </div>
             </div>
-            <button onClick={logout} className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600">로그아웃</button>
+            <button onClick={logout} className="btn-ghost shrink-0 !py-2 text-sm">로그아웃</button>
           </div>
         </div>
         {/* 단계 표시 */}
-        <div className="border-t border-slate-700 bg-slate-800">
-          <div className="mx-auto max-w-7xl px-4 py-2">
+        <div className="border-t border-slate-100 bg-white/60">
+          <div className="mx-auto max-w-7xl px-5 py-2">
             <Stepper current={step} onJump={setStep} canDashboard={canDashboard} />
           </div>
         </div>
@@ -167,10 +170,10 @@ export default function App() {
 
       {/* 대시보드 컨트롤 바 (대시보드 단계에서만) */}
       {step === 4 && (
-        <div className="border-b border-slate-200 bg-white">
+        <div className="border-b border-slate-200/60 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
             <Field label="기기 선택">
-              <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              <select className="select"
                 value={deviceSn ?? ""}
                 onChange={(e) => { const v = e.target.value || null; setDeviceSn(v); loadRange(v); }}>
                 <option value="">(전체 사업장)</option>
@@ -183,17 +186,17 @@ export default function App() {
             </Field>
             <Field label="기준 일자 (데이터 보유일)">
               {availableDates.length > 0 ? (
-                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                <select className="select"
                   value={date} onChange={(e) => setDate(e.target.value)}>
                   {availableDates.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               ) : (
-                <input type="date" className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                <input type="date" className="select"
                   value={date} onChange={(e) => setDate(e.target.value)} />
               )}
             </Field>
             <Field label="다운샘플링">
-              <select className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              <select className="select"
                 value={interval} onChange={(e) => setIntervalMin(Number(e.target.value))}>
                 <option value={1}>1분(원본)</option>
                 <option value={10}>10분 평균</option>
@@ -202,11 +205,11 @@ export default function App() {
             </Field>
             <div className="mx-2 h-8 w-px bg-slate-200" />
             <Field label="리포트 기간(시작)">
-              <input type="date" className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              <input type="date" className="select"
                 value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
             </Field>
             <Field label="리포트 기간(종료)">
-              <input type="date" className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              <input type="date" className="select"
                 value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
             </Field>
             {selected && (
@@ -219,20 +222,20 @@ export default function App() {
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl space-y-4 px-4 py-5">
+      <main className="mx-auto max-w-7xl space-y-5 px-5 py-7">
         {loadErr && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadErr}</div>
         )}
 
         {step === 2 && (
           <>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
               <b>2단계 — 사업장·기기 등록.</b> 데이터를 올리기 전에 먼저 기기를 등록하세요.
               같은 회사라도 <b>장소·기기별로 각각 추가 등록</b>할 수 있습니다.
             </div>
             <DeviceRegister devices={devices} defaultCompany={auth.company_name} onChange={loadDevices} />
             <button onClick={() => setStep(3)}
-                    className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700">
+                    className="btn-primary w-full !py-3">
               {canDashboard ? "다음: 데이터 업로드 →" : "기기 없이 업로드로 진행 →"}
             </button>
           </>
@@ -240,21 +243,21 @@ export default function App() {
 
         {step === 3 && (
           <>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
               <b>3단계 — 데이터 업로드.</b> 케이웨더 CSV(탭 구분) 파일을 올리세요.
               파일의 기기 SN이 2단계에서 등록한 기기와 일치하면 그 사업장 정보에 데이터가 연결됩니다.
               업로드하면 대시보드로 자동 이동합니다.
             </div>
             <UploadPanel onUploaded={handleUploaded} />
 
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+            <div className="card">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-indigo-900">또는 케이웨더 단말기에서 실시간 가져오기</div>
-                  <div className="text-xs text-indigo-700">CSV 업로드 없이 연동된 단말기의 최신 측정값을 바로 수집합니다.</div>
+                  <div className="text-sm font-semibold text-slate-900">또는 케이웨더 단말기에서 실시간 가져오기</div>
+                  <div className="text-xs text-slate-500">CSV 업로드 없이 연동된 단말기의 최신 측정값을 바로 수집합니다.</div>
                 </div>
                 <button onClick={handleSyncLive} disabled={syncing}
-                        className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                        className="btn-primary shrink-0">
                   {syncing ? "가져오는 중..." : "🔄 실시간 측정값 가져오기"}
                 </button>
               </div>
@@ -262,12 +265,12 @@ export default function App() {
 
             <div className="flex gap-2">
               <button onClick={() => setStep(2)}
-                      className="flex-1 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                      className="btn-ghost flex-1 !py-3">
                 ← 기기 등록으로
               </button>
               {canDashboard && (
                 <button onClick={() => setStep(4)}
-                        className="flex-1 rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700">
+                        className="btn-primary flex-1 !py-3">
                   대시보드로 이동 →
                 </button>
               )}
@@ -292,7 +295,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="py-6 text-center text-xs text-slate-400">
+      <footer className="py-10 text-center text-xs leading-relaxed text-slate-400">
         케이웨더 안전보건 대시보드 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
       </footer>
     </div>

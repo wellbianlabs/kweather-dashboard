@@ -17,9 +17,9 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
   }));
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="card">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-700">외부(기상청) vs 내부 체감온도 비교</h3>
+        <h3 className="font-semibold text-slate-900">외부(기상청) vs 내부 체감온도 비교</h3>
         <span className="text-xs text-slate-400">제공자: {cmp?.provider ?? "-"}</span>
       </div>
 
@@ -35,7 +35,7 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
       ) : (
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
             <XAxis dataKey="time" tick={{ fontSize: 11 }} minTickGap={40} />
             <YAxis tick={{ fontSize: 11 }} unit="℃" />
             <Tooltip />

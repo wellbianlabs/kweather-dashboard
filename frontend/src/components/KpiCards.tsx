@@ -3,10 +3,10 @@ import { HeatBadge } from "./HeatBadge";
 
 function Card({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent?: string }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-bold" style={{ color: accent || "#0f172a" }}>{value}</span>
+    <div className="card !p-4">
+      <div className="text-xs font-medium tracking-tight text-slate-400">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-1">
+        <span className="text-[26px] font-bold tracking-tight" style={{ color: accent || "#0f172a" }}>{value}</span>
         {unit && <span className="text-sm text-slate-400">{unit}</span>}
       </div>
     </div>
@@ -17,9 +17,9 @@ export function KpiCards({ kpi }: { kpi: Kpi | null }) {
   const v = (n: number | null | undefined, d = 1) => (n == null ? "-" : n.toFixed(d));
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-      <div className="rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col justify-between"
-           style={{ background: kpi ? `${kpi.current_level.color}14` : "#fff" }}>
-        <div className="text-xs font-medium text-slate-500">폭염 위험 단계 (기간 최고)</div>
+      <div className="flex flex-col justify-between rounded-2xl border border-slate-200/70 p-4 shadow-card"
+           style={{ background: kpi ? `linear-gradient(135deg, #ffffff 30%, ${kpi.current_level.color}1a)` : "#fff" }}>
+        <div className="text-xs font-medium tracking-tight text-slate-400">폭염 위험 단계 (기간 최고)</div>
         <div className="mt-2">{kpi ? <HeatBadge level={kpi.current_level} size="lg" /> : "-"}</div>
       </div>
       <Card label="최고 체감온도 (A-TEMP)" value={v(kpi?.max_feels_like)} unit="℃"

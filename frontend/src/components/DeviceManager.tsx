@@ -36,11 +36,11 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
     onChange();
   }
 
-  const inp = "w-full rounded border border-slate-300 px-2 py-1 text-sm";
+  const inp = "w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-slate-400 focus:outline-none";
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
-      <h3 className="mb-2 font-semibold text-slate-700">기기 / 사업장 메타데이터 관리</h3>
+    <div className="card">
+      <h3 className="mb-2 font-semibold text-slate-900">기기 / 사업장 메타데이터 관리</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -70,8 +70,8 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
                       <td className="pr-2"><input className={inp} value={draft.longitude ?? ""} onChange={(e) => setDraft({ ...draft, longitude: e.target.value as any })} /></td>
                       <td className="pr-2"><input className={inp} value={draft.region_code ?? ""} onChange={(e) => setDraft({ ...draft, region_code: e.target.value })} /></td>
                       <td className="whitespace-nowrap">
-                        <button disabled={saving} onClick={() => save(d.device_sn)} className="rounded bg-blue-600 px-2 py-1 text-xs text-white">저장</button>
-                        <button onClick={() => setEditing(null)} className="ml-1 rounded bg-slate-200 px-2 py-1 text-xs">취소</button>
+                        <button disabled={saving} onClick={() => save(d.device_sn)} className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-700">저장</button>
+                        <button onClick={() => setEditing(null)} className="ml-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">취소</button>
                       </td>
                     </>
                   ) : (
@@ -83,8 +83,8 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
                       <td className="pr-2 text-slate-500">{d.longitude ?? "-"}</td>
                       <td className="pr-2 text-slate-500">{d.region_code || "-"}</td>
                       <td className="whitespace-nowrap">
-                        <button onClick={() => startEdit(d)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">편집</button>
-                        <button onClick={() => remove(d.device_sn)} className="ml-1 rounded bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100">삭제</button>
+                        <button onClick={() => startEdit(d)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">편집</button>
+                        <button onClick={() => remove(d.device_sn)} className="ml-1 rounded-lg px-2.5 py-1 text-xs text-red-500 hover:bg-red-50">삭제</button>
                       </td>
                     </>
                   )}

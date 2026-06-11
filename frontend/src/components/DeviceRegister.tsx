@@ -87,11 +87,11 @@ export function DeviceRegister({
     }
   }
 
-  const inp = "w-full rounded border border-slate-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none";
+  const inp = "input";
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-white p-5 shadow-sm border border-slate-200">
+      <div className="card">
         <h3 className="font-semibold text-slate-800">사업장 · 기기 등록</h3>
         <p className="mt-1 text-xs text-slate-500">
           데이터를 올리기 전에 먼저 기기를 등록하세요. <b>같은 회사라도 장소·기기별로 각각 추가 등록</b>할 수 있습니다.
@@ -121,11 +121,11 @@ export function DeviceRegister({
               <input className={`${inp} flex-1`} value={form.address} readOnly onClick={openPostcode}
                      placeholder="주소 검색을 눌러 도로명·지번 주소를 선택하세요" />
               <button type="button" onClick={openPostcode}
-                      className="shrink-0 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                      className="btn-primary shrink-0">
                 🔍 주소 검색
               </button>
               <button type="button" onClick={() => geocodeAddress(form.address)} disabled={geoBusy || !form.address}
-                      className="shrink-0 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50"
+                      className="btn-ghost shrink-0"
                       title="현재 주소로 좌표 다시 찾기">
                 {geoBusy ? "..." : "📍 좌표"}
               </button>
@@ -150,7 +150,7 @@ export function DeviceRegister({
         {okMsg && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{okMsg}</p>}
 
         <button onClick={register} disabled={busy}
-                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                className="btn-primary mt-4">
           {busy ? "등록 중..." : "+ 기기 등록"}
         </button>
       </div>

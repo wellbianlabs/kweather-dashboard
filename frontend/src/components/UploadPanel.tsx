@@ -48,15 +48,15 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
   const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
-      <h3 className="mb-2 font-semibold text-slate-700">CSV 로우데이터 업로드</h3>
+    <div className="card">
+      <h3 className="mb-2 font-semibold text-slate-900">CSV 로우데이터 업로드</h3>
       <div
         onDragOver={(e) => { e.preventDefault(); if (!busy) setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); if (!busy) handleFiles(e.dataTransfer.files); }}
         onClick={() => !busy && inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition
-          ${busy ? "border-slate-200 bg-slate-100 cursor-wait" : drag ? "border-blue-400 bg-blue-50" : "border-slate-300 bg-slate-50"}`}
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition
+          ${busy ? "border-slate-200 bg-slate-100 cursor-wait" : drag ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"}`}
       >
         <input ref={inputRef} type="file" multiple accept=".csv,.CSV,text/csv,text/plain" className="hidden"
                onChange={(e) => e.target.files && handleFiles(e.target.files)} />
@@ -75,7 +75,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
             <span>{pct}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-            <div className="h-full bg-blue-600 transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-slate-900 transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}
@@ -85,7 +85,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
       {/* 결과 요약 */}
       {summary && (
         <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
-          <div className="font-semibold text-slate-700">업로드 완료 — 파일 {summary.files.toLocaleString()}개</div>
+          <div className="font-semibold text-slate-900">업로드 완료 — 파일 {summary.files.toLocaleString()}개</div>
           <div className="mt-1 text-slate-600">
             신규 {summary.inserted.toLocaleString()} · 갱신 {summary.updated.toLocaleString()} · 제외 {summary.skipped.toLocaleString()}건
             {summary.min && <> · 기간 {summary.min}~{summary.max}</>}

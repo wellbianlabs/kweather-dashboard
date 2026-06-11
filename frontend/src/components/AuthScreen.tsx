@@ -41,29 +41,29 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
     }
   }
 
-  const inp = "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const inp = "input";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#f7f8fa] px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center text-white">
-          <div className="text-4xl">🌡️</div>
-          <h1 className="mt-2 text-xl font-bold">케이웨더 체감온도계 대시보드</h1>
-          <p className="text-sm text-slate-300">폭염·체감온도 안전보건 모니터링</p>
-          <span className="mt-3 inline-block rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/40">
+        <div className="mb-7 text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-slate-900 text-2xl text-white shadow-lift">🌡️</span>
+          <h1 className="mt-4 text-[22px] font-bold tracking-tight text-slate-900">케이웨더 체감온도계 대시보드</h1>
+          <p className="mt-1 text-sm text-slate-500">폭염·체감온도 안전보건 모니터링</p>
+          <span className="mt-3 inline-block rounded-full bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
             🎁 케이웨더 단말기 이용자 평생 무료
           </span>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-xl">
-          <div className="mb-5 flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
+        <div className="rounded-3xl border border-slate-200/70 bg-white p-7 shadow-lift">
+          <div className="mb-6 flex rounded-xl bg-slate-100/80 p-1 text-sm font-medium">
             <button
               onClick={() => { setMode("login"); setError(null); }}
-              className={`flex-1 rounded-md py-2 ${mode === "login" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
+              className={`flex-1 rounded-lg py-2 ${mode === "login" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
             >로그인</button>
             <button
               onClick={() => { setMode("signup"); setError(null); }}
-              className={`flex-1 rounded-md py-2 ${mode === "signup" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
+              className={`flex-1 rounded-lg py-2 ${mode === "signup" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
             >회원가입</button>
           </div>
 
@@ -89,7 +89,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
             <button type="submit" disabled={busy}
-                    className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                    className="btn-primary w-full !py-3">
               {busy ? "처리 중..." : mode === "login" ? "로그인" : "회원가입하고 시작하기"}
             </button>
           </form>
@@ -98,13 +98,13 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
             <div className="h-px flex-1 bg-slate-200" /> 또는 <div className="h-px flex-1 bg-slate-200" />
           </div>
           <button onClick={demo} disabled={busy}
-                  className="w-full rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  className="btn-ghost w-full !py-3">
             데모 계정으로 둘러보기
           </button>
         </div>
         <p className="mt-4 text-center text-xs text-slate-400">
           케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다.<br/>
-          회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는 <b className="text-slate-300">평생 무료</b>로 사용합니다.
+          회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는 <b className="text-slate-600">평생 무료</b>로 사용합니다.
         </p>
       </div>
     </div>

@@ -15,26 +15,26 @@ export function ReportPanel({
     api.dailyReport(deviceSn, date).then(setReport).catch(() => setReport(null)).finally(() => setLoading(false));
   }, [deviceSn, date]);
 
-  const btn = "rounded-lg px-3 py-2 text-sm font-medium transition";
+  const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition";
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
-      <h3 className="mb-3 font-semibold text-slate-700">안전관리 리포트</h3>
+    <div className="card">
+      <h3 className="mb-3 font-semibold text-slate-900">안전관리 리포트</h3>
 
       {/* 다운로드 버튼 */}
       <div className="mb-4 flex flex-wrap gap-2">
         <button
           disabled={!deviceSn}
           onClick={() => deviceSn && api.download(api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
-          className={`${btn} bg-red-600 text-white disabled:opacity-40`}
+          className={`${btn} bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40`}
         >📄 일일 보고서 PDF</button>
         <button
           onClick={() => api.download(api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
-          className={`${btn} bg-slate-700 text-white`}
+          className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
         >📑 기간 통계 PDF</button>
         <button
           onClick={() => api.download(api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
-          className={`${btn} bg-green-700 text-white`}
+          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
         >📊 Excel 다운로드</button>
       </div>
 
