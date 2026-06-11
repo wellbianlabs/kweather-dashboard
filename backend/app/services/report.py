@@ -232,17 +232,18 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     # 자동 분석 코멘트
     analysis: list[str] = []
     if lm["danger"]:
-        analysis.append(f"체감온도 38°C(위험) 이상이 하루 {lm['danger']}분 지속되어 옥외작업 원칙적 중지 기준에 해당합니다.")
-    analysis.append(f"최고 체감온도는 {max_time}에 {max_feels}°C 로 정점에 도달했습니다.")
+        analysis.append(f"체감온도 38°C(위험) 이상 노출이 일일 {lm['danger']}분 누적되어 고용노동부 기준상 옥외작업 원칙적 중지 대상에 해당함.")
+    analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함.")
+    src_label = {"kweather": "기상청 관측", "kma": "기상청 ASOS"}.get(cmp.provider if cmp else "", "참고용 추정")
     if weather and cmp.enclosed_alert:
         analysis.append(
-            f"내부 체감온도가 외부({cmp.provider}) 기온보다 최대 {cmp.max_delta}°C 높아 '밀폐형 폭염 사업장'으로 "
-            f"분류됩니다(경고 임계 {cmp.enclosed_threshold}°C). 환기·차열·국소냉방 등 작업환경 개선이 시급합니다."
+            f"작업장 내부 체감온도가 외부({src_label}) 기온 대비 최대 {cmp.max_delta}°C 높게 측정되어 "
+            f"'밀폐형 폭염 사업장'에 해당함(관리 임계 {cmp.enclosed_threshold}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요."
         )
     elif weather and avg_delta is not None:
-        analysis.append(f"내부 체감온도가 외부 기온보다 평균 {avg_delta}°C 높습니다(최대 {cmp.max_delta}°C).")
+        analysis.append(f"작업장 내부 체감온도가 외부({src_label}) 기온 대비 평균 {avg_delta}°C 높게 측정됨(최대 {cmp.max_delta}°C).")
     if avg_humi is not None and avg_humi >= 70:
-        analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 땀 증발이 저해되어 온열질환 위험이 가중됩니다.")
+        analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
 
     out.update(
         max_feels=max_feels, max_time=max_time, max_temp=round(float(temps.max()), 1),
@@ -255,8 +256,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     )
     if external_daily and external_daily.get("out_max") is not None:
         analysis.append(
-            f"외부({external_daily['source']}) 일 최고기온 {external_daily['out_max']}°C 대비 현장 최고온도 "
-            f"{external_daily['in_max']}°C 로 {external_daily['diff_max']}°C 차이입니다."
+            f"외부({external_daily['source']}) 일 최고기온 {external_daily['out_max']}°C 대비 작업장 최고기온 "
+            f"{external_daily['in_max']}°C로 {external_daily['diff_max']}°C 편차를 보임."
         )
     return out
 
@@ -264,107 +265,146 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page { size: A4; margin: 1.4cm; }
-body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1e293b; }
-h1 { font-size: 15pt; margin:0 0 2px 0; color:#0f499e; }
-h2 { font-size: 10.5pt; margin:12px 0 4px 0; padding-bottom:2px; border-bottom:1.5px solid #0f499e; }
-.sub { color:#64748b; font-size:8.5pt; }
-.hr { border:0; border-top:2px solid #0f499e; margin:4px 0 8px 0; }
+@page { size: A4; margin: 1.5cm 1.6cm; }
+body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
 table { width:100%; border-collapse: collapse; }
-.kpi td { border:1px solid #e2e8f0; padding:6px 8px; }
-.kpi .k { background:#f8fafc; color:#475569; font-size:8pt; width:16%; }
-.kpi .v { font-weight:bold; font-size:11pt; width:17%; }
-.badge { display:inline-block; padding:2px 9px; border-radius:9px; color:#fff; font-weight:bold; }
-.bars td { padding:2px 4px; vertical-align:middle; }
-.bars .bl { width:120px; font-size:8.5pt; }
-.bars .bv { width:70px; text-align:right; font-size:8.5pt; color:#334155; }
-.track { background:#f1f5f9; width:100%; }
-.strip { table-layout:fixed; margin-top:4px; }
-.strip td { border:1px solid #fff; padding:3px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.15; }
-.cmp th, .cmp td { border:1px solid #e2e8f0; padding:3px 4px; text-align:center; font-size:8pt; }
-.cmp .rowh { background:#f8fafc; text-align:left; color:#475569; }
-.alert { border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; padding:6px 9px; border-radius:6px; font-size:8.5pt; margin:4px 0; }
-.note li, .guide li { margin:2px 0; font-size:8.8pt; }
-.footer { color:#94a3b8; font-size:7.5pt; margin-top:12px; border-top:1px solid #e2e8f0; padding-top:4px; }
+
+/* 결재란 */
+.sign { width:200pt; margin-left:auto; }
+.sign th { border:1px solid #94a3b8; background:#f1f5f9; font-size:7.5pt; color:#475569; padding:2px 0; text-align:center; font-weight:normal; }
+.sign td { border:1px solid #94a3b8; height:30pt; }
+
+/* 제목/문서정보 */
+.title { text-align:center; font-size:17pt; font-weight:bold; color:#0f172a; letter-spacing:6pt; margin:10pt 0 2pt 0; }
+.subtitle { text-align:center; font-size:9pt; color:#64748b; margin-bottom:8pt; }
+.docinfo td { border:1px solid #cbd5e1; padding:4px 8px; font-size:8.5pt; }
+.docinfo .k { background:#f8fafc; color:#475569; width:14%; text-align:center; }
+
+/* 섹션 */
+h2 { font-size:11pt; color:#0f172a; margin:13pt 0 5pt 0; }
+h2 .no { color:#0f499e; }
+.tbl th { border:1px solid #94a3b8; background:#eef2f7; padding:4px 6px; font-size:8.5pt; color:#334155; text-align:center; }
+.tbl td { border:1px solid #cbd5e1; padding:4px 6px; font-size:8.8pt; text-align:center; }
+.tbl .k { background:#f8fafc; color:#475569; text-align:center; }
+.num { font-weight:bold; font-size:10pt; }
+.badge { display:inline-block; padding:1.5px 8px; border-radius:8px; color:#fff; font-weight:bold; font-size:8.5pt; }
+.strip { table-layout:fixed; }
+.strip td { border:1px solid #fff; padding:2.5px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.2; }
+.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:5px 8px; font-size:8.5pt; margin:4px 0; }
+.gov { margin:2pt 0 0 0; }
+.gov div { margin:2.5pt 0; font-size:9pt; }
+.gov .b { color:#0f499e; font-weight:bold; }
+.gov2 { margin:2pt 0 0 8pt; }
+.gov2 div { margin:2.5pt 0; font-size:9pt; }
+.gov2 .b { color:#334155; }
+.note { font-size:7.8pt; color:#64748b; }
+.footer { margin-top:14pt; border-top:1.5px solid #0f499e; padding-top:5pt; font-size:7.5pt; color:#64748b; }
 </style></head><body>
 
-<h1>일일 안전관리 종합 보고서</h1>
-<div class="sub">
-  사업장: <b>{{ d.company_name or '-' }}</b> &nbsp;|&nbsp; 설치위치: {{ d.location_name or '-' }} &nbsp;|&nbsp; {{ d.address or '' }}<br/>
-  기기 SN: {{ d.device_sn }} &nbsp;|&nbsp; 일자: {{ d.date }} ({{ d.range_start }}~{{ d.range_end }}, {{ d.record_count }}건)
-  &nbsp;|&nbsp; 최고 위험단계: <span class="badge" style="background:{{ d.peak_color }}">{{ d.peak_label }}</span>
-</div>
-<hr class="hr"/>
+<table class="sign"><tr><th style="width:25%">결재</th><th>담당</th><th>검토</th><th>승인</th></tr>
+<tr><th style="height:30pt; font-size:7pt;">서명</th><td></td><td></td><td></td></tr></table>
 
-<h2>1. 측정 요약</h2>
-<table class="kpi">
+<div class="title">폭염 안전관리 일일 보고서</div>
+<div class="subtitle">근로자 온열질환 예방을 위한 작업장 체감온도 분석 자료</div>
+
+<table class="docinfo">
   <tr>
-    <td class="k">최고 체감온도</td><td class="v" style="color:{{ d.peak_color }}">{{ d.max_feels }}°C</td>
-    <td class="k">발생 시각</td><td class="v">{{ d.max_time }}</td>
-    <td class="k">최고 온도</td><td class="v">{{ d.max_temp }}°C</td>
+    <td class="k">보고서 번호</td><td style="width:36%">{{ report_no }}</td>
+    <td class="k">작성 일시</td><td>{{ generated }}</td>
   </tr>
   <tr>
-    <td class="k">평균 체감온도</td><td class="v">{{ d.avg_feels }}°C</td>
-    <td class="k">평균 습도</td><td class="v">{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td>
-    <td class="k">위험(38°C↑) 지속</td><td class="v" style="color:#dc2626">{{ d.level_minutes['danger'] }}분</td>
+    <td class="k">대상 일자</td><td>{{ d.date }}{% if d.has_data %} ({{ d.range_start }}~{{ d.range_end }}, 총 {{ d.record_count }}건 측정){% endif %}</td>
+    <td class="k">최고 위험단계</td><td><span class="badge" style="background:{{ d.peak_color }}">{{ d.peak_label }}</span></td>
   </tr>
 </table>
 
-<h2>2. 폭염 위험 단계별 지속시간</h2>
-<table class="cmp">
-  <tr><th class="rowh">위험 단계</th>{% for code in ['safe','attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
-  <tr><td class="rowh">지속시간</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ d.level_minutes[code] }}분</td>{% endfor %}</tr>
-  <tr><td class="rowh">비율</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ ((d.level_minutes[code] / d.total_minutes * 100) | round(0) | int) if d.total_minutes else 0 }}%</td>{% endfor %}</tr>
+<h2><span class="no">1.</span> 측정 대상 개요</h2>
+<table class="tbl">
+  <tr><th style="width:14%">사업장</th><td style="width:36%">{{ d.company_name or '-' }}</td>
+      <th style="width:14%">설치 위치</th><td>{{ d.location_name or '-' }}</td></tr>
+  <tr><th>소재지</th><td>{{ d.address or '-' }}</td>
+      <th>측정기기</th><td>케이웨더 체감온도계 (SN: {{ d.device_sn }})</td></tr>
 </table>
 
-<h2>3. 시간대별 체감온도 추이 (시간평균, 단계 색상)</h2>
+{% if d.has_data %}
+<h2><span class="no">2.</span> 측정 결과 요약</h2>
+<table class="tbl">
+  <tr><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>평균 체감온도</th><th>평균 습도</th><th>위험단계(38°C↑) 노출</th></tr>
+  <tr>
+    <td class="num" style="color:{{ d.peak_color }}">{{ d.max_feels }}°C</td>
+    <td>{{ d.max_time }}</td>
+    <td class="num">{{ d.max_temp }}°C</td>
+    <td>{{ d.avg_feels }}°C</td>
+    <td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td>
+    <td class="num" style="color:#dc2626">{{ d.level_minutes['danger'] }}분</td>
+  </tr>
+</table>
+
+<h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
+<table class="tbl">
+  <tr><th style="width:14%">위험 단계</th>{% for code in ['safe','attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
+  <tr><td class="k">기준(체감)</td><td>31°C 미만</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
+  <tr><td class="k">노출시간</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ d.level_minutes[code] }}분</td>{% endfor %}</tr>
+  <tr><td class="k">노출비율</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ ((d.level_minutes[code] / d.total_minutes * 100) | round(1)) if d.total_minutes else 0 }}%</td>{% endfor %}</tr>
+</table>
+<p class="note">※ 측정주기(1분) 기준 누적 노출시간 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
+
+<h2><span class="no">4.</span> 시간대별 체감온도 현황</h2>
 {% if d.hours %}
 <table class="strip"><tr>
 {% for h in d.hours %}
   <td style="background:{{ h.color }}">{{ '%02d'|format(h.hour) }}시<br/><b>{{ h.feels if h.feels is not none else '-' }}</b></td>
 {% endfor %}
 </tr></table>
-{% else %}<p class="sub">해당 일자의 측정 데이터가 없습니다.</p>{% endif %}
-{% if chart %}<div style="margin-top:6px;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
+<p class="note">※ 셀 색상은 해당 시간대 평균 체감온도의 위험단계를 나타냄</p>
+{% endif %}
+{% if chart %}<div style="margin-top:4pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
 
-<h2>4. 내부(현장) vs 외부 날씨 비교 분석</h2>
+<h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(외부: 기상청 관측자료)</span></h2>
 {% if d.external_daily %}
-  <table class="cmp" style="margin-bottom:6px;">
-    <tr><th class="rowh">구분</th><th>일 평균기온</th><th>일 최고기온</th><th>일 최저기온</th><th>평균 습도</th></tr>
-    <tr><td class="rowh">외부 ({{ d.external_daily.region or '관측' }})</td>
+  <table class="tbl" style="margin-bottom:4pt;">
+    <tr><th style="width:22%">구분</th><th>일 평균기온</th><th>일 최고기온</th><th>일 최저기온</th><th>평균 습도</th></tr>
+    <tr><td class="k">외부 ({{ d.external_daily.region or '관측' }})</td>
         <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_min if d.external_daily.out_min is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_humi if d.external_daily.out_humi is not none else '-' }}%</td></tr>
-    <tr><td class="rowh">현장(내부)</td>
+    <tr><td class="k">작업장(내부)</td>
         <td>{{ d.external_daily.in_avg }}°C</td>
-        <td style="font-weight:bold; color:#dc2626;">{{ d.external_daily.in_max }}°C</td>
+        <td class="num" style="color:#dc2626;">{{ d.external_daily.in_max }}°C</td>
         <td>-</td><td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td></tr>
   </table>
-  <div class="sub" style="margin-bottom:6px;">※ 외부 출처: {{ d.external_daily.source }} · 현장 최고온도가 외부 일 최고보다 <b>{{ d.external_daily.diff_max }}°C</b> {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·밀폐 영향 지표)</div>
+  <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
 {% endif %}
 {% if d.weather %}
   {% if d.weather.enclosed_alert %}
-  <div class="alert">⚠️ <b>밀폐형 폭염 사업장 경고</b> — 내부 체감온도가 외부({{ d.weather.provider }}) 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높습니다(경고 임계 {{ d.weather.threshold }}°C 초과).</div>
+  <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 기온 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
-  <table class="cmp">
-    <tr><th class="rowh">시각</th>{% for h in d.hours if h.hour % 2 == 0 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
-    <tr><td class="rowh">내부 체감(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
-    <tr><td class="rowh">외부 기온(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.outdoor if h.outdoor is not none else '-' }}</td>{% endfor %}</tr>
-    <tr><td class="rowh">격차(내부-외부)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
+  <table class="tbl">
+    <tr><th class="k" style="width:14%">시각</th>{% for h in d.hours if h.hour % 2 == 0 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
+    <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="k">외부 기온(°C)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.outdoor if h.outdoor is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="k">편차(내-외)</td>{% for h in d.hours if h.hour % 2 == 0 %}<td>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
-  <div class="sub" style="margin-top:3px;">※ 외부 로우데이터 출처: {{ '기상청 관측(케이웨더 제공)' if d.weather.provider == 'kweather' else ('기상청 ASOS' if d.weather.provider == 'kma' else '시뮬레이션(키 미설정)') }}. 격차가 클수록 복사열·밀폐 영향이 큼.</div>
+  <p class="note">※ 외부 로우데이터 출처: {{ '기상청 관측(케이웨더 제공)' if d.weather.provider == 'kweather' else ('기상청 ASOS' if d.weather.provider == 'kma' else '참고용 추정치') }}</p>
 {% elif not d.external_daily %}
-  <p class="sub">해당 일자의 외부 과거 날씨 데이터가 없습니다. (케이웨더 과거 아카이브는 약 4개월 지연 — 최근 날짜 미수록. 기상청 ASOS 직접연동 키 설정 시 최근 일자도 조회됩니다.)</p>
+  <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
 
-<h2>5. 종합 분석</h2>
-<ul class="note">{% for a in d.analysis %}<li>{{ a }}</li>{% endfor %}</ul>
+<h2><span class="no">6.</span> 종합 분석</h2>
+<div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 
-<h2>6. 안전조치 이행 가이드</h2>
-<ul class="guide">{% for g in d.guidance %}<li>{{ g }}</li>{% endfor %}</ul>
+<h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
+<div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
+{% else %}
+<h2><span class="no">2.</span> 측정 결과</h2>
+<p class="note">해당 일자에 수집된 측정 데이터가 없습니다.</p>
+{% endif %}
 
-<div class="footer">본 보고서는 케이웨더 체감온도계 연동 대시보드에서 자동 생성되었습니다. · 위험단계 기준(체감온도): 관심 31 / 주의 33 / 경고 35 / 위험 38°C · 생성일 {{ generated }}</div>
+<div class="footer">
+  근거: 고용노동부 「온열질환 예방가이드」(물·그늘·휴식) · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보 발표 기준<br/>
+  본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성된 분석 자료입니다. · 로우데이터: 기상청 관측(케이웨더 제공) 및 현장 측정값
+</div>
 </body></html>
 """
 )
@@ -377,9 +417,12 @@ def _html_to_pdf(html: str) -> bytes:
 
 
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
-    # 시간대별 히트스트립(섹션3)이 추이를 시각화하므로, 한 페이지에 담기 위해 별도 라인차트는 생략.
+    # 시간대별 히트스트립(섹션Ⅳ)이 추이를 시각화하므로, 한 페이지에 담기 위해 별도 라인차트는 생략.
     d = _daily_detail(db, tenant, device_sn, on_date)
-    html = _DAILY_TEMPLATE.render(d=d, chart=None, pdf_font=_PDF_FONT, generated=generated)
+    report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
+    html = _DAILY_TEMPLATE.render(
+        d=d, chart=None, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+    )
     return _html_to_pdf(html)
 
 
@@ -394,7 +437,7 @@ th, td { border:1px solid #cbd5e1; padding:4px 6px; text-align:center; }
 th { background:#f1f5f9; }
 .footer { color:#94a3b8; font-size:8pt; margin-top:16px; }
 </style></head><body>
-<h1>기간 통계 보고서 (주간/월간)</h1>
+<h1>폭염 안전관리 기간 분석 보고서</h1>
 <div class="sub">대상: {{ scope }} &nbsp;|&nbsp; 기간: {{ s.start }} ~ {{ s.end }}</div>
 
 <table>

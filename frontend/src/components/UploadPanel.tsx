@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { api } from "../api";
+import { IconUpload } from "./Icons";
 import type { UploadResult } from "../types";
 
 export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult[]) => void }) {
@@ -60,11 +61,11 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
       >
         <input ref={inputRef} type="file" multiple accept=".csv,.CSV,text/csv,text/plain" className="hidden"
                onChange={(e) => e.target.files && handleFiles(e.target.files)} />
-        <div className="text-3xl">📄</div>
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-kw-50 text-kw"><IconUpload className="h-5 w-5" /></span>
         <p className="mt-1 text-sm text-slate-600">
-          {busy ? "업로드 중... (자동으로 나눠 전송합니다)" : "케이웨더 CSV(탭 구분) 파일을 끌어다 놓거나 클릭하여 선택"}
+          {busy ? "업로드 중... (자동으로 나눠 전송합니다)" : "파일을 끌어다 놓거나 클릭하여 선택하세요"}
         </p>
-        <p className="text-xs text-slate-400">DATE · TIME · SN · TEMP · HUMI · A-TEMP / 다중 파일·대량 업로드 지원</p>
+        <p className="text-xs text-slate-400">지원 형식: 케이웨더 CSV(탭 구분) — DATE·TIME·SN·TEMP·HUMI·A-TEMP · 다중 파일/대량 업로드 지원</p>
       </div>
 
       {/* 진행률 */}

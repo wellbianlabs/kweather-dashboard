@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { IconFile, IconDownload } from "./Icons";
 import type { DailyReport } from "../types";
 import { HeatBadge } from "./HeatBadge";
 
@@ -27,15 +28,15 @@ export function ReportPanel({
           disabled={!deviceSn}
           onClick={() => deviceSn && api.download(api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
           className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        >📄 일일 보고서 PDF</button>
+        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />일일 안전 보고서 (PDF)</span></button>
         <button
           onClick={() => api.download(api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
           className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-        >📑 기간 통계 PDF</button>
+        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />기간 통계 보고서 (PDF)</span></button>
         <button
           onClick={() => api.download(api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
           className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-        >📊 Excel 다운로드</button>
+        ><span className="inline-flex items-center gap-2"><IconDownload className="h-4 w-4" />데이터 내보내기 (Excel)</span></button>
       </div>
 
       {/* 일일 보고서 미리보기 */}

@@ -2,6 +2,7 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import type { WeatherCompare } from "../types";
+import { IconAlert } from "./Icons";
 
 function fmtTime(t: string) {
   const d = new Date(t);
@@ -25,7 +26,7 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
 
       {cmp?.enclosed_alert && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          ⚠️ <b>밀폐형 폭염 사업장 경고</b> — 내부 체감온도가 외부보다 최대 {cmp.max_delta}℃ 높습니다
+          <IconAlert className="mr-1.5 inline h-4 w-4 -translate-y-px" /> <b>밀폐형 폭염 사업장 경고</b> — 내부 체감온도가 외부보다 최대 {cmp.max_delta}℃ 높습니다
           (임계 {cmp.enclosed_threshold}℃ 초과). 환기·냉방 대책이 필요합니다.
         </div>
       )}

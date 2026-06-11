@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
+import { IconSearch, IconPin } from "./Icons";
 import type { Device } from "../types";
 import { DeviceManager } from "./DeviceManager";
 
@@ -122,12 +123,12 @@ export function DeviceRegister({
                      placeholder="주소 검색을 눌러 도로명·지번 주소를 선택하세요" />
               <button type="button" onClick={openPostcode}
                       className="btn-primary shrink-0">
-                🔍 주소 검색
+                <span className="inline-flex items-center gap-1.5"><IconSearch className="h-4 w-4" />주소 검색</span>
               </button>
               <button type="button" onClick={() => geocodeAddress(form.address)} disabled={geoBusy || !form.address}
                       className="btn-ghost shrink-0"
                       title="현재 주소로 좌표 다시 찾기">
-                {geoBusy ? "..." : "📍 좌표"}
+                {geoBusy ? "…" : (<span className="inline-flex items-center gap-1.5"><IconPin className="h-4 w-4" />좌표 변환</span>)}
               </button>
             </div>
           </div>
@@ -151,7 +152,7 @@ export function DeviceRegister({
 
         <button onClick={register} disabled={busy}
                 className="btn-primary mt-4">
-          {busy ? "등록 중..." : "+ 기기 등록"}
+          {busy ? "등록 중..." : "기기 등록"}
         </button>
       </div>
 

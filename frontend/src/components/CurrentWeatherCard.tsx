@@ -1,5 +1,6 @@
 import type { CurrentWeather } from "../types";
 import { HeatBadge } from "./HeatBadge";
+import { IconAlert } from "./Icons";
 
 export function CurrentWeatherCard({ cw }: { cw: CurrentWeather | null }) {
   return (
@@ -34,7 +35,7 @@ export function CurrentWeatherCard({ cw }: { cw: CurrentWeather | null }) {
             <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${
               cw.enclosed_alert ? "border border-red-200 bg-red-50 text-red-700"
               : "border border-slate-200 bg-slate-50 text-slate-600"}`}>
-              {cw.enclosed_alert ? "⚠️ " : "· "}
+              {cw.enclosed_alert ? <IconAlert className="mr-1.5 inline h-4 w-4 -translate-y-px" /> : null}
               현장 체감온도가 야외보다 <b>{cw.delta > 0 ? `${cw.delta}℃ 높음` : `${Math.abs(cw.delta)}℃ 낮음`}</b>
               {cw.enclosed_alert && ` — 밀폐형 폭염 사업장(임계 ${cw.enclosed_threshold}℃ 초과). 환기·냉방 대책 필요`}
             </div>

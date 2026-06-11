@@ -5,6 +5,8 @@ import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
 import { CurrentWeatherCard } from "./components/CurrentWeatherCard";
+import { HeatGuidelines } from "./components/HeatGuidelines";
+import { IconRefresh, IconCheck } from "./components/Icons";
 import { UploadPanel } from "./components/UploadPanel";
 import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
@@ -231,8 +233,8 @@ export default function App() {
         {step === 2 && (
           <>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b>2단계 — 사업장·기기 등록.</b> 데이터를 올리기 전에 먼저 기기를 등록하세요.
-              같은 회사라도 <b>장소·기기별로 각각 추가 등록</b>할 수 있습니다.
+              <b className="text-slate-900">STEP 2 · 사업장·기기 등록</b> — 측정 데이터를 등록하기 전에 기기 정보를 먼저 등록합니다.
+              동일 법인이라도 사업장(장소)·기기 단위로 각각 등록할 수 있습니다.
             </div>
             <DeviceRegister devices={devices} defaultCompany={auth.company_name} onChange={loadDevices} />
             <button onClick={() => setStep(3)}
@@ -245,21 +247,20 @@ export default function App() {
         {step === 3 && (
           <>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b>3단계 — 데이터 업로드.</b> 케이웨더 CSV(탭 구분) 파일을 올리세요.
-              파일의 기기 SN이 2단계에서 등록한 기기와 일치하면 그 사업장 정보에 데이터가 연결됩니다.
-              업로드하면 대시보드로 자동 이동합니다.
+              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 케이웨더 체감온도계 CSV(탭 구분) 파일을 업로드합니다.
+              파일의 기기 SN이 등록된 기기와 일치하면 해당 사업장으로 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
             </div>
             <UploadPanel onUploaded={handleUploaded} />
 
             <div className="card">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">또는 케이웨더 단말기에서 실시간 가져오기</div>
-                  <div className="text-xs text-slate-500">CSV 업로드 없이 연동된 단말기의 최신 측정값을 바로 수집합니다.</div>
+                  <div className="text-sm font-semibold text-slate-900">케이웨더 IoT 단말기 실시간 연동</div>
+                  <div className="text-xs text-slate-500">파일 업로드 없이, 연동된 단말기의 최신 측정값을 직접 수집합니다.</div>
                 </div>
                 <button onClick={handleSyncLive} disabled={syncing}
                         className="btn-primary shrink-0">
-                  {syncing ? "가져오는 중..." : "🔄 실시간 측정값 가져오기"}
+                  {syncing ? "가져오는 중…" : (<span className="inline-flex items-center gap-2"><IconRefresh className="h-4 w-4" />실시간 측정값 가져오기</span>)}
                 </button>
               </div>
             </div>
@@ -283,7 +284,7 @@ export default function App() {
           <>
             {uploadNotice && (
               <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                <span>✅ {uploadNotice}</span>
+                <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4 text-emerald-600" />{uploadNotice}</span>
                 <button onClick={() => setUploadNotice(null)} className="text-emerald-600 hover:text-emerald-800">✕</button>
               </div>
             )}
@@ -291,6 +292,7 @@ export default function App() {
             {deviceSn && <CurrentWeatherCard cw={curWx} />}
             <TimeSeriesChart ts={ts} kpi={kpi} />
             <WeatherCompareChart cmp={cmp} />
+            <HeatGuidelines kpi={kpi} />
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />
           </>
         )}
