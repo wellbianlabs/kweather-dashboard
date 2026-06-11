@@ -17,27 +17,51 @@ export function ReportPanel({
   }, [deviceSn, date]);
 
   const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition";
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [dlError, setDlError] = useState<string | null>(null);
+
+  async function download(kind: string, url: string, filename: string) {
+    setDownloading(kind); setDlError(null);
+    try {
+      await api.download(url, filename);
+    } catch (e: any) {
+      let msg = String(e.message || e);
+      try { msg = JSON.parse(msg).detail ?? msg; } catch {}
+      if (msg.includes("504") || msg.toLowerCase().includes("timeout")) {
+        msg = "기간이 너무 길어 생성 시간이 초과되었습니다. 리포트 기간을 줄여 다시 시도해 주세요.";
+      }
+      setDlError(`다운로드 실패: ${msg}`);
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   return (
     <div className="card">
       <h3 className="mb-3 font-semibold text-slate-900">안전관리 리포트</h3>
 
       {/* 다운로드 버튼 */}
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-2 flex flex-wrap gap-2">
         <button
-          disabled={!deviceSn}
-          onClick={() => deviceSn && api.download(api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
+          disabled={!deviceSn || downloading !== null}
+          onClick={() => deviceSn && download("daily", api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
           className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />일일 안전 보고서 (PDF)</span></button>
+        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />{downloading === "daily" ? "생성 중…" : "일일 안전 보고서 (PDF)"}</span></button>
         <button
-          onClick={() => api.download(api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
-          className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />기간 통계 보고서 (PDF)</span></button>
+          disabled={downloading !== null}
+          onClick={() => download("periodic", api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
+          className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
+        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />{downloading === "periodic" ? "생성 중…" : "기간 통계 보고서 (PDF)"}</span></button>
         <button
-          onClick={() => api.download(api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
-          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-        ><span className="inline-flex items-center gap-2"><IconDownload className="h-4 w-4" />데이터 내보내기 (Excel)</span></button>
+          disabled={downloading !== null}
+          onClick={() => download("excel", api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
+          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40`}
+        ><span className="inline-flex items-center gap-2"><IconDownload className="h-4 w-4" />{downloading === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
       </div>
+      {dlError && (
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>
+      )}
+      <div className="mb-2" />
 
       {/* 일일 보고서 미리보기 */}
       {loading ? (

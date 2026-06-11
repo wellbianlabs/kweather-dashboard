@@ -542,61 +542,113 @@ def periodic_pdf(
 _HEADER_FILL = PatternFill("solid", fgColor="1E293B")
 _HEADER_FONT = Font(color="FFFFFF", bold=True)
 
-
-def _style_header(ws, ncols: int):
-    for c in range(1, ncols + 1):
-        cell = ws.cell(row=1, column=c)
-        cell.fill = _HEADER_FILL
-        cell.font = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center")
+# 서버리스 응답 한도(4.5MB)·시간 제한 내에서 안전한 로우데이터 상한
+EXPORT_RAW_MAX = 100_000
 
 
 def export_excel(
     db: Session, tenant: Tenant, device_sn: str | None, start: datetime, end: datetime
 ) -> bytes:
+    """Excel 내보내기 — 대용량 안전 버전.
+
+    - 요약은 SQL 집계(전체 행을 메모리에 올리지 않음)
+    - 로우데이터는 EXPORT_RAW_MAX 행으로 상한(초과 시 안내 행 추가)
+    - write_only 모드로 메모리/속도 최적화
+    """
+    from openpyxl.cell import WriteOnlyCell
+    from sqlalchemy import Date, case, cast, func
+
+    from ..models import SensorLog
+
     sns = analytics._resolve_scope(db, tenant, device_sn)
-    df = analytics.load_logs(db, sns, start, end)
 
-    wb = Workbook()
+    wb = Workbook(write_only=True)
 
-    # --- 시트1: 일자별 요약 ---
-    ws1 = wb.active
-    ws1.title = "일자별요약"
-    headers1 = ["일자", "기기SN", "최고체감(°C)", "평균체감(°C)", "최고온도(°C)", "평균습도(%)", "33°C↑(분)", "최고단계"]
-    ws1.append(headers1)
-    if not df.empty:
-        df["day"] = df["measured_at"].dt.date
-        for (day, sn), g in df.groupby(["day", "device_sn"]):
-            lvl = heat.classify(float(g["feels_like"].max()))
+    def _headers(ws, names):
+        cells = []
+        for n in names:
+            c = WriteOnlyCell(ws, value=n)
+            c.fill = _HEADER_FILL
+            c.font = _HEADER_FONT
+            c.alignment = Alignment(horizontal="center")
+            cells.append(c)
+        return cells
+
+    # --- 시트1: 일자별 요약 (SQL 집계) ---
+    ws1 = wb.create_sheet("일자별요약")
+    for i, w in enumerate([12, 16, 12, 12, 12, 12, 10, 10], start=1):
+        ws1.column_dimensions[chr(64 + i)].width = w
+    ws1.append(_headers(ws1, ["일자", "기기SN", "최고체감(°C)", "평균체감(°C)", "최고온도(°C)", "평균습도(%)", "33°C↑(분)", "최고단계"]))
+
+    if sns:
+        date_expr = (
+            func.date(SensorLog.measured_at)
+            if db.bind.dialect.name == "sqlite"
+            else cast(SensorLog.measured_at, Date)
+        ).label("d")
+        cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
+        q = (
+            select(
+                date_expr,
+                SensorLog.device_sn,
+                func.max(SensorLog.feels_like_temperature),
+                func.avg(SensorLog.feels_like_temperature),
+                func.max(SensorLog.temperature),
+                func.avg(SensorLog.humidity),
+                func.sum(case((SensorLog.feels_like_temperature >= settings.HEAT_CAUTION, 1), else_=0)),
+            )
+            .where(*cond)
+            .group_by(date_expr, SensorLog.device_sn)
+            .order_by(date_expr, SensorLog.device_sn)
+        )
+        for day, sn, mxf, avf, mxt, avh, over in db.execute(q):
+            mxf = float(mxf) if mxf is not None else None
             ws1.append([
-                day.isoformat(), sn,
-                round(float(g["feels_like"].max()), 1),
-                round(float(g["feels_like"].mean()), 1),
-                round(float(g["temperature"].max()), 1),
-                round(float(g["humidity"].mean()), 1) if g["humidity"].notna().any() else None,
-                int((g["feels_like"] >= settings.HEAT_CAUTION).sum()),
-                lvl.label,
+                str(day), sn,
+                round(mxf, 1) if mxf is not None else None,
+                round(float(avf), 1) if avf is not None else None,
+                round(float(mxt), 1) if mxt is not None else None,
+                round(float(avh), 1) if avh is not None else None,
+                int(over or 0),
+                heat.classify(mxf).label,
             ])
-    _style_header(ws1, len(headers1))
 
-    # --- 시트2: 로우데이터 ---
+    # --- 시트2: 로우데이터 (상한 + 안내) ---
     ws2 = wb.create_sheet("로우데이터")
-    headers2 = ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)"]
-    ws2.append(headers2)
-    if not df.empty:
-        for r in df.sort_values(["device_sn", "measured_at"]).itertuples(index=False):
-            ws2.append([
-                pd.Timestamp(r.measured_at).strftime("%Y-%m-%d %H:%M:%S"),
-                r.device_sn,
-                None if pd.isna(r.temperature) else round(float(r.temperature), 1),
-                None if pd.isna(r.humidity) else int(r.humidity),
-                None if pd.isna(r.feels_like) else round(float(r.feels_like), 1),
-            ])
-    _style_header(ws2, len(headers2))
+    for i, w in enumerate([22, 16, 10, 10, 12], start=1):
+        ws2.column_dimensions[chr(64 + i)].width = w
+    ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)"]))
 
-    for ws, widths in ((ws1, [12, 16, 12, 12, 12, 12, 10, 10]), (ws2, [22, 16, 10, 10, 12])):
-        for i, w in enumerate(widths, start=1):
-            ws.column_dimensions[chr(64 + i)].width = w
+    truncated = False
+    if sns:
+        raw_q = (
+            select(
+                SensorLog.measured_at, SensorLog.device_sn,
+                SensorLog.temperature, SensorLog.humidity, SensorLog.feels_like_temperature,
+            )
+            .where(*cond)
+            .order_by(SensorLog.device_sn, SensorLog.measured_at)
+            .limit(EXPORT_RAW_MAX + 1)
+        )
+        count = 0
+        for mt, sn, temp, humi, feels in db.execute(raw_q):
+            count += 1
+            if count > EXPORT_RAW_MAX:
+                truncated = True
+                break
+            ws2.append([
+                pd.Timestamp(mt).strftime("%Y-%m-%d %H:%M:%S"), sn,
+                round(float(temp), 1) if temp is not None else None,
+                int(humi) if humi is not None else None,
+                round(float(feels), 1) if feels is not None else None,
+            ])
+    if truncated:
+        note = WriteOnlyCell(ws2, value=(
+            f"※ 기간 내 데이터가 {EXPORT_RAW_MAX:,}건을 초과하여 처음 {EXPORT_RAW_MAX:,}건만 수록했습니다. "
+            "기간을 줄여 다시 내보내면 전체 로우데이터를 받을 수 있습니다. (일자별 요약 시트는 전체 기간 반영)"
+        ))
+        note.font = Font(color="DC2626", bold=True)
+        ws2.append([note])
 
     buf = io.BytesIO()
     wb.save(buf)
