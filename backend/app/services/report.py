@@ -295,13 +295,19 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page { size: A4; margin: 1.5cm 1.6cm; }
+@page {
+  size: A4;
+  margin: 2.7cm 1.6cm 1.5cm 1.6cm;
+  @frame header_frame { -pdf-frame-content: header_content; left: 45pt; width: 505pt; top: 20pt; height: 46pt; }
+}
 body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
+/* 매 페이지 반복 제목 */
+.pgtitle { text-align:center; font-size:14pt; font-weight:bold; color:#0f172a; letter-spacing:5pt; padding-left:5pt; }
+.pgrule { border-bottom:1.5px solid #0f499e; margin-top:3pt; }
 table { width:100%; border-collapse: collapse; }
 
-/* 제목/문서정보 */
-.title { text-align:center; font-size:17pt; font-weight:bold; color:#0f172a; letter-spacing:6pt; margin:10pt 0 2pt 0; }
-.subtitle { text-align:center; font-size:9pt; color:#64748b; margin-bottom:8pt; }
+/* 문서정보 */
+.subtitle { text-align:center; font-size:9pt; color:#64748b; margin:0 0 8pt 0; }
 .docinfo td { border:1px solid #cbd5e1; padding:4px 8px; font-size:8.5pt; }
 .docinfo .k { background:#f8fafc; color:#475569; width:14%; text-align:center; }
 
@@ -326,7 +332,11 @@ h2 .no { color:#0f499e; }
 .footer { margin-top:14pt; border-top:1.5px solid #0f499e; padding-top:5pt; font-size:7.5pt; color:#64748b; }
 </style></head><body>
 
-<div class="title">폭염 안전관리 일일 보고서</div>
+<div id="header_content">
+  <div class="pgtitle">폭염 안전관리 일일 보고서</div>
+  <div class="pgrule"></div>
+</div>
+
 <div class="subtitle">근로자 온열질환 예방을 위한 작업장 체감온도 분석 자료 · 측정장비: 케이웨더(주) 체감온도계</div>
 
 <table class="docinfo">
@@ -395,7 +405,8 @@ h2 .no { color:#0f499e; }
 {% endif %}
 {% if chart %}<div style="margin-top:4pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
 
-<h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
+<div style="page-break-before: always;"></div>
+<h2 style="margin-top:0;"><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
     <tr><th style="width:22%">구분</th><th>일 평균기온</th><th>일 최고기온</th><th>일 최저기온</th><th>평균 습도</th></tr>
