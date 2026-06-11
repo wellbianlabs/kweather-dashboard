@@ -37,6 +37,12 @@ export const IconCheck = (p: P) => (
 export const IconShield = (p: P) => (
   <Base {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Base>
 );
+export const IconSpinner = ({ className }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" className={`animate-spin ${className ?? "h-5 w-5"}`} aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-20" />
+    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
 export const IconInfo = (p: P) => (
   <Base {...p}><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></Base>
 );

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { IconFile, IconDownload } from "./Icons";
+import { IconFile, IconDownload, IconSpinner } from "./Icons";
+
+const KIND_LABEL: Record<string, string> = {
+  daily: "일일 안전 보고서(PDF)",
+  periodic: "기간 통계 보고서(PDF)",
+  excel: "Excel 데이터 파일",
+};
 import type { DailyReport } from "../types";
 import { HeatBadge } from "./HeatBadge";
 
@@ -38,6 +44,26 @@ export function ReportPanel({
 
   return (
     <div className="card">
+      {/* 생성 중 로딩 오버레이 */}
+      {downloading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-[2px]">
+          <div className="mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-white px-8 py-9 shadow-lift">
+            <IconSpinner className="h-11 w-11 text-kw" />
+            <div className="text-center">
+              <div className="text-base font-bold tracking-tight text-slate-900">
+                {KIND_LABEL[downloading] ?? "파일"} 생성 중
+              </div>
+              <div className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                데이터 양에 따라 최대 1분 정도 소요될 수 있습니다.<br />잠시만 기다려 주세요.
+              </div>
+            </div>
+            <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full w-1/3 animate-[loading_1.2s_ease-in-out_infinite] rounded-full bg-kw" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <h3 className="mb-3 font-semibold text-slate-900">안전관리 리포트</h3>
 
       {/* 다운로드 버튼 */}
@@ -46,17 +72,17 @@ export function ReportPanel({
           disabled={!deviceSn || downloading !== null}
           onClick={() => deviceSn && download("daily", api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
           className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />{downloading === "daily" ? "생성 중…" : "일일 안전 보고서 (PDF)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{downloading === "daily" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{downloading === "daily" ? "생성 중…" : "일일 안전 보고서 (PDF)"}</span></button>
         <button
           disabled={downloading !== null}
           onClick={() => download("periodic", api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
           className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2"><IconFile className="h-4 w-4" />{downloading === "periodic" ? "생성 중…" : "기간 통계 보고서 (PDF)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{downloading === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{downloading === "periodic" ? "생성 중…" : "기간 통계 보고서 (PDF)"}</span></button>
         <button
           disabled={downloading !== null}
           onClick={() => download("excel", api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
           className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2"><IconDownload className="h-4 w-4" />{downloading === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{downloading === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{downloading === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
       </div>
       {dlError && (
         <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>

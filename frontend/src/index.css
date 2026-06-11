@@ -37,6 +37,12 @@ body {
   }
 }
 
+/* 로딩 인디케이터 바 */
+@keyframes loading {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
 /* 얇고 차분한 스크롤바 */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 8px; border: 3px solid #f7f8fa; }
