@@ -13,14 +13,14 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
   const data = (cmp?.points || []).map((p) => ({
     time: fmtTime(p.t),
     "내부 체감온도": p.indoor_feels_like,
-    "외부 기상청온도": p.outdoor_temperature,
+    "야외 기온": p.outdoor_temperature,
     "내외부 격차": p.delta,
   }));
 
   return (
     <div className="card">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-900">외부(기상청) vs 내부 체감온도 비교</h3>
+        <h3 className="font-semibold text-slate-900">야외 vs 현장(내부) 체감온도 비교</h3>
         <span className="text-xs text-slate-400">데이터 제공: 케이웨더(주)</span>
       </div>
 
@@ -43,7 +43,7 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="내외부 격차" fill="#fecaca" barSize={10} />
             <Line type="monotone" dataKey="내부 체감온도" stroke="#dc2626" dot={false} strokeWidth={2.2} />
-            <Line type="monotone" dataKey="외부 기상청온도" stroke="#1790cd" dot={false} strokeWidth={2} />
+            <Line type="monotone" dataKey="야외 기온" stroke="#1790cd" dot={false} strokeWidth={2} />
           </ComposedChart>
         </ResponsiveContainer>
       )}
