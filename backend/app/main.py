@@ -68,6 +68,7 @@ def health() -> dict:
         "weather_provider": settings.WEATHER_PROVIDER,
         "kweather_key_set": bool(settings.KW_API_KEY),
         "kweather_iot_configured": bool(settings.KW_IOT_API_KEY and settings.KW_IOT_USER_ID),
+        "kma_asos_key_set": bool(settings.KMA_API_KEY),
         "geocoder": "kakao" if settings.KAKAO_REST_KEY else "nominatim",
         "thresholds": {
             "attention": settings.HEAT_ATTENTION,

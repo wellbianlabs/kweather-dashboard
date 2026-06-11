@@ -104,6 +104,48 @@ class KmaWeatherProvider(WeatherProvider):
         return out
 
 
+# 시도 코드(행정동 앞 2자리) -> 대표 ASOS 관측소 번호 (기상청 일자료 폴백용)
+_SIDO_ASOS = {
+    "11": "108", "26": "159", "27": "143", "28": "112", "29": "156", "30": "133",
+    "31": "152", "36": "239", "41": "119", "42": "105", "43": "131", "44": "129",
+    "45": "146", "46": "165", "47": "136", "48": "155", "50": "184", "51": "105",
+}
+
+
+def _kma_asos_daily(code: str, ds: str) -> dict | None:
+    """기상청 ASOS 일자료(data.go.kr) — 케이웨더 아카이브 미수록 최근 날짜 대비 폴백. KMA_API_KEY 필요."""
+    if not settings.KMA_API_KEY or not code:
+        return None
+    stn = _SIDO_ASOS.get(str(code)[:2])
+    if not stn:
+        return None
+    try:
+        with httpx.Client(timeout=12.0) as client:
+            r = client.get(
+                "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList",
+                params={
+                    "serviceKey": settings.KMA_API_KEY, "dataType": "JSON", "dataCd": "ASOS",
+                    "dateCd": "DAY", "stnIds": stn, "startDt": ds, "endDt": ds,
+                    "numOfRows": "10", "pageNo": "1",
+                },
+            )
+            items = r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
+            if not items:
+                return None
+            it = items[0] if isinstance(items, list) else items
+
+            def _f(v):
+                return float(v) if v not in (None, "") else None
+
+            avg, mx, mn, hu = _f(it.get("avgTa")), _f(it.get("maxTa")), _f(it.get("minTa")), _f(it.get("avgRhm"))
+            if avg is not None or mx is not None:
+                return {"avg": avg, "max": mx, "min": mn, "humi": hu,
+                        "source": "기상청 ASOS", "region": it.get("stnNm")}
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 class KWeatherProvider(WeatherProvider):
     """케이웨더(Air365) Open API. 환경변수 KW_API_KEY + KW_BASE_URL 로 설정(Vercel 입력).
 
@@ -198,7 +240,8 @@ class KWeatherProvider(WeatherProvider):
                                 "region": " ".join(x for x in [dd.get("state"), dd.get("city"), dd.get("city2")] if x)}
             except Exception:  # noqa: BLE001
                 pass
-        return None
+        # 3) 케이웨더 아카이브에 없으면 기상청 ASOS 일자료 직접 조회(최근 날짜 대비)
+        return _kma_asos_daily(code, ds)
 
     def hourly_temps(self, lat, lon, region_code, start, end):
         # 케이웨더 실황은 현재값 1점 — 타임스탬프가 조회 구간에 들면 해당 시각에 매핑.

@@ -328,7 +328,7 @@ table { width:100%; border-collapse: collapse; }
   </table>
   <div class="sub" style="margin-top:3px;">※ 외부 로우데이터 출처: {{ '기상청 관측(케이웨더 제공)' if d.weather.provider == 'kweather' else ('기상청 ASOS' if d.weather.provider == 'kma' else '시뮬레이션(키 미설정)') }}. 격차가 클수록 복사열·밀폐 영향이 큼.</div>
 {% elif not d.external_daily %}
-  <p class="sub">해당 일자의 외부 날씨 데이터를 불러올 수 없습니다. (케이웨더 과거자료 권한 필요 — 현재 키 미지원)</p>
+  <p class="sub">해당 일자의 외부 과거 날씨 데이터가 없습니다. (케이웨더 과거 아카이브는 약 4개월 지연 — 최근 날짜 미수록. 기상청 ASOS 직접연동 키 설정 시 최근 일자도 조회됩니다.)</p>
 {% endif %}
 
 <h2>5. 종합 분석</h2>
