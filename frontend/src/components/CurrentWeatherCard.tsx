@@ -41,7 +41,7 @@ export function CurrentWeatherCard({ cw }: { cw: CurrentWeather | null }) {
             </div>
           )}
           <div className="mt-2 text-right text-[10px] text-slate-400">
-            로우데이터 제공: <b className="text-slate-500">기상청</b> · 정보제공: 케이웨더
+            측정·기상 데이터 제공: <b className="text-slate-500">케이웨더(주)</b> · 측정장비: 케이웨더 체감온도계
           </div>
         </>
       ) : (

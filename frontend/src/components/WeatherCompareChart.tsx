@@ -21,7 +21,7 @@ export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
     <div className="card">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-semibold text-slate-900">외부(기상청) vs 내부 체감온도 비교</h3>
-        <span className="text-xs text-slate-400">제공자: {cmp?.provider ?? "-"}</span>
+        <span className="text-xs text-slate-400">데이터 제공: 케이웨더(주)</span>
       </div>
 
       {cmp?.enclosed_alert && (

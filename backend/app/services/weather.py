@@ -164,7 +164,7 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
             avg = _pick("TA_AVG"); mx = _pick("TA_MAX"); mn = _pick("TA_MIN")
             hu = _pick("HM_AVG") or _pick("RHM_AVG")
             if avg is not None or mx is not None:
-                return {"avg": avg, "max": mx, "min": mn, "humi": hu, "source": "기상청 ASOS", "region": None}
+                return {"avg": avg, "max": mx, "min": mn, "humi": hu, "source": "케이웨더 기상관측자료", "region": None}
     except Exception:  # noqa: BLE001
         return None
     return None
@@ -247,7 +247,7 @@ class KWeatherProvider(WeatherProvider):
                     hu = (d.get("humi") or {}).get(ds)
                     if avg is not None or mx is not None:
                         return {"avg": avg, "max": mx, "min": mn, "humi": hu,
-                                "source": "기상청 과거관측(케이웨더 제공)",
+                                "source": "케이웨더 과거기상자료",
                                 "region": " ".join(x for x in [d.get("state"), d.get("city"), d.get("city2")] if x)}
             except Exception:  # noqa: BLE001
                 pass
@@ -260,7 +260,7 @@ class KWeatherProvider(WeatherProvider):
                     dd = entry.get("data", {})
                     if ts[:8] == ds and (dd.get("temp") is not None or dd.get("maxTemp") is not None):
                         return {"avg": dd.get("temp"), "max": dd.get("maxTemp"), "min": dd.get("minTemp"),
-                                "humi": dd.get("humi"), "source": "기상청 전일관측(케이웨더 제공)",
+                                "humi": dd.get("humi"), "source": "케이웨더 전일기상자료",
                                 "region": " ".join(x for x in [dd.get("state"), dd.get("city"), dd.get("city2")] if x)}
             except Exception:  # noqa: BLE001
                 pass

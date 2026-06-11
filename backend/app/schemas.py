@@ -117,7 +117,7 @@ class TimeSeriesOut(BaseModel):
 class CurrentWeatherOut(BaseModel):
     provider: str
     available: bool
-    source: str = "기상청"                 # 로우데이터 출처(케이웨더가 기상청 관측을 제공)
+    source: str = "케이웨더"               # 데이터 출처 표기
     region: str | None = None
     outdoor_temp: float | None = None
     outdoor_feels: float | None = None
