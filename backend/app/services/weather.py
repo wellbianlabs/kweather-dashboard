@@ -113,7 +113,11 @@ _SIDO_ASOS = {
 
 
 def _kma_asos_daily(code: str, ds: str) -> dict | None:
-    """기상청 ASOS 일자료(data.go.kr) — 케이웨더 아카이브 미수록 최근 날짜 대비 폴백. KMA_API_KEY 필요."""
+    """기상청 API허브(apihub.kma.go.kr) ASOS 일자료 — 케이웨더 아카이브 미수록 날짜 대비 폴백.
+
+    KMA_API_KEY(=API허브 authKey) 필요. 응답은 고정폭 텍스트(헤더 주석 + 데이터 라인).
+    헤더의 컬럼명(TA_AVG/TA_MAX/TA_MIN/HM_AVG)을 찾아 인덱스로 파싱한다.
+    """
     if not settings.KMA_API_KEY or not code:
         return None
     stn = _SIDO_ASOS.get(str(code)[:2])
@@ -122,25 +126,45 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
     try:
         with httpx.Client(timeout=12.0) as client:
             r = client.get(
-                "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList",
-                params={
-                    "serviceKey": settings.KMA_API_KEY, "dataType": "JSON", "dataCd": "ASOS",
-                    "dateCd": "DAY", "stnIds": stn, "startDt": ds, "endDt": ds,
-                    "numOfRows": "10", "pageNo": "1",
-                },
+                "https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php",
+                params={"tm1": ds, "tm2": ds, "stn": stn, "disp": "0", "help": "1", "authKey": settings.KMA_API_KEY},
             )
-            items = r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
-            if not items:
+            text = r.text
+            if r.status_code != 200 or "활용신청" in text or "용량" in text:
                 return None
-            it = items[0] if isinstance(items, list) else items
 
-            def _f(v):
-                return float(v) if v not in (None, "") else None
+            lines = text.splitlines()
+            # 헤더: 컬럼명을 담은 주석 라인(TA_AVG, TA_MAX 포함)
+            cols = None
+            for ln in lines:
+                if "TA_AVG" in ln and "TA_MAX" in ln:
+                    cols = ln.lstrip("#").split()
+                    break
+            # 데이터 라인: 날짜로 시작하는 비주석 라인
+            data = None
+            for ln in lines:
+                s = ln.strip()
+                if s and not s.startswith("#") and s.split()[0].startswith(ds[:8]):
+                    data = s.split()
+                    break
+            if not data:
+                return None
 
-            avg, mx, mn, hu = _f(it.get("avgTa")), _f(it.get("maxTa")), _f(it.get("minTa")), _f(it.get("avgRhm"))
+            def _pick(name):
+                if cols and name in cols:
+                    i = cols.index(name)
+                    if i < len(data):
+                        try:
+                            v = float(data[i])
+                            return None if v <= -50 else v  # 결측(-9 등) 제외
+                        except ValueError:
+                            return None
+                return None
+
+            avg = _pick("TA_AVG"); mx = _pick("TA_MAX"); mn = _pick("TA_MIN")
+            hu = _pick("HM_AVG") or _pick("RHM_AVG")
             if avg is not None or mx is not None:
-                return {"avg": avg, "max": mx, "min": mn, "humi": hu,
-                        "source": "기상청 ASOS", "region": it.get("stnNm")}
+                return {"avg": avg, "max": mx, "min": mn, "humi": hu, "source": "기상청 ASOS", "region": None}
     except Exception:  # noqa: BLE001
         return None
     return None
