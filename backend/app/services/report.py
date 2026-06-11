@@ -130,7 +130,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         out.update(
             peak_label=safe.label, peak_color=safe.color, guidance=analytics._GUIDANCE["safe"],
             hours=[], level_minutes={}, total_minutes=0, weather=None, analysis=[],
-            external_daily=None, avg_humidity=None, work=None,
+            external_daily=None, avg_humidity=None, work=None, series=[],
         )
         return out
 
@@ -149,6 +149,15 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         "attention": int(((feels >= th["attention"]) & (feels < th["caution"])).sum()),
         "safe": int((feels < th["attention"]).sum()),
     }
+
+    # 피크 시점의 동시 관측값(샘플 보고서 항목)
+    temp_at_peak = round(float(df.loc[idx_max, "temperature"]), 1)
+    _hp = df.loc[idx_max, "humidity"]
+    humi_at_peak = int(_hp) if pd.notna(_hp) else None
+
+    # 차트용 10분 시리즈 (시각을 0~24h 실수로)
+    s10 = df.set_index("measured_at")["feels_like"].resample("10min").mean().dropna()
+    series = [(ts.hour + ts.minute / 60.0, round(float(v), 1)) for ts, v in s10.items()]
 
     # 시간대별 평균
     s = df.set_index("measured_at")[["temperature", "feels_like", "humidity"]].resample("1h").mean()
@@ -263,7 +272,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         )
     if lm["danger"]:
         analysis.append(f"체감온도 38°C(위험) 이상 노출이 일일 {lm['danger']}분 누적되어 고용노동부 기준상 옥외작업 원칙적 중지 대상에 해당함.")
-    analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함.")
+    analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
+                    + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
     src_label = "케이웨더" if (cmp and cmp.provider in ("kweather", "kma")) else "참고용 추정"
     if weather and cmp.enclosed_alert:
         analysis.append(
@@ -282,7 +292,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         range_end=pd.to_datetime(df["measured_at"].max()).strftime("%H:%M"),
         peak_label=peak.label, peak_color=peak.color, guidance=analytics._GUIDANCE[peak.code],
         level_minutes=lm, total_minutes=n, hours=hours, weather=weather, analysis=analysis,
-        external_daily=external_daily, work=work,
+        external_daily=external_daily, work=work, series=series,
+        temp_at_peak=temp_at_peak, humi_at_peak=humi_at_peak,
     )
     if external_daily and external_daily.get("out_max") is not None:
         analysis.append(
@@ -290,6 +301,145 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             f"{external_daily['in_max']}°C로 {external_daily['diff_max']}°C 편차를 보임."
         )
     return out
+
+
+
+# ---------------- PIL 경량 차트 (matplotlib 없이 — 로컬/서버리스 동일 출력) ----------------
+def _png_data_uri(img) -> str:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _pil_fonts():
+    from PIL import ImageFont
+
+    def F(size):
+        try:
+            return ImageFont.truetype(_FONT_PATH, size)
+        except Exception:  # noqa: BLE001
+            return ImageFont.load_default()
+    return F
+
+
+def _chart_hourly_feels(series, th) -> str | None:
+    """시간별 체감온도 라인 차트 — 위험단계 색상 구간선 + 임계선 + 피크 주석."""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    if not series or len(series) < 2:
+        return None
+    F = _pil_fonts()
+    W, H = 1560, 560
+    L, R, T, B = 100, 36, 36, 72
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+
+    ys = [v for _, v in series]
+    ymin = min(min(ys) - 2, 20)
+    ymax = max(max(ys) + 3, 41)
+    ymin = int(ymin // 5 * 5)
+    ymax = int(-(-ymax // 5) * 5)
+
+    def X(x):
+        return L + (x / 24.0) * (W - L - R)
+
+    def Y(y):
+        return T + (1 - (y - ymin) / (ymax - ymin)) * (H - T - B)
+
+    # 그리드/축
+    for gy in range(ymin, ymax + 1, 5):
+        d.line([(L, Y(gy)), (W - R, Y(gy))], fill="#eef2f6", width=2)
+        d.text((L - 14, Y(gy)), str(gy), font=F(24), fill="#94a3b8", anchor="rm")
+    for gx in range(0, 25, 3):
+        d.line([(X(gx), T), (X(gx), H - B)], fill="#f4f6f9", width=2)
+        d.text((X(gx), H - B + 12), f"{gx:02d}시", font=F(24), fill="#94a3b8", anchor="ma")
+    d.line([(L, H - B), (W - R, H - B)], fill="#cbd5e1", width=3)
+    d.line([(L, T), (L, H - B)], fill="#cbd5e1", width=3)
+
+    # 임계선(점선)
+    for code in ("attention", "caution", "warning", "danger"):
+        yv = th[code]
+        if ymin < yv < ymax:
+            color = heat.LEVELS[code].color
+            x = L
+            while x < W - R:
+                d.line([(x, Y(yv)), (min(x + 16, W - R), Y(yv))], fill=color, width=2)
+                x += 28
+            d.text((W - R - 4, Y(yv) - 4), f"{heat.LEVELS[code].label} {int(yv)}", font=F(20), fill=color, anchor="rs")
+
+    # 근무시간 음영(09~18시)
+    band = Image.new("RGBA", (int(X(18)) - int(X(9)), int(H - B - T)), (15, 73, 158, 14))
+    img.paste(band, (int(X(9)), int(T)), band)
+
+    # 단계 색상 구간 폴리라인
+    for i in range(len(series) - 1):
+        (x1, v1), (x2, v2) = series[i], series[i + 1]
+        seg_color = heat.classify((v1 + v2) / 2).color
+        d.line([(X(x1), Y(v1)), (X(x2), Y(v2))], fill=seg_color, width=5)
+
+    # 피크 주석
+    pi = max(range(len(series)), key=lambda i: series[i][1])
+    px_, pv = series[pi]
+    pc = heat.classify(pv).color
+    d.ellipse([X(px_) - 9, Y(pv) - 9, X(px_) + 9, Y(pv) + 9], fill="white", outline=pc, width=4)
+    d.text((X(px_), Y(pv) - 18), f"{pv:.1f}", font=F(30), fill=pc, anchor="mb", stroke_width=1, stroke_fill=pc)
+
+    return _png_data_uri(img)
+
+
+def _chart_compare(hours) -> str | None:
+    """내부 체감온도 vs 야외 기온 비교 라인 차트 (시간 단위)."""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    pts_in = [(h["hour"], h["feels"]) for h in hours if h.get("feels") is not None]
+    pts_out = [(h["hour"], h["outdoor"]) for h in hours if h.get("outdoor") is not None]
+    if len(pts_in) < 2 or len(pts_out) < 2:
+        return None
+    F = _pil_fonts()
+    W, H = 1560, 520
+    L, R, T, B = 100, 36, 56, 72
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+
+    ys = [v for _, v in pts_in] + [v for _, v in pts_out]
+    ymin = int((min(ys) - 2) // 5 * 5)
+    ymax = int(-(-(max(ys) + 3) // 5) * 5)
+
+    def X(x):
+        return L + (x / 24.0) * (W - L - R)
+
+    def Y(y):
+        return T + (1 - (y - ymin) / (ymax - ymin)) * (H - T - B)
+
+    for gy in range(ymin, ymax + 1, 5):
+        d.line([(L, Y(gy)), (W - R, Y(gy))], fill="#eef2f6", width=2)
+        d.text((L - 14, Y(gy)), str(gy), font=F(24), fill="#94a3b8", anchor="rm")
+    for gx in range(0, 25, 3):
+        d.text((X(gx), H - B + 12), f"{gx:02d}시", font=F(24), fill="#94a3b8", anchor="ma")
+    d.line([(L, H - B), (W - R, H - B)], fill="#cbd5e1", width=3)
+    d.line([(L, T), (L, H - B)], fill="#cbd5e1", width=3)
+
+    def poly(pts, color):
+        for i in range(len(pts) - 1):
+            d.line([(X(pts[i][0]), Y(pts[i][1])), (X(pts[i + 1][0]), Y(pts[i + 1][1]))], fill=color, width=5)
+        for x, v in pts:
+            d.ellipse([X(x) - 4, Y(v) - 4, X(x) + 4, Y(v) + 4], fill=color)
+
+    poly(pts_out, "#1790cd")
+    poly(pts_in, "#dc2626")
+
+    # 범례
+    lx = W - R - 430
+    d.line([(lx, 28), (lx + 44, 28)], fill="#dc2626", width=6)
+    d.text((lx + 54, 28), "현장 체감온도", font=F(24), fill="#334155", anchor="lm")
+    d.line([(lx + 240, 28), (lx + 284, 28)], fill="#1790cd", width=6)
+    d.text((lx + 294, 28), "야외 기온", font=F(24), fill="#334155", anchor="lm")
+
+    return _png_data_uri(img)
 
 
 _DAILY_TEMPLATE = Template(
@@ -314,6 +464,9 @@ h2 .no { color:#0f499e; }
 .num { font-weight:bold; font-size:10pt; }
 .badge { display:inline-block; padding:1.5px 8px; border-radius:8px; color:#fff; font-weight:bold; font-size:8.5pt; }
 .strip { table-layout:fixed; }
+.h24 { table-layout:fixed; }
+.h24 td { border:1px solid #fff; padding:2px 0; text-align:center; font-size:5.6pt; line-height:1.25; }
+.h24 .k { background:#f1f5f9; color:#475569; font-size:6.2pt; }
 .strip td { border:1px solid #fff; padding:2.5px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.2; }
 .alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:5px 8px; font-size:8.5pt; margin:4px 0; }
 .gov { margin:2pt 0 0 0; }
@@ -327,6 +480,7 @@ h2 .no { color:#0f499e; }
 </style></head><body>
 
 <div class="title">폭염 안전관리 일일 보고서</div>
+<div style="text-align:center; font-size:8pt; color:#94a3b8; letter-spacing:1.5pt; margin-bottom:2pt;">HEAT STRESS DAILY MANAGEMENT REPORT</div>
 <div class="subtitle">근로자 온열질환 예방을 위한 작업장 체감온도 분석 자료 · 측정장비: 케이웨더(주) 체감온도계</div>
 
 <table class="docinfo">
@@ -384,19 +538,19 @@ h2 .no { color:#0f499e; }
 </table>
 <p class="note">※ 측정주기(1분) 기준 누적 노출시간 · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
-<h2><span class="no">4.</span> 근무시간대 체감온도 현황 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(09:00~18:00, 시간평균)</span></h2>
-{% if d.hours %}
-<table class="strip"><tr>
-{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}
-  <td style="background:{{ h.color }}; font-size:7.5pt; padding:4px 0;">{{ '%02d'|format(h.hour) }}~{{ '%02d'|format(h.hour+1) }}시<br/><b style="font-size:9pt;">{{ h.feels if h.feels is not none else '-' }}</b><br/>{{ h.label }}</td>
-{% endfor %}
-</tr></table>
-<p class="note">※ 셀 색상·표기는 해당 시간대 평균 체감온도의 폭염 위험단계 · 출퇴근(09시 이전/18시 이후) 시간대는 전일 통계에 포함</p>
-{% endif %}
-{% if chart %}<div style="margin-top:4pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
-
 <div style="page-break-before: always;"></div>
-<h2 style="margin-top:0;"><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
+<h2 style="margin-top:0;"><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
+{% if d.hours %}
+<table class="h24">
+  <tr><td class="k" style="width:34pt;">시각</td>{% for h in d.hours %}<td class="k">{{ '%02d'|format(h.hour) }}</td>{% endfor %}</tr>
+  <tr><td class="k">체감(°C)</td>{% for h in d.hours %}<td style="background:{{ h.color }}; color:#fff; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+  <tr><td class="k">단계</td>{% for h in d.hours %}<td style="background:{{ h.color }}; color:#fff;">{{ h.label }}</td>{% endfor %}</tr>
+</table>
+{% endif %}
+{% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
+<p class="note">※ 표 색상은 시간대 평균 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
+
+<h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
     <tr><th style="width:22%">구분</th><th>일 평균기온</th><th>일 최고기온</th><th>일 최저기온</th><th>평균 습도</th></tr>
@@ -416,6 +570,7 @@ h2 .no { color:#0f499e; }
   {% if d.weather.enclosed_alert %}
   <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 기온 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
+  {% if chart2 %}<div style="margin:2pt 0 6pt 0;"><img src="{{ chart2 }}" style="width:480pt;"/></div>{% endif %}
   <table class="tbl">
     <tr><th class="k" style="width:14%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
@@ -427,7 +582,8 @@ h2 .no { color:#0f499e; }
   <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
 
-<h2><span class="no">6.</span> 종합 분석</h2>
+<div style="page-break-before: always;"></div>
+<h2 style="margin-top:0;"><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 
 <h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
@@ -454,11 +610,12 @@ def _html_to_pdf(html: str) -> bytes:
 
 
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
-    # 시간대별 히트스트립(섹션Ⅳ)이 추이를 시각화하므로, 한 페이지에 담기 위해 별도 라인차트는 생략.
     d = _daily_detail(db, tenant, device_sn, on_date)
     report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
+    chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
+    chart2 = _chart_compare(d.get("hours") or []) if d.get("has_data") else None
     html = _DAILY_TEMPLATE.render(
-        d=d, chart=None, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+        d=d, chart=chart1, chart2=chart2, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
     )
     return _html_to_pdf(html)
 

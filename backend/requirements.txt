@@ -25,4 +25,5 @@ httpx==0.28.1
 openpyxl==3.1.5          # Excel export
 xhtml2pdf==0.2.16        # HTML -> PDF (pure python)
 reportlab==4.2.5         # PDF 엔진 + 한글 TTF 등록
+Pillow==11.0.0           # 보고서 차트 렌더링(경량)
 Jinja2==3.1.5            # report HTML templating
