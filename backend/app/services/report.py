@@ -331,8 +331,8 @@ def _chart_hourly_feels(series, th) -> str | None:
     if not series or len(series) < 2:
         return None
     F = _pil_fonts()
-    W, H = 1560, 560
-    L, R, T, B = 100, 36, 36, 72
+    W, H = 1560, 405
+    L, R, T, B = 100, 36, 26, 58
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
 
@@ -400,8 +400,8 @@ def _chart_compare(hours) -> str | None:
     if len(pts_in) < 2 or len(pts_out) < 2:
         return None
     F = _pil_fonts()
-    W, H = 1560, 520
-    L, R, T, B = 100, 36, 56, 72
+    W, H = 1560, 375
+    L, R, T, B = 100, 36, 44, 58
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
 
@@ -456,10 +456,10 @@ table { width:100%; border-collapse: collapse; }
 .docinfo .k { background:#f8fafc; color:#475569; width:14%; text-align:center; }
 
 /* 섹션 */
-h2 { font-size:11pt; color:#0f172a; margin:13pt 0 5pt 0; }
+h2 { font-size:11pt; color:#0f172a; margin:8pt 0 3pt 0; }
 h2 .no { color:#0f499e; }
 .tbl th { border:1px solid #94a3b8; background:#eef2f7; padding:4px 6px; font-size:8.5pt; color:#334155; text-align:center; }
-.tbl td { border:1px solid #cbd5e1; padding:4px 6px; font-size:8.8pt; text-align:center; }
+.tbl td { border:1px solid #cbd5e1; padding:3px 5px; font-size:8.8pt; text-align:center; }
 .tbl .k { background:#f8fafc; color:#475569; text-align:center; }
 .num { font-weight:bold; font-size:10pt; }
 .badge { display:inline-block; padding:1.5px 8px; border-radius:8px; color:#fff; font-weight:bold; font-size:8.5pt; }
@@ -468,15 +468,15 @@ h2 .no { color:#0f499e; }
 .h24 td { border:1px solid #fff; padding:2px 0; text-align:center; font-size:5.6pt; line-height:1.25; }
 .h24 .k { background:#f1f5f9; color:#475569; font-size:6.2pt; }
 .strip td { border:1px solid #fff; padding:2.5px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.2; }
-.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:5px 8px; font-size:8.5pt; margin:4px 0; }
+.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:4px 7px; font-size:8.5pt; margin:3px 0; }
 .gov { margin:2pt 0 0 0; }
-.gov div { margin:2.5pt 0; font-size:9pt; }
+.gov div { margin:1pt 0; font-size:9pt; }
 .gov .b { color:#0f499e; font-weight:bold; }
 .gov2 { margin:2pt 0 0 8pt; }
-.gov2 div { margin:2.5pt 0; font-size:9pt; }
+.gov2 div { margin:1pt 0; font-size:9pt; }
 .gov2 .b { color:#334155; }
-.note { font-size:7.8pt; color:#64748b; }
-.footer { margin-top:14pt; border-top:1.5px solid #0f499e; padding-top:5pt; font-size:7.5pt; color:#64748b; }
+.note { font-size:7.8pt; color:#64748b; margin:1pt 0; }
+.footer { margin-top:6pt; border-top:1.5px solid #0f499e; padding-top:4pt; font-size:7pt; color:#64748b; line-height:1.45; }
 </style></head><body>
 
 <div class="title">폭염 안전관리 일일 보고서</div>
@@ -582,8 +582,7 @@ h2 .no { color:#0f499e; }
   <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
 
-<div style="page-break-before: always;"></div>
-<h2 style="margin-top:0;"><span class="no">6.</span> 종합 분석</h2>
+<h2><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 
 <h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
@@ -595,8 +594,7 @@ h2 .no { color:#0f499e; }
 
 <div class="footer">
   적용 기준: 고용노동부 「온열질환 예방가이드」(물·그늘·휴식) · 산업안전보건기준에 관한 규칙 제566조 · 폭염특보 발표 기준<br/>
-  측정장비·데이터: 본 보고서의 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다.<br/>
-  본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성된 분석 자료입니다.
+  측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성되었습니다.
 </div>
 </body></html>
 """
