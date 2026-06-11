@@ -18,12 +18,13 @@ import pandas as pd
 from jinja2 import Template
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from xhtml2pdf import pisa
 
 from .. import heat
 from ..config import settings
-from ..models import Device, Tenant
+from ..models import Device, ExternalDailyCache, Tenant
 from . import analytics
 
 # ---- matplotlib (선택적): 없으면 차트 이미지 생략 ----
@@ -184,23 +185,49 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             "enclosed_alert": cmp.enclosed_alert, "threshold": cmp.enclosed_threshold,
         }
 
-    # 외부 일별 요약(과거자료): 해당 일자의 외부 평균/최고/최저 기온 + 평균 습도
+    # 외부 일별 요약(과거자료): 캐시 우선(불변 과거데이터) → 미스 시 외부 조회 후 캐시
     external_daily = None
     provider = weather_svc.get_provider()
-    if hasattr(provider, "past_daily"):
+    ds_key = on_date.strftime("%Y%m%d")
+    ed = None
+    cached = db.scalar(
+        select(ExternalDailyCache).where(
+            ExternalDailyCache.device_sn == device_sn, ExternalDailyCache.ymd == ds_key
+        )
+    )
+    if cached and (cached.max_temp is not None or cached.avg_temp is not None):
+        ed = {
+            "avg": float(cached.avg_temp) if cached.avg_temp is not None else None,
+            "max": float(cached.max_temp) if cached.max_temp is not None else None,
+            "min": float(cached.min_temp) if cached.min_temp is not None else None,
+            "humi": float(cached.humidity) if cached.humidity is not None else None,
+            "source": cached.source, "region": cached.region,
+        }
+    elif hasattr(provider, "past_daily"):
         try:
             ed = provider.past_daily(dev.latitude, dev.longitude, dev.region_code, on_date)
-            if ed and (ed.get("avg") is not None or ed.get("max") is not None):
-                in_max = round(float(temps.max()), 1)
-                in_avg = round(float(temps.mean()), 1)
-                external_daily = {
-                    "region": ed.get("region"), "source": ed.get("source"),
-                    "out_avg": ed.get("avg"), "out_max": ed.get("max"), "out_min": ed.get("min"), "out_humi": ed.get("humi"),
-                    "in_avg": in_avg, "in_max": in_max,
-                    "diff_max": round(in_max - float(ed["max"]), 1) if ed.get("max") is not None else None,
-                }
         except Exception:  # noqa: BLE001
-            external_daily = None
+            ed = None
+        if ed and (ed.get("avg") is not None or ed.get("max") is not None):
+            try:
+                db.add(ExternalDailyCache(
+                    device_sn=device_sn, ymd=ds_key,
+                    avg_temp=ed.get("avg"), max_temp=ed.get("max"), min_temp=ed.get("min"),
+                    humidity=ed.get("humi"), source=ed.get("source"), region=ed.get("region"),
+                ))
+                db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
+
+    if ed and (ed.get("avg") is not None or ed.get("max") is not None):
+        in_max = round(float(temps.max()), 1)
+        in_avg = round(float(temps.mean()), 1)
+        external_daily = {
+            "region": ed.get("region"), "source": ed.get("source"),
+            "out_avg": ed.get("avg"), "out_max": ed.get("max"), "out_min": ed.get("min"), "out_humi": ed.get("humi"),
+            "in_avg": in_avg, "in_max": in_max,
+            "diff_max": round(in_max - float(ed["max"]), 1) if ed.get("max") is not None else None,
+        }
 
     # 자동 분석 코멘트
     analysis: list[str] = []

@@ -83,3 +83,26 @@ class SensorLog(Base):
         UniqueConstraint("device_sn", "measured_at", name="uq_device_measured"),
         Index("ix_sensorlog_device_time", "device_sn", "measured_at"),
     )
+
+
+class ExternalDailyCache(Base):
+    """외부 일별 날씨(과거) 캐시 — 변하지 않는 과거 데이터를 (기기,일자)별 1회만 외부 호출.
+
+    제한된 기상청 호출량 보호 + 리포트 속도 향상.
+    """
+
+    __tablename__ = "external_daily_cache"
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    device_sn: Mapped[str] = mapped_column(String(64), nullable=False)
+    ymd: Mapped[str] = mapped_column(String(8), nullable=False)  # YYYYMMDD
+    avg_temp: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    max_temp: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    min_temp: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    humidity: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    source: Mapped[str | None] = mapped_column(String(60))
+    region: Mapped[str | None] = mapped_column(String(120))
+
+    __table_args__ = (
+        UniqueConstraint("device_sn", "ymd", name="uq_extcache_device_ymd"),
+    )
