@@ -1,67 +1,76 @@
-"""데모 시드 스크립트.
+"""데모 시드 스크립트 — 실서비스 수준 데모 데이터.
 
-실제 케이웨더 로우데이터가 없으므로 PRD 규격(탭 구분, DATE/TIME/SN/TEMP/HUMI/A-TEMP)의
-샘플 CSV 를 생성하여 sample_data/ 에 저장하고, 실제 수집 파이프라인(ingest)으로 적재합니다.
+실제 케이웨더 체감온도계 단말기와 동일한 형태로 데모 데이터를 생성합니다.
+- 형식: 주력 TXT(헤더 없는 콤마 구분, 10분 간격) — 실제 수집 파이프라인(ingest)으로 적재
+- 체감온도: 기상청 공식 여름철 체감온도 산식(kma_feels_like) 사용
+- 기간: 오늘 기준 최근 7일(풀데이) + 오늘 오전(진행 중인 단말기처럼)
+- 프로파일: 폭염 단계(관심/주의/경고/위험)가 모두 드러나는 현실적 일주기 + 일자별 상승 추세
 
 실행:  backend/.venv/Scripts/python.exe backend/seed.py
+(프로덕션 갱신 시 DATABASE_URL 환경변수로 대상 DB 지정)
 """
 from __future__ import annotations
 
-import math
 import random
-from datetime import date, datetime, timedelta
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from datetime import date, datetime, time, timedelta
+from math import pi, sin
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.database import SessionLocal, init_db
-from app.models import Device, Tenant
+from app.models import Device, ExternalDailyCache, SensorLog, Tenant
 from app.services import ingest
+from app.services.weather import kma_feels_like
 
 BASE = Path(__file__).resolve().parent
 SAMPLE_DIR = BASE.parent / "sample_data"
 DEMO_API_KEY = "demo-key"
 
-# (SN, 회사, 위치, 주소, 위도, 경도, region_code(ASOS), 내부가열 가중치)
+# (SN, 회사, 위치, 주소, 위도, 경도, region_code(10자리 행정동 — 앞 2자리로 ASOS 지점 매칭), 야간기준, 진폭, 내부가열)
 # 데모용 SN 은 실제 기기 시리얼(IST...)과 충돌하지 않도록 'DEMO-' 접두사 사용.
 DEVICES = [
-    ("DEMO-A001", "데모 제강(주)", "제2공장 정련로 앞", "부산 사하구 다대로", 35.0966, 128.9663, "159", 9.0),
-    ("DEMO-A002", "데모 제강(주)", "압연공정 라인 B", "부산 사하구 다대로", 35.0970, 128.9670, "159", 6.0),
-    ("DEMO-B001", "데모 물류(주)", "옥외 상하차장", "경기 평택시 포승읍", 36.9920, 126.8400, "119", 2.5),
+    ("DEMO-A001", "데모 제강(주)", "제2공장 정련로 앞", "부산 사하구 다대로", 35.0966, 128.9663, "2638051000", 28.5, 4.0, 6.5),
+    ("DEMO-A002", "데모 제강(주)", "압연공정 라인 B", "부산 사하구 다대로", 35.0970, 128.9670, "2638051000", 27.0, 4.0, 4.0),
+    ("DEMO-B001", "데모 물류(주)", "옥외 상하차장", "경기 평택시 포승읍", 36.9920, 126.8400, "4122033000", 23.5, 5.0, 2.5),
 ]
 
-START = date(2026, 6, 1)
-DAYS = 3
+FULL_DAYS = 7            # 오늘 이전 풀데이 수
+TODAY_UNTIL = time(9, 0)  # 오늘 데이터는 오전까지(운영 중 단말기 모사)
+# 일자별 폭염 강도(점진 상승 — 기간보고서 추세 데모). 마지막 값이 '오늘'.
+DAY_FACTORS = [0.82, 0.88, 0.95, 0.90, 1.00, 1.06, 1.12, 1.05]
+
 random.seed(42)
 
 
-def _gen_csv_for_device(sn: str, heat_w: float) -> str:
-    lines = ["DATE\tTIME\tSN\tTEMP\tHUMI\tA-TEMP"]
-    for d in range(DAYS):
-        day = START + timedelta(days=d)
-        for minute in range(0, 1440):
-            t = datetime.combine(day, datetime.min.time()) + timedelta(minutes=minute)
-            hour = t.hour + t.minute / 60.0
-            # 일주기: 새벽 저온, 14~15시 고온
-            diurnal = math.sin((hour - 9) / 24.0 * 2 * math.pi)
-            base_temp = 24.0 + 7.0 * diurnal + heat_w * max(0.0, diurnal)
-            temp = base_temp + random.uniform(-0.4, 0.4)
-            humi = max(20, min(95, int(70 - 25 * diurnal + random.uniform(-3, 3))))
-            # 체감온도: 고온다습 시 실제온도보다 높게
-            feels = temp + (humi - 50) * 0.04 + max(0.0, temp - 30) * 0.25
-            # 가끔 결측(보간 테스트용)
-            if random.random() < 0.002:
-                lines.append(f"{day.isoformat()}\t{t.strftime('%H:%M:%S')}\t{sn}\t\t{humi}\t")
-            else:
-                lines.append(
-                    f"{day.isoformat()}\t{t.strftime('%H:%M:%S')}\t{sn}\t{temp:.1f}\t{humi}\t{feels:.1f}"
-                )
-    return "\n".join(lines)
+def _gen_txt_for_day(day: date, night: float, amp: float, heat_w: float, factor: float) -> str:
+    """단말기 일자별 로그(TXT): 'YYYY-MM-DD HH:MM, 체감온도, 온도, 습도,' 10분 간격."""
+    until = TODAY_UNTIL if day == date.today() else time(23, 50)
+    lines: list[str] = []
+    t = datetime.combine(day, time(0, 0))
+    while t.time() <= until and t.date() == day:
+        hour = t.hour + t.minute / 60.0
+        # 일주기: 새벽(03시) 저온, 한낮(15시) 고온
+        diurnal = sin((hour - 9) / 24.0 * 2 * pi)
+        temp = night + (amp * diurnal + heat_w * max(0.0, diurnal)) * factor + random.uniform(-0.35, 0.35)
+        humi = max(30.0, min(90.0, 62.0 - 18.0 * diurnal * factor + random.uniform(-2.5, 2.5)))
+        feels = kma_feels_like(temp, humi)
+        if random.random() < 0.003:  # 드문 결측(보간 데모)
+            lines.append(f"{day.isoformat()} {t.strftime('%H:%M')},  , {temp:.1f},{humi:.1f},")
+        else:
+            lines.append(f"{day.isoformat()} {t.strftime('%H:%M')}, {feels:.1f}, {temp:.1f},{humi:.1f},")
+        t += timedelta(minutes=10)
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
     init_db()
-    SAMPLE_DIR.mkdir(exist_ok=True)
+    today = date.today()
+    days = [today - timedelta(days=FULL_DAYS - i) for i in range(FULL_DAYS)] + [today]
 
     with SessionLocal() as db:
         tenant = db.scalar(select(Tenant).where(Tenant.api_key == DEMO_API_KEY))
@@ -71,16 +80,25 @@ def main() -> None:
             db.commit()
             db.refresh(tenant)
 
-        for sn, company, loc, addr, lat, lon, region, heat_w in DEVICES:
-            csv_text = _gen_csv_for_device(sn, heat_w)
-            # 샘플 CSV 파일 저장 (UI 드래그앤드롭 데모용)
-            fpath = SAMPLE_DIR / f"{sn}_{START.isoformat()}.csv"
-            fpath.write_text(csv_text, encoding="utf-8")
+        demo_sns = [d[0] for d in DEVICES]
+        # 데모 데이터 전면 갱신: 기존 로그·외부 캐시 삭제(데모 기기 한정)
+        db.execute(delete(SensorLog).where(SensorLog.device_sn.in_(demo_sns)))
+        db.execute(delete(ExternalDailyCache).where(ExternalDailyCache.device_sn.in_(demo_sns)))
+        db.commit()
 
-            # 실제 수집 파이프라인으로 적재
-            result = ingest.ingest_csv(db, tenant, fpath.name, csv_text.encode("utf-8"))
-            print(f"[{sn}] parsed={result.rows_parsed} inserted={result.rows_inserted} "
-                  f"updated={result.rows_updated} skipped={result.rows_skipped}")
+        for sn, company, loc, addr, lat, lon, region, night, amp, heat_w in DEVICES:
+            dev_dir = SAMPLE_DIR / sn
+            dev_dir.mkdir(parents=True, exist_ok=True)
+            total = 0
+            for day, factor in zip(days, DAY_FACTORS[-len(days):]):
+                txt = _gen_txt_for_day(day, night, amp, heat_w, factor)
+                fname = f"{day.strftime('%Y%m%d')}.TXT"
+                (dev_dir / fname).write_text(txt, encoding="utf-8")
+                result = ingest.ingest_csv(db, tenant, fname, txt.encode("utf-8"), device_sn=sn)
+                total += result.rows_inserted + result.rows_updated
+                if result.errors:
+                    print(f"[{sn}] {fname} 오류: {result.errors}")
+            print(f"[{sn}] {len(days)}일 적재 — {total}건")
 
             # 메타데이터 채우기
             dev = db.get(Device, sn)
@@ -92,7 +110,7 @@ def main() -> None:
             dev.region_code = region
             db.commit()
 
-    print(f"\n시드 완료. 샘플 CSV: {SAMPLE_DIR}")
+    print(f"\n시드 완료. 샘플 TXT: {SAMPLE_DIR}")
     print("API 키(X-API-Key): demo-key")
 
 
