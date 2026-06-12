@@ -111,6 +111,24 @@ _SIDO_ASOS = {
     "45": "146", "46": "165", "47": "136", "48": "155", "50": "184", "51": "105",
 }
 
+# 대표 ASOS 관측소 좌표 — 행정동 코드 해석(카카오)이 불가할 때 위경도 최근접 폴백용
+_ASOS_COORDS = {
+    "108": (37.571, 126.966), "159": (35.105, 129.032), "143": (35.878, 128.653),
+    "112": (37.478, 126.625), "156": (35.173, 126.891), "133": (36.372, 127.372),
+    "152": (35.582, 129.335), "239": (36.485, 127.245), "119": (37.257, 126.983),
+    "105": (37.751, 128.891), "131": (36.639, 127.441), "129": (36.777, 126.494),
+    "146": (35.841, 127.117), "165": (34.817, 126.381), "136": (36.573, 128.707),
+    "155": (35.170, 128.573), "184": (33.514, 126.530),
+}
+
+
+def _nearest_asos_station(lat: float, lon: float) -> str:
+    """위경도에서 가장 가까운 대표 ASOS 관측소 번호."""
+    return min(
+        _ASOS_COORDS,
+        key=lambda s: (_ASOS_COORDS[s][0] - lat) ** 2 + (_ASOS_COORDS[s][1] - lon) ** 2,
+    )
+
 
 
 def kma_feels_like(ta: float | None, rh: float | None) -> float | None:
@@ -129,7 +147,11 @@ def kma_feels_like(ta: float | None, rh: float | None) -> float | None:
 
 
 def resolve_dong_code(dev) -> str | None:
-    """기기 -> 행정동 코드(10자리). region_code 우선, 없으면 위경도 변환(카카오)."""
+    """기기 -> 행정동 코드(10자리). region_code 우선, 없으면 위경도 변환(카카오).
+
+    카카오 변환에 성공하면 기기에 영구 저장해(쿼터/장애 대비) 이후 호출의
+    외부 의존을 제거한다.
+    """
     rc = getattr(dev, "region_code", None)
     if rc and str(rc).isdigit() and len(str(rc)) >= 8:
         return str(rc)
@@ -137,18 +159,92 @@ def resolve_dong_code(dev) -> str | None:
         return None
     from . import geocode as geocode_svc
 
-    return geocode_svc.region_code(dev.latitude, dev.longitude)
+    code = geocode_svc.region_code(dev.latitude, dev.longitude)
+    if code:
+        try:
+            s = Session.object_session(dev)
+            if s is not None:
+                dev.region_code = code
+                s.commit()
+        except Exception:  # noqa: BLE001
+            pass
+    return code
+
+
+def resolve_asos_station(dev) -> str | None:
+    """기기 -> 기상청 ASOS 관측소 번호.
+
+    행정동 코드(저장값 → 카카오 변환) 앞 2자리 매핑을 우선하고,
+    실패 시(카카오 쿼터 초과 등) 위경도 최근접 관측소로 폴백한다.
+    """
+    code = resolve_dong_code(dev)
+    if code:
+        stn = _SIDO_ASOS.get(str(code)[:2])
+        if stn:
+            return stn
+    if getattr(dev, "latitude", None) is not None and getattr(dev, "longitude", None) is not None:
+        return _nearest_asos_station(dev.latitude, dev.longitude)
+    return None
+
+
+def kma_hourly_cached(db: Session, dev, ds: str) -> dict[int, dict] | None:
+    """(기기, 일자) 기상청 시간자료 — ExternalDailyCache 캐시-어사이드.
+
+    오늘 일자는 캐시가 현재 시각보다 2시간 이상 뒤처지면 재조회해 갱신한다
+    (아침에 캐시된 부분 자료가 하루 종일 고정되는 문제 방지).
+    반환: {hour: {"ta","hm","feels"}} 또는 None.
+    """
+    import json as _json
+
+    from ..models import ExternalDailyCache
+
+    row = db.scalar(
+        select(ExternalDailyCache).where(
+            ExternalDailyCache.device_sn == dev.device_sn, ExternalDailyCache.ymd == ds
+        )
+    )
+    hourly: dict[int, dict] | None = None
+    if row and row.hourly_json:
+        try:
+            hourly = {int(k): v for k, v in _json.loads(row.hourly_json).items()}
+        except Exception:  # noqa: BLE001
+            hourly = None
+
+    now_kst = datetime.utcnow() + timedelta(hours=9)  # 서버리스는 UTC — KST 보정
+    stale = (
+        hourly is not None
+        and ds == now_kst.strftime("%Y%m%d")
+        and max(hourly) < now_kst.hour - 1
+    )
+    if hourly is None or stale:
+        stn = resolve_asos_station(dev)
+        fetched = _kma_asos_hourly_stn(stn, ds) if stn else None
+        if fetched:
+            hourly = fetched
+            try:
+                if row is None:
+                    row = ExternalDailyCache(device_sn=dev.device_sn, ymd=ds)
+                    db.add(row)
+                row.hourly_json = _json.dumps({str(k): v for k, v in fetched.items()})
+                db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
+    return hourly
 
 
 def _kma_asos_hourly(code: str, ds: str) -> dict[int, dict] | None:
+    """행정동 코드 기반 진입점 — 앞 2자리로 관측소를 정해 시간자료 조회."""
+    if not code:
+        return None
+    return _kma_asos_hourly_stn(_SIDO_ASOS.get(str(code)[:2]), ds)
+
+
+def _kma_asos_hourly_stn(stn: str | None, ds: str) -> dict[int, dict] | None:
     """기상청 API허브 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
 
     반환: {hour: {"ta": float, "hm": float|None, "feels": float|None}}
     """
-    if not settings.KMA_API_KEY or not code:
-        return None
-    stn = _SIDO_ASOS.get(str(code)[:2])
-    if not stn:
+    if not settings.KMA_API_KEY or not stn:
         return None
     try:
         import re as _re
@@ -392,17 +488,19 @@ def compare(
 
     t0 = indoor.points[0].t
     t1 = indoor.points[-1].t
-    try:
-        hourly = provider.hourly_temps(dev.latitude, dev.longitude, dev.region_code, t0, t1)
-    except Exception:  # noqa: BLE001  (외부 API 실패 시 빈 비교)
-        hourly = {}
 
-    # 과거 일자: 기상청 시간자료(체감온도 포함)로 시간 매칭 — 측정 당시의 외부값
+    # 단일 일자: 기상청 시간자료(체감온도 포함) 최우선 — 측정 당시의 외부값 시간 매칭.
+    # (실황 1점이 잡혀도 시간 매칭을 건너뛰지 않도록 KMA 경로를 먼저 시도)
     ext_hourly = None
-    if not hourly and settings.KMA_API_KEY and t0.date() == t1.date():
-        code = resolve_dong_code(dev)
-        if code:
-            ext_hourly = _kma_asos_hourly(code, t0.strftime("%Y%m%d"))
+    if settings.KMA_API_KEY and t0.date() == t1.date():
+        ext_hourly = kma_hourly_cached(db, dev, t0.strftime("%Y%m%d"))
+
+    hourly: dict = {}
+    if not ext_hourly:
+        try:
+            hourly = provider.hourly_temps(dev.latitude, dev.longitude, dev.region_code, t0, t1)
+        except Exception:  # noqa: BLE001  (외부 API 실패 시 빈 비교)
+            hourly = {}
 
     # 시간단위 외부기온 -> 분단위 보간 시리즈
     if hourly:

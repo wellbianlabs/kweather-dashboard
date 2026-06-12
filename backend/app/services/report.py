@@ -162,34 +162,16 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     # 시간대별 평균
     s = df.set_index("measured_at")[["temperature", "feels_like", "humidity"]].resample("1h").mean()
 
-    # ---- 외부 시간자료(측정 당시의 기상청 기온·습도·공식 체감온도) — 캐시 우선 ----
-    import json as _json
-
+    # ---- 외부 시간자료(측정 당시의 기상청 기온·습도·공식 체감온도) ----
+    # 캐시-어사이드 + 오늘 일자 staleness 갱신 + 카카오 불가 시 최근접 관측소 폴백은
+    # weather.kma_hourly_cached 가 일원화하여 처리(대시보드 compare 와 동일 경로).
     ds_key = on_date.strftime("%Y%m%d")
-    ext_hourly: dict[int, dict] | None = None
+    ext_hourly = weather_svc.kma_hourly_cached(db, dev, ds_key)
     cache_row = db.scalar(
         select(ExternalDailyCache).where(
             ExternalDailyCache.device_sn == device_sn, ExternalDailyCache.ymd == ds_key
         )
     )
-    if cache_row and cache_row.hourly_json:
-        try:
-            ext_hourly = {int(k): v for k, v in _json.loads(cache_row.hourly_json).items()}
-        except Exception:  # noqa: BLE001
-            ext_hourly = None
-    if ext_hourly is None:
-        code = weather_svc.resolve_dong_code(dev)
-        fetched = weather_svc._kma_asos_hourly(code, ds_key) if code else None
-        if fetched:
-            ext_hourly = fetched
-            try:
-                if cache_row is None:
-                    cache_row = ExternalDailyCache(device_sn=device_sn, ymd=ds_key)
-                    db.add(cache_row)
-                cache_row.hourly_json = _json.dumps({str(k): v for k, v in fetched.items()})
-                db.commit()
-            except Exception:  # noqa: BLE001
-                db.rollback()
 
     # 실시간(provider) 비교 — 외부 시간자료가 없을 때의 폴백 소스
     try:
