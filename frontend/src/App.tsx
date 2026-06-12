@@ -223,10 +223,10 @@ export default function App() {
         {step === 3 && (
           <>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 케이웨더 체감온도계 CSV(탭 구분) 파일을 업로드합니다.
-              파일의 기기 SN이 등록된 기기와 일치하면 해당 사업장으로 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
+              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 케이웨더 체감온도계 TXT(일자별 로그) 또는 CSV(탭 구분) 파일을 업로드합니다.
+              TXT는 위에서 선택한 기기로 연결되고, CSV는 파일 내 기기 SN으로 자동 연결됩니다. 완료 시 대시보드로 자동 전환됩니다.
             </div>
-            <UploadPanel onUploaded={handleUploaded} />
+            <UploadPanel devices={devices} onUploaded={handleUploaded} />
 
             <div className="flex gap-2">
               <button onClick={() => setStep(2)}

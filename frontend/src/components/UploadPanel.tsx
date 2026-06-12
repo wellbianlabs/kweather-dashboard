@@ -1,15 +1,30 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { IconUpload } from "./Icons";
-import type { UploadResult } from "../types";
+import type { Device, UploadResult } from "../types";
 
-export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult[]) => void }) {
+export function UploadPanel({
+  devices = [],
+  onUploaded,
+}: {
+  devices?: Device[];
+  onUploaded: (results: UploadResult[]) => void;
+}) {
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // TXT 파일(파일 내 SN 없음)을 연결할 기기 — 기본값은 첫 번째 등록 기기
+  const [targetSn, setTargetSn] = useState<string>(devices[0]?.device_sn ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 기기 목록이 늦게 로드되거나 선택 기기가 삭제된 경우 기본값 재설정
+  useEffect(() => {
+    if (devices.length && !devices.some((d) => d.device_sn === targetSn)) {
+      setTargetSn(devices[0].device_sn);
+    }
+  }, [devices, targetSn]);
 
   async function handleFiles(files: FileList | File[]) {
     const arr = Array.from(files);
@@ -19,7 +34,7 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
     setResults(null);
     setProgress({ done: 0, total: arr.length });
     try {
-      const res = await api.upload(arr, (done, total) => setProgress({ done, total }));
+      const res = await api.upload(arr, (done, total) => setProgress({ done, total }), targetSn || null);
       setResults(res);
       onUploaded(res);
     } catch (e: any) {
@@ -50,7 +65,25 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
 
   return (
     <div className="card">
-      <h3 className="mb-2 font-semibold text-slate-900">CSV 로우데이터 업로드</h3>
+      <h3 className="mb-2 font-semibold text-slate-900">측정 데이터 업로드 (TXT/CSV)</h3>
+      {devices.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="text-xs font-medium text-slate-500">데이터를 연결할 기기</label>
+          <select
+            className="select !py-1.5 text-sm"
+            value={targetSn}
+            disabled={busy}
+            onChange={(e) => setTargetSn(e.target.value)}
+          >
+            {devices.map((d) => (
+              <option key={d.device_sn} value={d.device_sn}>
+                {d.company_name ? `${d.company_name} / ${d.location_name ?? ""} (${d.device_sn})` : d.device_sn}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-slate-400">TXT 파일은 SN이 없어 선택한 기기로 기록됩니다 (CSV는 파일 내 SN 사용)</span>
+        </div>
+      )}
       <div
         onDragOver={(e) => { e.preventDefault(); if (!busy) setDrag(true); }}
         onDragLeave={() => setDrag(false)}
@@ -59,13 +92,15 @@ export function UploadPanel({ onUploaded }: { onUploaded: (results: UploadResult
         className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition
           ${busy ? "border-slate-200 bg-slate-100 cursor-wait" : drag ? "border-kw bg-kw-50" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"}`}
       >
-        <input ref={inputRef} type="file" multiple accept=".csv,.CSV,text/csv,text/plain" className="hidden"
+        <input ref={inputRef} type="file" multiple accept=".txt,.TXT,.csv,.CSV,text/csv,text/plain" className="hidden"
                onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-kw-50 text-kw"><IconUpload className="h-5 w-5" /></span>
         <p className="mt-1 text-sm text-slate-600">
           {busy ? "업로드 중... (자동으로 나눠 전송합니다)" : "파일을 끌어다 놓거나 클릭하여 선택하세요"}
         </p>
-        <p className="text-xs text-slate-400">지원 형식: 케이웨더 CSV(탭 구분) — DATE·TIME·SN·TEMP·HUMI·A-TEMP · 다중 파일/대량 업로드 지원</p>
+        <p className="text-xs text-slate-400">
+          지원 형식: 케이웨더 TXT(일자별 로그 — 시각·체감온도·온도·습도) 및 CSV(탭 구분 — DATE·TIME·SN·TEMP·HUMI·A-TEMP) · 다중 파일/대량 업로드 지원
+        </p>
       </div>
 
       {/* 진행률 */}

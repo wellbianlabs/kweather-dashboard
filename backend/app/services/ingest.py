@@ -1,6 +1,11 @@
-"""CSV(Tab 구분) 로우데이터 수집 엔진 (PRD 3.1).
+"""측정 로우데이터 수집 엔진 (PRD 3.1).
 
-- 탭 구분자 인식
+지원 형식 (자동 감지):
+- TXT (주력): 헤더 없는 콤마 구분 일자별 로그 — ``YYYY-MM-DD HH:MM, 체감온도, 온도, 습도,``
+  파일에 기기 SN이 없으므로 업로드 시 지정한 기기(미지정 시 테넌트 단일 기기)로 연결.
+- CSV: 탭 구분, 헤더 DATE·TIME·SN·TEMP·HUMI·A-TEMP
+
+공통:
 - UTF-8 / CP949 인코딩 자동 감지
 - 결측치: 기기·시간 정렬 후 선형 보간, 그래도 비면 해당 행 제외
 - 중복: (device_sn, measured_at) 기준 최신 업로드로 Upsert
@@ -10,6 +15,7 @@
 from __future__ import annotations
 
 import io
+import re
 from typing import Iterable
 
 import pandas as pd
@@ -55,10 +61,54 @@ def _normalize_columns(cols: Iterable[str]) -> dict[str, str]:
     return mapping
 
 
-def parse_dataframe(raw: bytes) -> tuple[pd.DataFrame, str]:
+# TXT(헤더 없는 기기 일자별 로그) 행 패턴: "YYYY-MM-DD HH:MM, ..." 로 시작
+_TXT_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}")
+
+
+def _is_txt_format(text: str) -> bool:
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        return bool(_TXT_LINE.match(line)) and "," in line
+    return False
+
+
+def _parse_txt(text: str, default_sn: str | None) -> pd.DataFrame:
+    """헤더 없는 TXT: 시각, 체감온도(A-TEMP), 온도(TEMP), 습도(HUMI), [빈 꼬리].
+
+    컬럼 순서는 실측 파일로 검증됨 — 1열이 기상청 공식 여름 체감온도와 일치(체감온도),
+    2열이 건구온도, 3열이 상대습도.
+    """
+    if not default_sn:
+        raise ValueError(
+            "TXT 형식에는 기기 SN이 포함되어 있지 않습니다. 업로드할 기기를 선택해 주세요."
+        )
+    df = pd.read_csv(
+        io.StringIO(text),
+        sep=",",
+        header=None,
+        usecols=[0, 1, 2, 3],
+        names=["dt", "feels_like", "temperature", "humidity"],
+        dtype=str,
+        engine="python",
+        skip_blank_lines=True,
+    )
+    df["measured_at"] = pd.to_datetime(df["dt"].str.strip(), format="%Y-%m-%d %H:%M", errors="coerce")
+    df["sn"] = default_sn
+    for col in ("temperature", "humidity", "feels_like"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["measured_at"])
+    return df[["measured_at", "sn", "temperature", "humidity", "feels_like"]]
+
+
+def parse_dataframe(raw: bytes, default_sn: str | None = None) -> tuple[pd.DataFrame, str]:
     """바이트 -> 표준화된 DataFrame(measured_at, sn, temperature, humidity, feels_like)."""
     encoding = _detect_encoding(raw)
     text = raw.decode(encoding, errors="replace")
+
+    if _is_txt_format(text):
+        return _parse_txt(text, default_sn), encoding
 
     df = pd.read_csv(
         io.StringIO(text),
@@ -111,10 +161,23 @@ def _interpolate_and_clean(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return df, skipped
 
 
-def ingest_csv(db: Session, tenant: Tenant, filename: str, raw: bytes) -> UploadResult:
+def ingest_csv(
+    db: Session,
+    tenant: Tenant,
+    filename: str,
+    raw: bytes,
+    device_sn: str | None = None,
+) -> UploadResult:
     errors: list[str] = []
+    # TXT(헤더 없는 형식)용 기기 연결: 미지정이면 테넌트에 기기가 1대일 때 자동 사용
+    if not device_sn:
+        tenant_sns = db.scalars(
+            select(Device.device_sn).where(Device.tenant_id == tenant.id)
+        ).all()
+        if len(tenant_sns) == 1:
+            device_sn = tenant_sns[0]
     try:
-        df, encoding = parse_dataframe(raw)
+        df, encoding = parse_dataframe(raw, default_sn=device_sn)
     except Exception as exc:  # noqa: BLE001
         return UploadResult(
             filename=filename, rows_parsed=0, rows_inserted=0, rows_updated=0,

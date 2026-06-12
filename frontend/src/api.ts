@@ -122,9 +122,11 @@ export const api = {
 
   // 대량 업로드: 서버리스 요청 한도(4.5MB)·시간 제한(60s)을 피하려 파일을 배치로 나눠
   // 동시성 제한으로 업로드한다. 진행률 콜백(onProgress)으로 UI 갱신.
+  // deviceSn: TXT 형식(파일 내 SN 없음)을 연결할 기기.
   upload: async (
     files: FileList | File[],
     onProgress?: (done: number, total: number) => void,
+    deviceSn?: string | null,
   ): Promise<UploadResult[]> => {
     const arr = Array.from(files);
     const MAX_BYTES = 3.5 * 1024 * 1024; // 배치당 누적 크기 한도(여유분 포함)
@@ -148,6 +150,7 @@ export const api = {
     async function runOne(batch: File[]): Promise<UploadResult[]> {
       const fd = new FormData();
       batch.forEach((f) => fd.append("files", f));
+      if (deviceSn) fd.append("device_sn", deviceSn);
       const r = await fetch(u("/api/upload"), { method: "POST", headers: headers(), body: fd });
       if (!r.ok) {
         const t = (await r.text()).slice(0, 120);
