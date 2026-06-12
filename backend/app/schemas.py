@@ -137,7 +137,8 @@ class WeatherComparePoint(BaseModel):
     t: datetime
     indoor_feels_like: float | None
     outdoor_temperature: float | None
-    delta: float | None  # 내부-외부 차이
+    outdoor_feels: float | None = None   # 기상청 공식 산식 기반 외부 체감온도
+    delta: float | None  # 내부 체감 - 외부 체감(체감 없으면 기온) 차이
 
 
 class WeatherCompareOut(BaseModel):

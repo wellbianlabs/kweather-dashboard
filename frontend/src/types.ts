@@ -73,6 +73,7 @@ export interface WeatherComparePoint {
   t: string;
   indoor_feels_like: number | null;
   outdoor_temperature: number | null;
+  outdoor_feels: number | null;
   delta: number | null;
 }
 

@@ -112,6 +112,88 @@ _SIDO_ASOS = {
 }
 
 
+
+def kma_feels_like(ta: float | None, rh: float | None) -> float | None:
+    """기상청 공식 여름철 체감온도 (습구온도 Tw: Stull 식 기반)."""
+    if ta is None or rh is None:
+        return None
+    tw = (
+        ta * math.atan(0.151977 * math.sqrt(rh + 8.313659))
+        + math.atan(ta + rh)
+        - math.atan(rh - 1.676331)
+        + 0.00391838 * (rh ** 1.5) * math.atan(0.023101 * rh)
+        - 4.686035
+    )
+    feels = -0.2442 + 0.55399 * tw + 0.45535 * ta - 0.0022 * tw * tw + 0.00278 * tw * ta + 3.0
+    return round(feels, 1)
+
+
+def resolve_dong_code(dev) -> str | None:
+    """기기 -> 행정동 코드(10자리). region_code 우선, 없으면 위경도 변환(카카오)."""
+    rc = getattr(dev, "region_code", None)
+    if rc and str(rc).isdigit() and len(str(rc)) >= 8:
+        return str(rc)
+    if getattr(dev, "latitude", None) is None or getattr(dev, "longitude", None) is None:
+        return None
+    from . import geocode as geocode_svc
+
+    return geocode_svc.region_code(dev.latitude, dev.longitude)
+
+
+def _kma_asos_hourly(code: str, ds: str) -> dict[int, dict] | None:
+    """기상청 API허브 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
+
+    반환: {hour: {"ta": float, "hm": float|None, "feels": float|None}}
+    """
+    if not settings.KMA_API_KEY or not code:
+        return None
+    stn = _SIDO_ASOS.get(str(code)[:2])
+    if not stn:
+        return None
+    try:
+        import re as _re
+
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(
+                "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php",
+                params={"tm1": ds + "0000", "tm2": ds + "2359", "stn": stn, "help": "1",
+                        "authKey": settings.KMA_API_KEY},
+            )
+            text = r.text
+            if r.status_code != 200 or "활용신청" in text or "용량" in text:
+                return None
+            idx_map: dict[str, int] = {}
+            for ln in text.splitlines():
+                m = _re.match(r"#\s*(\d+)\.\s+([A-Z0-9_]+)\s*[:(]", ln)
+                if m:
+                    idx_map[m.group(2)] = int(m.group(1)) - 1
+            i_ta, i_hm = idx_map.get("TA"), idx_map.get("HM")
+            if i_ta is None:
+                return None
+            out: dict[int, dict] = {}
+            for ln in text.splitlines():
+                st = ln.strip()
+                if not st or st.startswith("#"):
+                    continue
+                parts = st.split()
+                if not parts[0].startswith(ds):
+                    continue
+                try:
+                    hour = int(parts[0][8:10])
+                    ta = float(parts[i_ta])
+                    hm = float(parts[i_hm]) if i_hm is not None and i_hm < len(parts) else None
+                except (ValueError, IndexError):
+                    continue
+                if ta in (-9.0, -99.0, -999.0):
+                    continue
+                if hm is not None and hm in (-9.0, -99.0, -999.0):
+                    hm = None
+                out[hour] = {"ta": round(ta, 1), "hm": hm, "feels": kma_feels_like(ta, hm)}
+            return out or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _kma_asos_daily(code: str, ds: str) -> dict | None:
     """기상청 API허브(apihub.kma.go.kr) ASOS 일자료 — 케이웨더 아카이브 미수록 날짜 대비 폴백.
 
@@ -315,6 +397,13 @@ def compare(
     except Exception:  # noqa: BLE001  (외부 API 실패 시 빈 비교)
         hourly = {}
 
+    # 과거 일자: 기상청 시간자료(체감온도 포함)로 시간 매칭 — 측정 당시의 외부값
+    ext_hourly = None
+    if not hourly and settings.KMA_API_KEY and t0.date() == t1.date():
+        code = resolve_dong_code(dev)
+        if code:
+            ext_hourly = _kma_asos_hourly(code, t0.strftime("%Y%m%d"))
+
     # 시간단위 외부기온 -> 분단위 보간 시리즈
     if hourly:
         hs = pd.Series(hourly).sort_index()
@@ -327,19 +416,27 @@ def compare(
     max_delta = None
     for p in indoor.points:
         ot = None
-        if not outdoor.empty:
+        of = None
+        if ext_hourly is not None:
+            slot = ext_hourly.get(pd.Timestamp(p.t).hour)
+            if slot:
+                ot = slot.get("ta")
+                of = slot.get("feels")
+        elif not outdoor.empty:
             nearest = outdoor.index.get_indexer([pd.Timestamp(p.t)], method="nearest")
             if nearest[0] != -1:
                 v = outdoor.iloc[nearest[0]]
                 ot = None if pd.isna(v) else round(float(v), 1)
         delta = None
-        if p.feels_like is not None and ot is not None:
-            delta = round(p.feels_like - ot, 1)
+        base = of if of is not None else ot
+        if p.feels_like is not None and base is not None:
+            delta = round(p.feels_like - base, 1)
             if max_delta is None or delta > max_delta:
                 max_delta = delta
         points.append(
             WeatherComparePoint(
-                t=p.t, indoor_feels_like=p.feels_like, outdoor_temperature=ot, delta=delta
+                t=p.t, indoor_feels_like=p.feels_like, outdoor_temperature=ot,
+                outdoor_feels=of, delta=delta
             )
         )
 

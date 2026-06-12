@@ -10,6 +10,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Text,
     Float,
     ForeignKey,
     Integer,
@@ -102,6 +103,8 @@ class ExternalDailyCache(Base):
     humidity: Mapped[float | None] = mapped_column(Numeric(5, 2))
     source: Mapped[str | None] = mapped_column(String(60))
     region: Mapped[str | None] = mapped_column(String(120))
+    # 시간별 외부자료 JSON: {"9": {"ta":..,"hm":..,"feels":..}, ...} — 과거 시간 매칭 비교용
+    hourly_json: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         UniqueConstraint("device_sn", "ymd", name="uq_extcache_device_ymd"),

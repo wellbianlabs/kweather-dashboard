@@ -162,30 +162,67 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     # 시간대별 평균
     s = df.set_index("measured_at")[["temperature", "feels_like", "humidity"]].resample("1h").mean()
 
-    # 외부(기상청) 비교 — 시간단위
+    # ---- 외부 시간자료(측정 당시의 기상청 기온·습도·공식 체감온도) — 캐시 우선 ----
+    import json as _json
+
+    ds_key = on_date.strftime("%Y%m%d")
+    ext_hourly: dict[int, dict] | None = None
+    cache_row = db.scalar(
+        select(ExternalDailyCache).where(
+            ExternalDailyCache.device_sn == device_sn, ExternalDailyCache.ymd == ds_key
+        )
+    )
+    if cache_row and cache_row.hourly_json:
+        try:
+            ext_hourly = {int(k): v for k, v in _json.loads(cache_row.hourly_json).items()}
+        except Exception:  # noqa: BLE001
+            ext_hourly = None
+    if ext_hourly is None:
+        code = weather_svc.resolve_dong_code(dev)
+        fetched = weather_svc._kma_asos_hourly(code, ds_key) if code else None
+        if fetched:
+            ext_hourly = fetched
+            try:
+                if cache_row is None:
+                    cache_row = ExternalDailyCache(device_sn=device_sn, ymd=ds_key)
+                    db.add(cache_row)
+                cache_row.hourly_json = _json.dumps({str(k): v for k, v in fetched.items()})
+                db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
+
+    # 실시간(provider) 비교 — 외부 시간자료가 없을 때의 폴백 소스
     try:
         cmp = weather_svc.compare(db, tenant, device_sn, start, end, 60)
     except Exception:  # noqa: BLE001
         cmp = None
     out_by_h = {pd.Timestamp(p.t).hour: p.outdoor_temperature for p in cmp.points} if cmp else {}
-    del_by_h = {pd.Timestamp(p.t).hour: p.delta for p in cmp.points} if cmp else {}
 
     hours = []
     for idx, row in s.iterrows():
         h = idx.hour
         f = None if pd.isna(row["feels_like"]) else round(float(row["feels_like"]), 1)
         lvl = heat.classify(f)
+        slot = ext_hourly.get(h) if ext_hourly else None
+        o_ta = slot.get("ta") if slot else out_by_h.get(h)
+        o_fl = slot.get("feels") if slot else None
+        base = o_fl if o_fl is not None else o_ta
+        delta = round(f - base, 1) if (f is not None and base is not None) else None
         hours.append({
             "hour": h, "feels": f,
             "temp": None if pd.isna(row["temperature"]) else round(float(row["temperature"]), 1),
             "humidity": None if pd.isna(row["humidity"]) else int(round(float(row["humidity"]))),
             "label": lvl.label, "color": lvl.color,
-            "outdoor": out_by_h.get(h), "delta": del_by_h.get(h),
+            "outdoor": o_ta, "out_feels": o_fl, "delta": delta,
         })
 
     deltas = [x["delta"] for x in hours if x["delta"] is not None]
     avg_delta = round(sum(deltas) / len(deltas), 1) if deltas else None
     avg_humi = round(float(humi.mean()), 1) if humi.notna().any() else None
+    has_out_feels = any(x["out_feels"] is not None for x in hours)
+    out_feels_vals = [x["out_feels"] for x in hours if x["out_feels"] is not None]
+    out_feels_max = round(max(out_feels_vals), 1) if out_feels_vals else None
+    out_feels_avg = round(sum(out_feels_vals) / len(out_feels_vals), 1) if out_feels_vals else None
 
     # 근무시간(09:00~18:00) 통계 — 근로자 보호 관점의 핵심 구간
     hrs = df["measured_at"].dt.hour
@@ -213,42 +250,53 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         }
 
     weather = None
-    if cmp:
+    if deltas:
+        max_delta = round(max(deltas), 1)
         weather = {
-            "provider": cmp.provider, "max_delta": cmp.max_delta, "avg_delta": avg_delta,
-            "enclosed_alert": cmp.enclosed_alert, "threshold": cmp.enclosed_threshold,
+            "provider": "kma" if has_out_feels else (cmp.provider if cmp else "mock"),
+            "max_delta": max_delta, "avg_delta": avg_delta,
+            "enclosed_alert": max_delta >= settings.ENCLOSED_DELTA_ALERT,
+            "threshold": settings.ENCLOSED_DELTA_ALERT,
+            "feels_based": has_out_feels,
         }
 
-    # 외부 일별 요약(과거자료): 캐시 우선(불변 과거데이터) → 미스 시 외부 조회 후 캐시
+    # 외부 일별 요약(과거자료): 캐시 우선 → 아카이브/ASOS 일자료 → 시간자료 집계 폴백
     external_daily = None
     provider = weather_svc.get_provider()
-    ds_key = on_date.strftime("%Y%m%d")
     ed = None
-    cached = db.scalar(
-        select(ExternalDailyCache).where(
-            ExternalDailyCache.device_sn == device_sn, ExternalDailyCache.ymd == ds_key
-        )
-    )
-    if cached and (cached.max_temp is not None or cached.avg_temp is not None):
+    if cache_row and (cache_row.max_temp is not None or cache_row.avg_temp is not None):
         ed = {
-            "avg": float(cached.avg_temp) if cached.avg_temp is not None else None,
-            "max": float(cached.max_temp) if cached.max_temp is not None else None,
-            "min": float(cached.min_temp) if cached.min_temp is not None else None,
-            "humi": float(cached.humidity) if cached.humidity is not None else None,
-            "source": cached.source, "region": cached.region,
+            "avg": float(cache_row.avg_temp) if cache_row.avg_temp is not None else None,
+            "max": float(cache_row.max_temp) if cache_row.max_temp is not None else None,
+            "min": float(cache_row.min_temp) if cache_row.min_temp is not None else None,
+            "humi": float(cache_row.humidity) if cache_row.humidity is not None else None,
+            "source": cache_row.source, "region": cache_row.region,
         }
-    elif hasattr(provider, "past_daily"):
-        try:
-            ed = provider.past_daily(dev.latitude, dev.longitude, dev.region_code, on_date)
-        except Exception:  # noqa: BLE001
-            ed = None
+    else:
+        if hasattr(provider, "past_daily"):
+            try:
+                ed = provider.past_daily(dev.latitude, dev.longitude, dev.region_code, on_date)
+            except Exception:  # noqa: BLE001
+                ed = None
+        # 일별 아카이브가 없으면 시간자료에서 직접 집계 (측정 당시 기준)
+        if (not ed or ed.get("max") is None) and ext_hourly:
+            tas = [v["ta"] for v in ext_hourly.values() if v.get("ta") is not None]
+            hms = [v["hm"] for v in ext_hourly.values() if v.get("hm") is not None]
+            if tas:
+                ed = {
+                    "avg": round(sum(tas) / len(tas), 1), "max": round(max(tas), 1),
+                    "min": round(min(tas), 1),
+                    "humi": round(sum(hms) / len(hms), 1) if hms else None,
+                    "source": "케이웨더 기상관측자료", "region": None,
+                }
         if ed and (ed.get("avg") is not None or ed.get("max") is not None):
             try:
-                db.add(ExternalDailyCache(
-                    device_sn=device_sn, ymd=ds_key,
-                    avg_temp=ed.get("avg"), max_temp=ed.get("max"), min_temp=ed.get("min"),
-                    humidity=ed.get("humi"), source=ed.get("source"), region=ed.get("region"),
-                ))
+                if cache_row is None:
+                    cache_row = ExternalDailyCache(device_sn=device_sn, ymd=ds_key)
+                    db.add(cache_row)
+                cache_row.avg_temp = ed.get("avg"); cache_row.max_temp = ed.get("max")
+                cache_row.min_temp = ed.get("min"); cache_row.humidity = ed.get("humi")
+                cache_row.source = ed.get("source"); cache_row.region = ed.get("region")
                 db.commit()
             except Exception:  # noqa: BLE001
                 db.rollback()
@@ -259,8 +307,10 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         external_daily = {
             "region": ed.get("region"), "source": ed.get("source"),
             "out_avg": ed.get("avg"), "out_max": ed.get("max"), "out_min": ed.get("min"), "out_humi": ed.get("humi"),
+            "out_feels_max": out_feels_max, "out_feels_avg": out_feels_avg,
             "in_avg": in_avg, "in_max": in_max,
             "diff_max": round(in_max - float(ed["max"]), 1) if ed.get("max") is not None else None,
+            "diff_feels": round(max_feels - out_feels_max, 1) if out_feels_max is not None else None,
         }
 
     # 자동 분석 코멘트
@@ -274,14 +324,16 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         analysis.append(f"체감온도 38°C(위험) 이상 노출이 일일 {lm['danger']}분 누적되어 고용노동부 기준상 옥외작업 원칙적 중지 대상에 해당함.")
     analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
                     + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
-    src_label = "케이웨더" if (cmp and cmp.provider in ("kweather", "kma")) else "참고용 추정"
-    if weather and cmp.enclosed_alert:
+    base_label = "공식 체감온도" if has_out_feels else "기온"
+    src_label = "케이웨더" if has_out_feels or (cmp and cmp.provider in ("kweather", "kma")) else "참고용 추정"
+    if weather and weather["enclosed_alert"]:
         analysis.append(
-            f"작업장 내부 체감온도가 외부({src_label}) 기온 대비 최대 {cmp.max_delta}°C 높게 측정되어 "
-            f"'밀폐형 폭염 사업장'에 해당함(관리 임계 {cmp.enclosed_threshold}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요."
+            f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 최대 {weather['max_delta']}°C 높게 측정되어 "
+            f"'밀폐형 폭염 사업장'에 해당함(관리 임계 {weather['threshold']}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요."
         )
     elif weather and avg_delta is not None:
-        analysis.append(f"작업장 내부 체감온도가 외부({src_label}) 기온 대비 평균 {avg_delta}°C 높게 측정됨(최대 {cmp.max_delta}°C).")
+        analysis.append(f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 평균 {avg_delta}°C 높게 측정됨(최대 {weather['max_delta']}°C).")
+
     if avg_humi is not None and avg_humi >= 70:
         analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
 
@@ -295,7 +347,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         external_daily=external_daily, work=work, series=series,
         temp_at_peak=temp_at_peak, humi_at_peak=humi_at_peak,
     )
-    if external_daily and external_daily.get("out_max") is not None:
+    if external_daily and external_daily.get("out_max") is not None and external_daily.get("diff_feels") is None:
         analysis.append(
             f"외부({external_daily['source']}) 일 최고기온 {external_daily['out_max']}°C 대비 작업장 최고기온 "
             f"{external_daily['in_max']}°C로 {external_daily['diff_max']}°C 편차를 보임."
@@ -331,8 +383,8 @@ def _chart_hourly_feels(series, th) -> str | None:
     if not series or len(series) < 2:
         return None
     F = _pil_fonts()
-    W, H = 1560, 405
-    L, R, T, B = 100, 36, 26, 58
+    W, H = 1560, 345
+    L, R, T, B = 100, 36, 24, 52
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
 
@@ -396,12 +448,15 @@ def _chart_compare(hours) -> str | None:
     except Exception:  # noqa: BLE001
         return None
     pts_in = [(h["hour"], h["feels"]) for h in hours if h.get("feels") is not None]
-    pts_out = [(h["hour"], h["outdoor"]) for h in hours if h.get("outdoor") is not None]
+    use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
+    key = "out_feels" if use_feels else "outdoor"
+    pts_out = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
+    out_label = "야외 체감온도(기상청 공식)" if use_feels else "야외 기온"
     if len(pts_in) < 2 or len(pts_out) < 2:
         return None
     F = _pil_fonts()
-    W, H = 1560, 375
-    L, R, T, B = 100, 36, 44, 58
+    W, H = 1560, 320
+    L, R, T, B = 100, 36, 40, 52
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
 
@@ -434,10 +489,10 @@ def _chart_compare(hours) -> str | None:
 
     # 범례
     lx = W - R - 430
-    d.line([(lx, 28), (lx + 44, 28)], fill="#dc2626", width=6)
-    d.text((lx + 54, 28), "현장 체감온도", font=F(24), fill="#334155", anchor="lm")
-    d.line([(lx + 240, 28), (lx + 284, 28)], fill="#1790cd", width=6)
-    d.text((lx + 294, 28), "야외 기온", font=F(24), fill="#334155", anchor="lm")
+    d.line([(lx - 120, 28), (lx - 76, 28)], fill="#dc2626", width=6)
+    d.text((lx - 66, 28), "현장 체감온도", font=F(24), fill="#334155", anchor="lm")
+    d.line([(lx + 120, 28), (lx + 164, 28)], fill="#1790cd", width=6)
+    d.text((lx + 174, 28), out_label, font=F(24), fill="#334155", anchor="lm")
 
     return _png_data_uri(img)
 
@@ -538,13 +593,11 @@ h2 .no { color:#0f499e; }
 </table>
 <p class="note">※ 측정주기(1분) 기준 누적 노출시간 · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
-<div style="page-break-before: always;"></div>
-<h2 style="margin-top:0;"><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
+<h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
 {% if d.hours %}
 <table class="h24">
   <tr><td class="k" style="width:34pt;">시각</td>{% for h in d.hours %}<td class="k">{{ '%02d'|format(h.hour) }}</td>{% endfor %}</tr>
   <tr><td class="k">체감(°C)</td>{% for h in d.hours %}<td style="background:{{ h.color }}; color:#fff; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
-  <tr><td class="k">단계</td>{% for h in d.hours %}<td style="background:{{ h.color }}; color:#fff;">{{ h.label }}</td>{% endfor %}</tr>
 </table>
 {% endif %}
 {% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
@@ -553,35 +606,44 @@ h2 .no { color:#0f499e; }
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
-    <tr><th style="width:22%">구분</th><th>일 평균기온</th><th>일 최고기온</th><th>일 최저기온</th><th>평균 습도</th></tr>
-    <tr><td class="k">외부 ({{ d.external_daily.region or '관측' }})</td>
-        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td>
+    <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>평균 체감온도</th><th>일 최고기온</th><th>일 평균기온</th><th>평균 습도</th></tr>
+    <tr><td class="k">외부 · 기상청 공식</td>
+        <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
+        <td>{{ d.external_daily.out_feels_avg if d.external_daily.out_feels_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_min if d.external_daily.out_min is not none else '-' }}°C</td>
+        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_humi if d.external_daily.out_humi is not none else '-' }}%</td></tr>
-    <tr><td class="k">작업장(내부)</td>
+    <tr><td class="k">작업장(내부 측정)</td>
+        <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
+        <td>{{ d.avg_feels }}°C</td>
+        <td>{{ d.external_daily.in_max }}°C</td>
         <td>{{ d.external_daily.in_avg }}°C</td>
-        <td class="num" style="color:#dc2626;">{{ d.external_daily.in_max }}°C</td>
-        <td>-</td><td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td></tr>
+        <td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td></tr>
+    {% if d.external_daily.diff_feels is not none %}
+    <tr><td class="k">체감온도 차(내-외)</td>
+        <td class="num" style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</td>
+        <td colspan="4" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
+    {% endif %}
   </table>
   <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
 {% endif %}
 {% if d.weather %}
   {% if d.weather.enclosed_alert %}
-  <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 기온 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
+  <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 {{ '공식 체감온도' if d.weather.feels_based else '기온' }} 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
   {% if chart2 %}<div style="margin:2pt 0 6pt 0;"><img src="{{ chart2 }}" style="width:480pt;"/></div>{% endif %}
   <table class="tbl">
-    <tr><th class="k" style="width:14%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
+    <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
-    <tr><td class="k">외부 기온(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td>{{ h.outdoor if h.outdoor is not none else '-' }}</td>{% endfor %}</tr>
-    <tr><td class="k">편차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="k">외부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:#1790cd; font-weight:bold;">{{ h.out_feels if h.out_feels is not none else (h.outdoor if h.outdoor is not none else '-') }}</td>{% endfor %}</tr>
+    <tr><td class="k">체감차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
-  <p class="note">※ 외부 기상자료 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }}</p>
+  <p class="note">※ 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }} · 외부 체감온도 = 기상청 공식 산식(측정 당시 시각 매칭, 측정기 미기록 보완값)</p>
 {% elif not d.external_daily %}
   <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
 
+<pdf:keeptogether>
 <h2><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 
@@ -596,6 +658,7 @@ h2 .no { color:#0f499e; }
   적용 기준: 고용노동부 「온열질환 예방가이드」(물·그늘·휴식) · 산업안전보건기준에 관한 규칙 제566조 · 폭염특보 발표 기준<br/>
   측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성되었습니다.
 </div>
+</pdf:keeptogether>
 </body></html>
 """
 )
