@@ -92,7 +92,7 @@ export const api = {
   },
 
   geocode: (address: string) =>
-    getJSON<{ lat: number; lon: number; matched: string; provider: string }>(
+    getJSON<{ lat: number; lon: number; matched: string; provider: string; region_code: string | null }>(
       `/api/geocode?address=${encodeURIComponent(address)}`,
     ),
 

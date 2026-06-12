@@ -92,6 +92,7 @@ class GeocodeOut(BaseModel):
     lon: float
     matched: str       # 매칭된 주소(확인용)
     provider: str      # kakao | nominatim
+    region_code: str | None = None  # 행정동 코드 — 기기에 저장해 이후 재조회 불필요
 
 
 class DataRangeOut(BaseModel):

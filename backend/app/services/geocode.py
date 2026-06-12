@@ -27,7 +27,13 @@ def _kakao(address: str) -> dict | None:
                 d = docs[0]
                 road = (d.get("road_address") or {}).get("address_name")
                 matched = road or d.get("address_name") or address
-                return {"lat": float(d["y"]), "lon": float(d["x"]), "matched": matched, "provider": "kakao"}
+                # 행정동(h_code)/법정동(b_code) 코드 — 등록 시 저장해 이후 재요청 불필요
+                addr = d.get("address") or {}
+                rc = addr.get("h_code") or addr.get("b_code") or None
+                return {
+                    "lat": float(d["y"]), "lon": float(d["x"]),
+                    "matched": matched, "provider": "kakao", "region_code": rc,
+                }
         # 2) 키워드(장소) 검색 폴백 — 상호/랜드마크
         r2 = client.get(
             "https://dapi.kakao.com/v2/local/search/keyword.json",

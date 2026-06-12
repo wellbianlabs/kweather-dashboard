@@ -30,9 +30,11 @@ export function DeviceRegister({
     setGeoBusy(true);
     try {
       const r = await api.geocode(addr);
-      setForm((f) => ({ ...f, address: addr, latitude: r.lat, longitude: r.lon }));
+      // 행정동 코드까지 폼에 담아 등록 시 1회 저장 — 이후 날씨 조회 때 재요청 불필요
+      setForm((f) => ({ ...f, address: addr, latitude: r.lat, longitude: r.lon, region_code: r.region_code ?? "" }));
       setGeoMsg(
         `매칭됨(${r.provider === "kakao" ? "카카오" : "OSM·근사"}): ${r.matched} → 위도 ${r.lat}, 경도 ${r.lon}` +
+        (r.region_code ? " · 행정구역 확정" : "") +
         (r.provider === "nominatim" ? " · 정확도가 낮을 수 있어 확인 후 사용하세요." : "")
       );
     } catch (e: any) {

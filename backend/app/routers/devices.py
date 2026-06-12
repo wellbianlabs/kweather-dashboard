@@ -22,6 +22,24 @@ def list_devices(tenant: Tenant = Depends(get_tenant), db: Session = Depends(get
     )
 
 
+def _ensure_region_code(dev: Device) -> None:
+    """주소 확정(등록/수정) 시 행정동 코드를 1회 해석해 저장.
+
+    이후 날씨 조회는 저장값을 사용하므로 매 요청 좌표→행정동 변환이 필요 없다.
+    (해석 실패 시에도 등록은 진행 — 날씨 조회 측에 최근접 관측소 폴백 있음)
+    """
+    if dev.region_code or dev.latitude is None or dev.longitude is None:
+        return
+    from ..services import geocode as geocode_svc
+
+    try:
+        code = geocode_svc.region_code(dev.latitude, dev.longitude)
+        if code:
+            dev.region_code = code
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @router.post("", response_model=DeviceOut, status_code=201)
 def create_device(
     payload: DeviceCreate, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
@@ -30,6 +48,7 @@ def create_device(
     if existing is not None:
         raise HTTPException(409, "이미 존재하는 기기 SN 입니다.")
     dev = Device(tenant_id=tenant.id, **payload.model_dump())
+    _ensure_region_code(dev)
     db.add(dev)
     db.commit()
     db.refresh(dev)
@@ -49,8 +68,16 @@ def update_device(
     tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db),
 ):
     dev = _owned(db, tenant, device_sn)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    # 좌표가 바뀌는데 행정동 코드가 함께 오지 않으면 기존 코드를 비우고 재확정
+    if ("latitude" in data or "longitude" in data) and not data.get("region_code"):
+        old = (dev.latitude, dev.longitude)
+        new = (data.get("latitude", dev.latitude), data.get("longitude", dev.longitude))
+        if new != old:
+            dev.region_code = None
+    for k, v in data.items():
         setattr(dev, k, v)
+    _ensure_region_code(dev)
     db.commit()
     db.refresh(dev)
     return dev
