@@ -5,7 +5,7 @@ import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
 import { HeatGuidelines } from "./components/HeatGuidelines";
-import { IconRefresh, IconCheck } from "./components/Icons";
+import { IconCheck } from "./components/Icons";
 import { UploadPanel } from "./components/UploadPanel";
 import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
@@ -30,7 +30,6 @@ export default function App() {
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
@@ -99,26 +98,6 @@ export default function App() {
         `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`
       );
       setStep(4);  // 대시보드로 자동 진행
-    }
-  }, [loadDevices, loadRange]);
-
-  // 케이웨더 IoT 단말기에서 실시간 측정값 가져오기
-  const handleSyncLive = useCallback(async () => {
-    setSyncing(true); setLoadErr(null);
-    try {
-      const res = await api.syncLive();
-      await loadDevices();
-      const sn = res.devices?.[0];
-      if (sn) { setDeviceSn(sn); await loadRange(sn); }
-      const errs = res.errors?.length ? ` (${res.errors.join(", ")})` : "";
-      setUploadNotice(
-        `케이웨더 단말기 실시간 동기화: ${res.devices?.length ?? 0}대 · ${res.ingested}건 반영${errs}`
-      );
-      setStep(4);
-    } catch (e: any) {
-      setLoadErr("실시간 동기화 실패: " + String(e.message || e));
-    } finally {
-      setSyncing(false);
     }
   }, [loadDevices, loadRange]);
 
@@ -248,19 +227,6 @@ export default function App() {
               파일의 기기 SN이 등록된 기기와 일치하면 해당 사업장으로 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
             </div>
             <UploadPanel onUploaded={handleUploaded} />
-
-            <div className="card">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">케이웨더 IoT 단말기 실시간 연동</div>
-                  <div className="text-xs text-slate-500">파일 업로드 없이, 연동된 단말기의 최신 측정값을 직접 수집합니다.</div>
-                </div>
-                <button onClick={handleSyncLive} disabled={syncing}
-                        className="btn-primary shrink-0">
-                  {syncing ? "가져오는 중…" : (<span className="inline-flex items-center gap-2"><IconRefresh className="h-4 w-4" />실시간 측정값 가져오기</span>)}
-                </button>
-              </div>
-            </div>
 
             <div className="flex gap-2">
               <button onClick={() => setStep(2)}

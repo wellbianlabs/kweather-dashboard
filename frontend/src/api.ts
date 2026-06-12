@@ -91,13 +91,6 @@ export const api = {
     return getJSON<Kpi>(`/api/dashboard/kpi?${p}`);
   },
 
-  // 케이웨더 IoT 단말기 실시간 측정값 동기화
-  kwStatus: () => getJSON<{ configured: boolean; base_url: string }>("/api/kweather/status"),
-  syncLive: () => postJSON<{
-    fetched: number; ingested: number; devices: string[]; new_devices: string[];
-    errors: string[]; readings: { sn: string; kind: string; temp: number; humi: number; feels: number; at: string }[];
-  }>("/api/kweather/sync", {}),
-
   geocode: (address: string) =>
     getJSON<{ lat: number; lon: number; matched: string; provider: string }>(
       `/api/geocode?address=${encodeURIComponent(address)}`,

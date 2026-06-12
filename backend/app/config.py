@@ -34,10 +34,6 @@ class Settings(BaseSettings):
     # 과거 1년자료(일별) 베이스 — w4/v2/cbko/{행정동코드}?startdate&enddate (별도 상품 권한 필요)
     KW_PAST_BASE_URL: str = "https://gateway.kweather.co.kr:8443/weather/w4/v2"
 
-    # 케이웨더 IoT 플랫폼 — 단말기 실시간 측정값(last-all). Vercel 환경변수로 직접 입력.
-    KW_IOT_BASE_URL: str = "https://gateway.kweather.co.kr:8443/iot/groups/v2"
-    KW_IOT_API_KEY: str = ""               # IoT api_key
-    KW_IOT_USER_ID: str = ""               # 계정 id (idType=USER), 예: test1@kweather.co.kr
 
     # 지오코딩(주소 -> 위경도). 카카오 REST 키가 있으면 한국 주소 정확도가 높아짐.
     # 없으면 Nominatim(OpenStreetMap, 키 불필요)으로 폴백.

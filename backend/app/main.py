@@ -16,7 +16,7 @@ from sqlalchemy import select
 from .config import settings
 from .database import SessionLocal, init_db
 from .models import Tenant
-from .routers import auth, dashboard, devices, geocode, kwiot, reports, upload, weather
+from .routers import auth, dashboard, devices, geocode, reports, upload, weather
 
 DEMO_API_KEY = "demo-key"
 
@@ -40,7 +40,6 @@ app.include_router(upload.router)
 app.include_router(devices.router)
 app.include_router(dashboard.router)
 app.include_router(geocode.router)
-app.include_router(kwiot.router)
 app.include_router(weather.router)
 app.include_router(reports.router)
 
@@ -67,7 +66,6 @@ def health() -> dict:
         "database": "postgresql" if settings.DATABASE_URL.startswith("postgres") else "sqlite",
         "weather_provider": settings.WEATHER_PROVIDER,
         "kweather_key_set": bool(settings.KW_API_KEY),
-        "kweather_iot_configured": bool(settings.KW_IOT_API_KEY and settings.KW_IOT_USER_ID),
         "kma_asos_key_set": bool(settings.KMA_API_KEY),
         "geocoder": "kakao" if settings.KAKAO_REST_KEY else "nominatim",
         "thresholds": {
