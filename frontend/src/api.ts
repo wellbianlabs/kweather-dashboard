@@ -178,6 +178,18 @@ export const api = {
     return results;
   },
 
+  // 측정 데이터 초기화 (기기 등록·계정은 유지). deviceSn 지정 시 해당 기기만.
+  resetData: async (deviceSn?: string | null): Promise<{ deleted_logs: number; devices: string[] }> => {
+    const q = deviceSn ? `?device_sn=${encodeURIComponent(deviceSn)}` : "";
+    const r = await fetch(u(`/api/data${q}`), { method: "DELETE", headers: headers() });
+    if (!r.ok) {
+      let detail = await r.text();
+      try { detail = JSON.parse(detail).detail ?? detail; } catch {}
+      throw new Error(detail);
+    }
+    return r.json();
+  },
+
   // 다운로드 URL (브라우저가 직접 받도록). X-API-Key 헤더 대신 fetch 후 blob 처리.
   download: async (url: string, filename: string) => {
     const r = await fetch(u(url), { headers: headers() });

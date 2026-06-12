@@ -101,6 +101,14 @@ export default function App() {
     }
   }, [loadDevices, loadRange]);
 
+  // 데이터 초기화 직후: 대시보드 상태·날짜 목록 비우고 업로드 단계 유지
+  const handleReset = useCallback(async () => {
+    setKpi(null); setTs(null); setCmp(null);
+    setAvailableDates([]);
+    setUploadNotice(null);
+    await loadRange(deviceSn);
+  }, [loadRange, deviceSn]);
+
   // 대시보드 데이터 로드
   useEffect(() => {
     if (!auth || step !== 4) return;
@@ -226,7 +234,7 @@ export default function App() {
               <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 케이웨더 체감온도계 TXT(일자별 로그) 또는 CSV(탭 구분) 파일을 업로드합니다.
               TXT는 위에서 선택한 기기로 연결되고, CSV는 파일 내 기기 SN으로 자동 연결됩니다. 완료 시 대시보드로 자동 전환됩니다.
             </div>
-            <UploadPanel devices={devices} onUploaded={handleUploaded} />
+            <UploadPanel devices={devices} onUploaded={handleUploaded} onReset={handleReset} />
 
             <div className="flex gap-2">
               <button onClick={() => setStep(2)}

@@ -6,15 +6,19 @@ import type { Device, UploadResult } from "../types";
 export function UploadPanel({
   devices = [],
   onUploaded,
+  onReset,
 }: {
   devices?: Device[];
   onUploaded: (results: UploadResult[]) => void;
+  onReset?: () => void;
 }) {
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
   // TXT 파일(파일 내 SN 없음)을 연결할 기기 — 기본값은 첫 번째 등록 기기
   const [targetSn, setTargetSn] = useState<string>(devices[0]?.device_sn ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +49,27 @@ export function UploadPanel({
     }
   }
 
+  async function handleReset(scopeSn: string | null) {
+    setBusy(true);
+    setError(null);
+    setResetNotice(null);
+    try {
+      const r = await api.resetData(scopeSn);
+      setConfirmReset(false);
+      setResults(null);
+      setResetNotice(
+        scopeSn
+          ? `기기 ${scopeSn}의 측정 데이터 ${r.deleted_logs.toLocaleString()}건을 삭제했습니다.`
+          : `전체 측정 데이터 ${r.deleted_logs.toLocaleString()}건을 삭제했습니다. (기기 등록 정보는 유지)`
+      );
+      onReset?.();
+    } catch (e: any) {
+      setError(String(e.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // 대량 업로드 요약
   const summary = useMemo(() => {
     if (!results) return null;
@@ -65,7 +90,47 @@ export function UploadPanel({
 
   return (
     <div className="card">
-      <h3 className="mb-2 font-semibold text-slate-900">측정 데이터 업로드 (TXT/CSV)</h3>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="font-semibold text-slate-900">측정 데이터 업로드 (TXT/CSV)</h3>
+        <button
+          className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+          disabled={busy}
+          onClick={() => { setConfirmReset((v) => !v); setResetNotice(null); }}
+        >
+          데이터 초기화
+        </button>
+      </div>
+
+      {confirmReset && (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm">
+          <p className="font-semibold text-red-700">업로드된 측정 데이터를 삭제합니다.</p>
+          <p className="mt-0.5 text-xs text-red-600">
+            삭제 후에는 되돌릴 수 없습니다. 기기 등록 정보와 계정은 유지되며, 파일을 다시 업로드하면 복원됩니다.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {targetSn && devices.length > 1 && (
+              <button className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-40"
+                      disabled={busy} onClick={() => handleReset(targetSn)}>
+                선택 기기({targetSn})만 삭제
+              </button>
+            )}
+            <button className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                    disabled={busy} onClick={() => handleReset(null)}>
+              전체 데이터 삭제
+            </button>
+            <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                    disabled={busy} onClick={() => setConfirmReset(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resetNotice && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {resetNotice}
+        </div>
+      )}
       {devices.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="text-xs font-medium text-slate-500">데이터를 연결할 기기</label>
