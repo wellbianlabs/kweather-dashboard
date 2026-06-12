@@ -92,7 +92,7 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
               );
             })}
             {devices.length === 0 && (
-              <tr><td colSpan={8} className="py-4 text-center text-slate-400">등록된 기기가 없습니다. CSV를 업로드하면 자동 등록됩니다.</td></tr>
+              <tr><td colSpan={8} className="py-4 text-center text-slate-400">등록된 기기가 없습니다. 위 양식으로 등록하거나, SN이 포함된 CSV 업로드 시 자동 등록됩니다.</td></tr>
             )}
           </tbody>
         </table>

@@ -3,7 +3,7 @@ export type Step = 1 | 2 | 3 | 4;
 const STEPS: { n: Step; label: string; desc: string }[] = [
   { n: 1, label: "계정", desc: "회원가입 / 로그인" },
   { n: 2, label: "사업장·기기 등록", desc: "회사 · 장소 · 기기 SN" },
-  { n: 3, label: "데이터 업로드", desc: "CSV 파일" },
+  { n: 3, label: "데이터 업로드", desc: "TXT/CSV 파일" },
   { n: 4, label: "대시보드", desc: "분석 · 리포트" },
 ];
 
