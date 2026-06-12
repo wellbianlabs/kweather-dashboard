@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, setToken } from "../api";
 import type { AuthData } from "../types";
+import { SiteFooter } from "./SiteFooter";
 
 export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -44,7 +45,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
   const inp = "input";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f7f8fa] px-4">
+    <div className="flex min-h-screen flex-col bg-[#f7f8fa]">
+      <div className="flex flex-1 items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
           <img src="/kweather-logo.png" alt="KWEATHER" className="mx-auto h-9" />
@@ -107,6 +109,8 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
           회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는 <b className="text-slate-600">평생 무료</b>로 사용합니다.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
 import { AuthScreen } from "./components/AuthScreen";
 import { Stepper, type Step } from "./components/Stepper";
+import { SiteFooter } from "./components/SiteFooter";
 
 export default function App() {
   const [auth, setAuth] = useState<AuthData | null>(null);
@@ -268,10 +269,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="py-10 text-center text-xs leading-relaxed text-slate-400">
-        <img src="/kweather-logo.png" alt="KWEATHER" className="mx-auto mb-2.5 h-4 opacity-50" />
-        체감온도계 안전보건 대시보드 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
-      </footer>
+      <SiteFooter withBanner />
     </div>
   );
 }
