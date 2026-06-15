@@ -303,7 +303,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             f"위험단계(38°C 이상) 노출이 {work['danger_minutes']}분 누적됨."
         )
     if lm["danger"]:
-        analysis.append(f"체감온도 38°C(위험) 이상 노출이 일일 {lm['danger']}분 누적되어 고용노동부 기준상 옥외작업 원칙적 중지 대상에 해당함.")
+        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {lm['danger']}분 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
     analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
                     + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
     base_label = "공식 체감온도" if has_out_feels else "기온"
@@ -638,7 +638,7 @@ h2 .no { color:#0f499e; }
 {% endif %}
 
 <div class="footer">
-  적용 기준: 고용노동부 「온열질환 예방가이드」(물·그늘·휴식) · 산업안전보건기준에 관한 규칙 제566조 · 폭염특보 발표 기준<br/>
+  적용 기준: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」(2026.5.13.) · 폭염안전 5대 기본수칙(시원한 물·냉방장치·휴식(33°C↑ 2시간마다 20분)·보냉장구·119) · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보(주의보 33°C / 경보 35°C / 중대경보 38°C)<br/>
   측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성되었습니다.
 </div>
 </pdf:keeptogether>
