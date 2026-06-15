@@ -23,6 +23,7 @@ class AuthOut(BaseModel):
     email: str | None
     company_name: str
     has_data: bool = False  # 기존 업로드 데이터 유무 (온보딩 단계 결정용)
+    is_admin: bool = False  # 관리자 대시보드 접근 가능 여부
 
 
 # ---------- Device ----------

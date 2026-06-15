@@ -5,15 +5,17 @@
 """
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import settings
 from .database import get_db
 from .models import Tenant
 
 
 def get_tenant(
+    request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     db: Session = Depends(get_db),
 ) -> Tenant:
@@ -27,5 +29,25 @@ def get_tenant(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="유효하지 않은 API 키입니다.",
+        )
+    # 접근 로그 미들웨어가 읽을 수 있도록 요청 컨텍스트에 식별정보 저장(추가 쿼리 없이).
+    request.state.tenant_id = tenant.id
+    return tenant
+
+
+def admin_emails() -> set[str]:
+    return {e.strip().lower() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
+
+
+def is_admin(tenant: Tenant) -> bool:
+    return bool(tenant.email) and tenant.email.strip().lower() in admin_emails()
+
+
+def get_admin(tenant: Tenant = Depends(get_tenant)) -> Tenant:
+    """관리자 전용 가드 — 관리자 이메일 계정만 통과."""
+    if not is_admin(tenant):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다.",
         )
     return tenant

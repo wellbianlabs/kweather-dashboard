@@ -13,10 +13,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
+from .access import access_log_middleware
 from .config import settings
 from .database import SessionLocal, init_db
 from .models import Tenant
-from .routers import auth, dashboard, data, devices, geocode, reports, upload, weather
+from .routers import admin, auth, dashboard, data, devices, geocode, reports, upload, weather
 
 DEMO_API_KEY = "demo-key"
 
@@ -43,6 +44,10 @@ app.include_router(dashboard.router)
 app.include_router(geocode.router)
 app.include_router(weather.router)
 app.include_router(reports.router)
+app.include_router(admin.router)
+
+# API 접근 로깅(방문/트래픽/업로드 현황) — 관리자 대시보드 집계 기반
+app.middleware("http")(access_log_middleware)
 
 
 @app.on_event("startup")

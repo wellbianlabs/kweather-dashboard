@@ -3,6 +3,48 @@ export interface AuthData {
   email: string | null;
   company_name: string;
   has_data: boolean;
+  is_admin?: boolean;
+}
+
+export interface AdminDaily {
+  date: string;
+  requests: number;
+  visits: number;
+  uploads: number;
+  rows: number;
+  signups: number;
+}
+
+export interface AdminTenant {
+  id: number;
+  company: string;
+  email: string | null;
+  is_demo: boolean;
+  devices: number;
+  rows: number;
+  first_date: string | null;
+  last_date: string | null;
+  created_at: string | null;
+  last_active: string | null;
+}
+
+export interface AdminEvent {
+  ts: string | null;
+  company: string | null;
+  email: string | null;
+  kind: string;
+  method: string;
+  path: string;
+  status: number;
+}
+
+export interface AdminOverview {
+  generated_at: string;
+  totals: { members: number; devices: number; rows: number };
+  today: { visits: number; requests: number; uploads: number; rows: number; signups: number };
+  daily: AdminDaily[];
+  tenants: AdminTenant[];
+  recent: AdminEvent[];
 }
 
 export interface Device {

@@ -51,3 +51,22 @@ def init_db() -> None:
     from . import models  # noqa: F401  (모델 등록)
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """create_all 은 기존 테이블에 신규 컬럼을 추가하지 않으므로, 누락분을 best-effort 보강.
+
+    SQLite/PostgreSQL 모두 ``ALTER TABLE ... ADD COLUMN`` 을 지원한다. 이미 있으면 예외 무시.
+    """
+    from sqlalchemy import text
+
+    stmts = [
+        "ALTER TABLE tenants ADD COLUMN created_at TIMESTAMP",
+    ]
+    for sql in stmts:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(sql))
+        except Exception:  # noqa: BLE001  (이미 존재 등)
+            pass

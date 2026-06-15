@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_tenant
+from ..deps import get_tenant, is_admin
 from ..models import Device, SensorLog, Tenant
 from ..schemas import AuthOut, LoginIn, SignupIn
 from ..security import hash_password, new_api_key, verify_password
@@ -44,7 +44,10 @@ def signup(payload: SignupIn, db: Session = Depends(get_db)):
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
-    return AuthOut(token=tenant.api_key, email=tenant.email, company_name=tenant.name, has_data=False)
+    return AuthOut(
+        token=tenant.api_key, email=tenant.email, company_name=tenant.name,
+        has_data=False, is_admin=is_admin(tenant),
+    )
 
 
 @router.post("/login", response_model=AuthOut)
@@ -55,7 +58,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
         raise HTTPException(401, "이메일 또는 비밀번호가 올바르지 않습니다.")
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=_has_data(db, tenant),
+        has_data=_has_data(db, tenant), is_admin=is_admin(tenant),
     )
 
 
@@ -63,5 +66,5 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 def me(tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)):
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=_has_data(db, tenant),
+        has_data=_has_data(db, tenant), is_admin=is_admin(tenant),
     )

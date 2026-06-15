@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # 없으면 Nominatim(OpenStreetMap, 키 불필요)으로 폴백.
     KAKAO_REST_KEY: str = ""
 
+    # 관리자 계정 이메일(쉼표로 다중 지정 가능). 관리자 대시보드 접근 권한.
+    ADMIN_EMAILS: str = "cmlee@kweather.co.kr"
+
     # 폭염 위험 단계 임계값 (체감온도 A-TEMP, 단위 ℃)  — 고용노동부/기상청 기준
     HEAT_ATTENTION: float = 31.0  # 관심
     HEAT_CAUTION: float = 33.0    # 주의

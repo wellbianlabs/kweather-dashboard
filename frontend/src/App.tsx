@@ -12,11 +12,13 @@ import { ReportPanel } from "./components/ReportPanel";
 import { AuthScreen } from "./components/AuthScreen";
 import { Stepper, type Step } from "./components/Stepper";
 import { SiteFooter } from "./components/SiteFooter";
+import { AdminPage } from "./components/AdminPage";
 
 export default function App() {
   const [auth, setAuth] = useState<AuthData | null>(null);
   const [booting, setBooting] = useState(true);
   const [step, setStep] = useState<Step>(2);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const [devices, setDevices] = useState<Device[]>([]);
   const [deviceSn, setDeviceSn] = useState<string | null>(null);
@@ -74,7 +76,7 @@ export default function App() {
     clearToken();
     setAuth(null);
     setDevices([]); setDeviceSn(null); setKpi(null); setTs(null); setCmp(null);
-    setStep(2);
+    setStep(2); setAdminOpen(false);
   }
 
   // 로그인 후 기기 목록 로드 + 데이터 최근 날짜로 기본 설정
@@ -145,19 +147,33 @@ export default function App() {
                 <p className="truncate text-xs text-slate-400">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
               </div>
             </div>
-            <button onClick={logout} className="btn-ghost shrink-0 !py-2 text-sm">로그아웃</button>
+            <div className="flex shrink-0 items-center gap-2">
+              {auth.is_admin && (
+                <button
+                  onClick={() => setAdminOpen((v) => !v)}
+                  className={`shrink-0 !py-2 text-sm ${adminOpen ? "btn-primary" : "btn-ghost"}`}
+                >
+                  {adminOpen ? "← 일반 화면" : "관리자"}
+                </button>
+              )}
+              <button onClick={logout} className="btn-ghost shrink-0 !py-2 text-sm">로그아웃</button>
+            </div>
           </div>
         </div>
         {/* 단계 표시 */}
-        <div className="border-t border-slate-100 bg-white/60">
-          <div className="mx-auto max-w-7xl px-5 py-2">
-            <Stepper current={step} onJump={setStep} canDashboard={canDashboard} />
+        {!adminOpen && (
+          <div className="border-t border-slate-100 bg-white/60">
+            <div className="mx-auto max-w-7xl px-5 py-2">
+              <Stepper current={step} onJump={setStep} canDashboard={canDashboard} />
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
+      {adminOpen && <AdminPage onClose={() => setAdminOpen(false)} />}
+
       {/* 대시보드 컨트롤 바 (대시보드 단계에서만) */}
-      {step === 4 && (
+      {!adminOpen && step === 4 && (
         <div className="border-b border-slate-200/60 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
             <Field label="기기 선택">
@@ -210,6 +226,7 @@ export default function App() {
         </div>
       )}
 
+      {!adminOpen && (
       <main className="mx-auto max-w-7xl space-y-5 px-5 py-7">
         {loadErr && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadErr}</div>
@@ -268,6 +285,7 @@ export default function App() {
           </>
         )}
       </main>
+      )}
 
       <SiteFooter withBanner />
     </div>

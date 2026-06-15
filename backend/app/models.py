@@ -23,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+from .utils import kst_now
 
 
 class Tenant(Base):
@@ -36,6 +37,8 @@ class Tenant(Base):
     # 회원 인증 (이메일/비밀번호). 데모 테넌트는 비어 있음.
     email: Mapped[str | None] = mapped_column(String(200), unique=True, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(255))
+    # 가입 시각(KST). 기존 행은 NULL일 수 있음(소급 미적용).
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=kst_now)
 
     devices: Mapped[list["Device"]] = relationship(back_populates="tenant")
 
@@ -108,4 +111,28 @@ class ExternalDailyCache(Base):
 
     __table_args__ = (
         UniqueConstraint("device_sn", "ymd", name="uq_extcache_device_ymd"),
+    )
+
+
+class AccessLog(Base):
+    """API 접근 로그 — 관리자 대시보드의 방문/트래픽/업로드 현황 집계용.
+
+    미들웨어가 `/api/*` 요청마다 best-effort 로 1행 기록한다(실패는 무시).
+    """
+
+    __tablename__ = "access_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=kst_now)
+    ymd: Mapped[str] = mapped_column(String(8), nullable=False, index=True)  # YYYYMMDD(KST)
+    method: Mapped[str] = mapped_column(String(8), nullable=False)
+    path: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="api")  # visit|upload|report|api
+    tenant_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    visitor: Mapped[str | None] = mapped_column(String(80))  # 방문자 식별키(테넌트 또는 IP)
+    rows: Mapped[int | None] = mapped_column(Integer)         # 업로드 반영 행수(업로드 이벤트)
+
+    __table_args__ = (
+        Index("ix_accesslog_ymd_visitor", "ymd", "visitor"),
     )
