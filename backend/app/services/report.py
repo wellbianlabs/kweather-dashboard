@@ -585,6 +585,7 @@ h2 .no { color:#0f499e; }
 {% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
 <p class="note">※ 표 색상은 시간대 평균 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
 
+<pdf:nextpage/>
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
