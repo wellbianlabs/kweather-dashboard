@@ -202,7 +202,6 @@ export default function App() {
             <Field label="다운샘플링">
               <select className="select"
                 value={interval} onChange={(e) => setIntervalMin(Number(e.target.value))}>
-                <option value={1}>1분(원본)</option>
                 <option value={10}>10분 평균</option>
                 <option value={30}>30분 평균</option>
               </select>
