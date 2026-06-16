@@ -12,7 +12,7 @@ import {
   IconMap2, IconMenu2, IconMoon, IconSun, IconTrendingUp,
 } from "@tabler/icons-react";
 import { NavbarNested } from "../components/ui/NavbarNested";
-import { StatsGrid } from "../components/ui/StatsGrid";
+import { KpiCards } from "../components/KpiCards";
 import { DataTable } from "../components/ui/DataTable";
 import { SiteFooterLinks } from "../components/ui/SiteFooterLinks";
 import { RiskMapSkeleton } from "../components/RiskMapSkeleton";
@@ -72,8 +72,8 @@ export function RenewApp() {
                   <Grid.Col span={{ base: 12, md: 4 }}><CurrentWeatherWidget /></Grid.Col>
                 </Grid>
 
-                {/* 이식: StatsGrid (KPI) */}
-                <StatsGrid />
+                {/* 병합 동기화: 실 KpiCards — 위험단계·최고체감(발생시각)·최고온도(발생시각)·위험단계 지속(38℃↑) */}
+                <KpiCards kpi={mockKpi} />
 
                 <TimeSeriesChart ts={mockTs} kpi={mockKpi} date="2026-06-16" />
 
