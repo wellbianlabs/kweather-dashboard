@@ -37,6 +37,9 @@ export default function App() {
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
+  // 시계열 차트는 리포트 기간(rangeStart~rangeEnd)으로 조회 — N일 추이
+  const periodStart = useMemo(() => `${rangeStart}T00:00:00`, [rangeStart]);
+  const periodEnd = useMemo(() => `${rangeEnd}T23:59:59`, [rangeEnd]);
 
   // 부팅: 저장된 토큰이 있으면 검증
   useEffect(() => {
@@ -122,12 +125,13 @@ export default function App() {
     setLoadErr(null);
     api.kpi(deviceSn, dayStart, dayEnd).then(setKpi).catch((e) => setLoadErr(String(e)));
     if (deviceSn) {
-      api.timeseries(deviceSn, dayStart, dayEnd, interval).then(setTs).catch(() => setTs(null));
+      // 시계열 = 리포트 기간(N일) · 외부비교 = 기준일자(단일일, 외부 시간자료가 일자 기준)
+      api.timeseries(deviceSn, periodStart, periodEnd, interval).then(setTs).catch(() => setTs(null));
       api.weatherCompare(deviceSn, dayStart, dayEnd, 30).then(setCmp).catch(() => setCmp(null));
     } else {
       setTs(null); setCmp(null);
     }
-  }, [auth, step, deviceSn, dayStart, dayEnd, interval, date]);
+  }, [auth, step, deviceSn, dayStart, dayEnd, periodStart, periodEnd, interval, date]);
 
   if (booting) {
     return <div className="flex min-h-screen items-center justify-center text-slate-400">불러오는 중...</div>;
@@ -294,7 +298,7 @@ export default function App() {
         {step === 4 && (
           <>
             <KpiCards kpi={kpi} />
-            <TimeSeriesChart ts={ts} kpi={kpi} date={date} />
+            <TimeSeriesChart ts={ts} kpi={kpi} />
             <WeatherCompareChart cmp={cmp} />
             <HeatGuidelines kpi={kpi} />
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />

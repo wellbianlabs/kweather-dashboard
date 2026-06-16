@@ -18,12 +18,14 @@
     "@mantine/modals": "^9.3.1",
     "@mantine/notifications": "^9.3.1",
     "@tabler/icons-react": "^3.44.0",
+    "d3-geo": "^3.1.1",
     "dayjs": "^1.11.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@types/d3-geo": "^3.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
