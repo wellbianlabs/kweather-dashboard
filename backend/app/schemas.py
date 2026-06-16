@@ -80,9 +80,12 @@ class KpiSummary(BaseModel):
     range_end: datetime | None
     record_count: int
     max_feels_like: float | None
+    max_feels_like_time: str | None = None   # 최고 체감온도 발생 시각
     max_temperature: float | None
+    max_temperature_time: str | None = None  # 최고 온도 발생 시각
     avg_humidity: float | None
     avg_feels_like: float | None
+    danger_minutes: int = 0                  # 위험단계(체감 38℃ 이상) 누적 지속(분)
     current_level: HeatLevelOut
     # 단계별 임계값(℃) 노출 — 프론트 배지/범례용
     thresholds: dict[str, float]
@@ -154,6 +157,14 @@ class WeatherCompareOut(BaseModel):
 
 
 # ---------- Reports ----------
+class DailyHourPoint(BaseModel):
+    hour: int                     # 0~23 (시)
+    feels: float | None           # 시간 평균 체감온도
+    temperature: float | None = None
+    level: str                    # 위험 단계 code
+    color: str                    # 단계 색상(헥스)
+
+
 class DailyReportData(BaseModel):
     device_sn: str
     date: str
@@ -163,8 +174,14 @@ class DailyReportData(BaseModel):
     max_feels_like_time: str | None
     max_temperature: float | None
     avg_humidity: float | None
-    minutes_over_33: int          # 33℃ 이상 누적 지속(분)
-    minutes_over_35: int
-    minutes_over_38: int
+    minutes_over_31: int = 0      # 31℃ 이상 누적 지속(분) — 관심
+    minutes_over_33: int          # 33℃ 이상 — 주의
+    minutes_over_35: int          # 35℃ 이상 — 경고
+    minutes_over_38: int          # 38℃ 이상 — 위험
+    hours: list[DailyHourPoint] = []  # 시간별 체감온도 변화
+    # 법정 휴식 의무(산업안전보건규칙 — 체감 33℃↑ 작업 시 2시간마다 20분 이상)
+    work_hot_minutes: int = 0     # 근무시간(09~18) 중 체감 33℃ 이상 작업 누적(분)
+    legal_rest_count: int = 0     # 법정 최소 휴식 횟수
+    legal_rest_minutes: int = 0   # 법정 최소 휴식 총시간(분)
     peak_level: HeatLevelOut
     guidance: list[str]           # 안전조치 가이드 텍스트

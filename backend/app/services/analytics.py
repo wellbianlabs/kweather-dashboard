@@ -14,6 +14,7 @@ from .. import heat
 from ..config import settings
 from ..models import Device, SensorLog, Tenant
 from ..schemas import (
+    DailyHourPoint,
     DailyReportData,
     HeatLevelOut,
     KpiSummary,
@@ -130,17 +131,41 @@ def kpi_summary(
     # 위험 단계 = 선택 기간 내 '최고 체감온도' 기준 (안전관리 목적상 최악값 노출, 지도 마커와 일관)
     current = heat.classify(max_feels)
 
+    rng_start = df["measured_at"].min().to_pydatetime()
+    rng_end = df["measured_at"].max().to_pydatetime()
+    same_day = rng_start.date() == rng_end.date()
+
+    def _at(idx) -> str:
+        t = pd.to_datetime(df.loc[idx, "measured_at"])
+        return t.strftime("%H:%M" if same_day else "%m-%d %H:%M")
+
+    max_feels_time = _at(df["feels_like"].idxmax())
+    max_temp_time = _at(df["temperature"].idxmax())
+
+    # 위험단계(체감 38℃ 이상) 누적 지속시간 — 측정 간격(중앙값)을 곱해 분으로 환산.
+    # (데이터가 10분 주기 등 비1분일 때도 실제 시간에 가깝게 추정)
+    ts = df["measured_at"].sort_values()
+    diffs = ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(diffs.median()) if len(diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+    danger_records = int((df["feels_like"] >= settings.HEAT_DANGER).sum())
+    danger_minutes = int(round(danger_records * step))
+
     return KpiSummary(
         device_sn=device_sn,
         company_name=meta.company_name if meta else None,
         location_name=meta.location_name if meta else None,
-        range_start=df["measured_at"].min().to_pydatetime(),
-        range_end=df["measured_at"].max().to_pydatetime(),
+        range_start=rng_start,
+        range_end=rng_end,
         record_count=int(len(df)),
         max_feels_like=round(max_feels, 1),
+        max_feels_like_time=max_feels_time,
         max_temperature=round(float(df["temperature"].max()), 1),
+        max_temperature_time=max_temp_time,
         avg_humidity=round(float(df["humidity"].mean()), 1) if df["humidity"].notna().any() else None,
         avg_feels_like=round(float(df["feels_like"].mean()), 1),
+        danger_minutes=danger_minutes,
         current_level=_level_out(current),
         thresholds=heat.thresholds(),
     )
@@ -220,7 +245,8 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
             company_name=dev.company_name if dev else None,
             location_name=dev.location_name if dev else None,
             max_feels_like=None, max_feels_like_time=None, max_temperature=None,
-            avg_humidity=None, minutes_over_33=0, minutes_over_35=0, minutes_over_38=0,
+            avg_humidity=None, minutes_over_31=0, minutes_over_33=0, minutes_over_35=0,
+            minutes_over_38=0, hours=[],
             peak_level=_level_out(peak), guidance=_GUIDANCE["safe"],
         )
 
@@ -229,10 +255,40 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
     max_time = pd.to_datetime(df.loc[idx_max, "measured_at"]).strftime("%H:%M")
     peak = heat.classify(max_feels)
 
-    # 1분 주기 가정 -> 임계 이상 레코드 수 = 누적 분
-    over_33 = int((df["feels_like"] >= settings.HEAT_CAUTION).sum())
-    over_35 = int((df["feels_like"] >= settings.HEAT_WARNING).sum())
-    over_38 = int((df["feels_like"] >= settings.HEAT_DANGER).sum())
+    # 측정 간격(중앙값)을 반영해 누적 노출시간(분) 환산 — 대시보드 KPI 와 일관
+    ts = df["measured_at"].sort_values()
+    diffs = ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(diffs.median()) if len(diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+
+    def _minutes(thr: float) -> int:
+        return int(round(int((df["feels_like"] >= thr).sum()) * step))
+
+    over_31 = _minutes(settings.HEAT_ATTENTION)
+    over_33 = _minutes(settings.HEAT_CAUTION)
+    over_35 = _minutes(settings.HEAT_WARNING)
+    over_38 = _minutes(settings.HEAT_DANGER)
+
+    # 법정 휴식 의무 — 근무시간(09~18) 중 체감 33℃ 이상 작업에 '2시간마다 20분 이상'
+    # (산업안전보건규칙). 휴식 부여 여부는 측정되지 않으므로 '부여해야 할 최소 의무량'을 산정.
+    whrs = df["measured_at"].dt.hour
+    wdf = df[(whrs >= 9) & (whrs < 18)]
+    work_hot_minutes = int(round(int((wdf["feels_like"] >= settings.HEAT_CAUTION).sum()) * step)) if not wdf.empty else 0
+    legal_rest_count = work_hot_minutes // 120  # 작업 2시간(120분)마다 1회
+    legal_rest_minutes = legal_rest_count * 20
+
+    # 시간별 평균(체감/온도) -> 단계 색상
+    hourly = (
+        df.set_index("measured_at")[["feels_like", "temperature"]]
+        .resample("1h").mean()
+    )
+    hours = []
+    for tstamp, row in hourly.iterrows():
+        f = None if pd.isna(row["feels_like"]) else round(float(row["feels_like"]), 1)
+        t = None if pd.isna(row["temperature"]) else round(float(row["temperature"]), 1)
+        lv = heat.classify(f)
+        hours.append(DailyHourPoint(hour=int(tstamp.hour), feels=f, temperature=t, level=lv.code, color=lv.color))
 
     return DailyReportData(
         device_sn=device_sn, date=on_date.isoformat(),
@@ -242,7 +298,9 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
         max_feels_like_time=max_time,
         max_temperature=round(float(df["temperature"].max()), 1),
         avg_humidity=round(float(df["humidity"].mean()), 1) if df["humidity"].notna().any() else None,
-        minutes_over_33=over_33, minutes_over_35=over_35, minutes_over_38=over_38,
+        minutes_over_31=over_31, minutes_over_33=over_33, minutes_over_35=over_35, minutes_over_38=over_38,
+        hours=hours,
+        work_hot_minutes=work_hot_minutes, legal_rest_count=legal_rest_count, legal_rest_minutes=legal_rest_minutes,
         peak_level=_level_out(peak), guidance=_GUIDANCE[peak.code],
     )
 

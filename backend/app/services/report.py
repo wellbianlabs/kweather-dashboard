@@ -106,6 +106,14 @@ def _daily_chart(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls)
     return _fig_to_data_uri(fig)
 
 
+def _fmt_min(m: int | None) -> str:
+    """누적 분 -> "X시간 Y분" / "Y분" (웹 보고서·대시보드와 동일 표기)."""
+    if not m or m <= 0:
+        return "0분"
+    h, mm = divmod(int(m), 60)
+    return f"{h}시간 {mm}분" if h else f"{mm}분"
+
+
 def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls) -> dict:
     """일일 상세 리포트용 데이터 — KPI, 단계별 지속시간, 시간대별 집계, 내부 vs 외부(기상청) 비교, 분석 코멘트."""
     from . import weather as weather_svc  # 지연 임포트(순환 방지)
@@ -129,7 +137,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         safe = heat.LEVELS["safe"]
         out.update(
             peak_label=safe.label, peak_color=safe.color, guidance=analytics._GUIDANCE["safe"],
-            hours=[], level_minutes={}, total_minutes=0, weather=None, analysis=[],
+            hours=[], level_minutes={}, level_minutes_label={}, total_minutes=0, weather=None, analysis=[],
             external_daily=None, avg_humidity=None, work=None, series=[],
         )
         return out
@@ -141,14 +149,24 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     max_time = pd.to_datetime(df.loc[idx_max, "measured_at"]).strftime("%H:%M")
     peak = heat.classify(max_feels)
 
-    # 단계별 누적 분 (1분 주기 가정)
+    # 측정 간격(중앙값) 반영 누적 노출시간(분) — 대시보드 KPI·웹 보고서와 동일 기준.
+    # 각 단계 = '기준 체감온도 이상' 누적(관심 31 / 주의 33 / 경고 35 / 위험 38℃↑).
+    _ts = df["measured_at"].sort_values()
+    _diffs = _ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(_diffs.median()) if len(_diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+
+    def _cum_min(series, thr) -> int:
+        return int(round(int((series >= thr).sum()) * step))
+
     lm = {
-        "danger": int((feels >= th["danger"]).sum()),
-        "warning": int(((feels >= th["warning"]) & (feels < th["danger"])).sum()),
-        "caution": int(((feels >= th["caution"]) & (feels < th["warning"])).sum()),
-        "attention": int(((feels >= th["attention"]) & (feels < th["caution"])).sum()),
-        "safe": int((feels < th["attention"]).sum()),
+        "attention": _cum_min(feels, th["attention"]),
+        "caution": _cum_min(feels, th["caution"]),
+        "warning": _cum_min(feels, th["warning"]),
+        "danger": _cum_min(feels, th["danger"]),
     }
+    lm_label = {k: _fmt_min(v) for k, v in lm.items()}
 
     # 피크 시점의 동시 관측값(샘플 보고서 항목)
     temp_at_peak = round(float(df.loc[idx_max, "temperature"]), 1)
@@ -219,17 +237,29 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             "max_time": pd.to_datetime(wdf.loc[widx, "measured_at"]).strftime("%H:%M"),
             "max_temp": round(float(wdf["temperature"].max()), 1),
             "avg_feels": round(float(wfeels.mean()), 1),
-            "danger_minutes": int((wfeels >= th["danger"]).sum()),
+            "danger_minutes": _cum_min(wfeels, th["danger"]),
             "minutes": {
-                "danger": int((wfeels >= th["danger"]).sum()),
-                "warning": int(((wfeels >= th["warning"]) & (wfeels < th["danger"])).sum()),
-                "caution": int(((wfeels >= th["caution"]) & (wfeels < th["warning"])).sum()),
-                "attention": int(((wfeels >= th["attention"]) & (wfeels < th["caution"])).sum()),
-                "safe": int((wfeels < th["attention"]).sum()),
+                "attention": _cum_min(wfeels, th["attention"]),
+                "caution": _cum_min(wfeels, th["caution"]),
+                "warning": _cum_min(wfeels, th["warning"]),
+                "danger": _cum_min(wfeels, th["danger"]),
+            },
+            "minutes_label": {
+                "attention": _fmt_min(_cum_min(wfeels, th["attention"])),
+                "caution": _fmt_min(_cum_min(wfeels, th["caution"])),
+                "warning": _fmt_min(_cum_min(wfeels, th["warning"])),
+                "danger": _fmt_min(_cum_min(wfeels, th["danger"])),
             },
             "total": len(wdf),
             "peak_label": wpeak.label, "peak_color": wpeak.color,
         }
+        # 법정 휴식 의무 — 체감 33℃↑ 작업에 2시간마다 20분 이상(산업안전보건규칙)
+        _hot = _cum_min(wfeels, th["caution"])
+        work["hot_minutes"] = _hot
+        work["hot_label"] = _fmt_min(_hot)
+        work["legal_rest_count"] = _hot // 120
+        work["legal_rest_minutes"] = (_hot // 120) * 20
+        work["legal_rest_label"] = _fmt_min((_hot // 120) * 20)
 
     weather = None
     if deltas:
@@ -300,10 +330,10 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     if work:
         analysis.append(
             f"근무시간(09:00~18:00) 중 최고 체감온도는 {work['max_time']}경 {work['max_feels']}°C(단계: {work['peak_label']})이며, "
-            f"위험단계(38°C 이상) 노출이 {work['danger_minutes']}분 누적됨."
+            f"위험단계(38°C 이상) 노출이 {_fmt_min(work['danger_minutes'])} 누적됨."
         )
     if lm["danger"]:
-        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {lm['danger']}분 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
+        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {_fmt_min(lm['danger'])} 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
     analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
                     + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
     base_label = "공식 체감온도" if has_out_feels else "기온"
@@ -317,7 +347,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         analysis.append(f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 평균 {avg_delta}°C 높게 측정됨(최대 {weather['max_delta']}°C).")
 
     if avg_humi is not None and avg_humi >= 70:
-        analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
+        analysis.append("고온다습한 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
 
     out.update(
         max_feels=max_feels, max_time=max_time, max_temp=round(float(temps.max()), 1),
@@ -325,7 +355,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         range_start=pd.to_datetime(df["measured_at"].min()).strftime("%H:%M"),
         range_end=pd.to_datetime(df["measured_at"].max()).strftime("%H:%M"),
         peak_label=peak.label, peak_color=peak.color, guidance=analytics._GUIDANCE[peak.code],
-        level_minutes=lm, total_minutes=n, hours=hours, weather=weather, analysis=analysis,
+        level_minutes=lm, level_minutes_label=lm_label, total_minutes=int(round(n * step)),
+        hours=hours, weather=weather, analysis=analysis,
         external_daily=external_daily, work=work, series=series,
         temp_at_peak=temp_at_peak, humi_at_peak=humi_at_peak,
     )
@@ -543,15 +574,14 @@ h2 .no { color:#0f499e; }
 {% if d.has_data %}
 <h2><span class="no">2.</span> 측정 결과 요약 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간: 09:00~18:00)</span></h2>
 <table class="tbl">
-  <tr><th style="width:17%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>평균 체감온도</th><th>위험단계(38°C↑) 노출</th></tr>
+  <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>위험단계(38°C↑) 노출</th></tr>
   {% if d.work %}
   <tr style="background:#fbfdff;">
     <td class="k"><b>근무시간</b></td>
     <td class="num" style="color:{{ d.work.peak_color }}">{{ d.work.max_feels }}°C</td>
     <td>{{ d.work.max_time }}</td>
     <td class="num">{{ d.work.max_temp }}°C</td>
-    <td>{{ d.work.avg_feels }}°C</td>
-    <td class="num" style="color:#dc2626">{{ d.work.danger_minutes }}분</td>
+    <td class="num" style="color:#dc2626">{{ d.work.minutes_label['danger'] }}</td>
   </tr>
   {% endif %}
   <tr>
@@ -559,21 +589,19 @@ h2 .no { color:#0f499e; }
     <td class="num" style="color:{{ d.peak_color }}">{{ d.max_feels }}°C</td>
     <td>{{ d.max_time }}</td>
     <td class="num">{{ d.max_temp }}°C</td>
-    <td>{{ d.avg_feels }}°C</td>
-    <td class="num" style="color:#dc2626">{{ d.level_minutes['danger'] }}분</td>
+    <td class="num" style="color:#dc2626">{{ d.level_minutes_label['danger'] }}</td>
   </tr>
 </table>
-<p class="note">※ 평균 습도(전일): {{ d.avg_humidity if d.avg_humidity is not none else '-' }}% · 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
+<p class="note">※ 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
 
 <h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
-  <tr><th style="width:14%">위험 단계</th>{% for code in ['safe','attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
-  <tr><td class="k">기준(체감)</td><td>31°C 미만</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
-  {% if d.work %}<tr style="background:#fbfdff;"><td class="k"><b>근무시간 노출</b></td>{% for code in ['safe','attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes[code] }}분</b></td>{% endfor %}</tr>{% endif %}
-  <tr><td class="k">전일 노출</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ d.level_minutes[code] }}분</td>{% endfor %}</tr>
-  <tr><td class="k">전일 비율</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ ((d.level_minutes[code] / d.total_minutes * 100) | round(1)) if d.total_minutes else 0 }}%</td>{% endfor %}</tr>
+  <tr><th style="width:16%">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
+  <tr><td class="k">기준(체감)</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
+  {% if d.work %}<tr style="background:#fbfdff;"><td class="k"><b>근무시간 노출</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_label[code] }}</b></td>{% endfor %}</tr>{% endif %}
+  <tr><td class="k">전일 노출</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_label[code] }}</td>{% endfor %}</tr>
 </table>
-<p class="note">※ 측정주기(1분) 기준 누적 노출시간 · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
+<p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 노출시간(측정 간격 반영) · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
 <h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
 {% if d.hours %}
@@ -583,29 +611,25 @@ h2 .no { color:#0f499e; }
 </table>
 {% endif %}
 {% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
-<p class="note">※ 표 색상은 시간대 평균 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
+<p class="note">※ 표 색상은 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
 
 <pdf:nextpage/>
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
-    <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>평균 체감온도</th><th>일 최고기온</th><th>일 평균기온</th><th>평균 습도</th></tr>
+    <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
     <tr><td class="k">외부 · 기상청 공식</td>
         <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_feels_avg if d.external_daily.out_feels_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_humi if d.external_daily.out_humi is not none else '-' }}%</td></tr>
+        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td></tr>
     <tr><td class="k">작업장(내부 측정)</td>
         <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
-        <td>{{ d.avg_feels }}°C</td>
         <td>{{ d.external_daily.in_max }}°C</td>
-        <td>{{ d.external_daily.in_avg }}°C</td>
-        <td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td></tr>
+        <td>{{ d.external_daily.in_avg }}°C</td></tr>
     {% if d.external_daily.diff_feels is not none %}
-    <tr><td class="k">체감온도 차(내-외)</td>
+    <tr><td class="k">최고 체감온도 차(내-외)</td>
         <td class="num" style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</td>
-        <td colspan="4" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
+        <td colspan="2" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
     {% endif %}
   </table>
   <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
@@ -632,6 +656,19 @@ h2 .no { color:#0f499e; }
 
 <h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
 <div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
+
+<h2><span class="no">8.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
+{% if d.work and d.work.hot_minutes > 0 %}
+<table class="tbl">
+  <tr><th style="width:40%">근무시간(09~18) 체감 33°C↑ 작업</th><th>법정 최소 휴식 횟수</th><th>법정 최소 휴식 시간</th></tr>
+  <tr><td class="num" style="color:#b45309;">{{ d.work.hot_label }}</td>
+      <td class="num">{{ d.work.legal_rest_count }}회</td>
+      <td class="num" style="color:#b45309;">{{ d.work.legal_rest_label }}</td></tr>
+</table>
+<p class="note">※ 측정 체감온도 기반 <b>법정 최소 의무량</b>(2시간 작업당 20분). 실제 부여한 휴식 기록과 대조하여 준수 여부를 확인하십시오.</p>
+{% else %}
+<p class="note">근무시간 중 체감온도 33°C 이상 작업이 없어 추가 의무 휴식 대상이 아님(통상 안전보건 관리 유지).</p>
+{% endif %}
 {% else %}
 <h2><span class="no">2.</span> 측정 결과</h2>
 <p class="note">해당 일자에 수집된 측정 데이터가 없습니다.</p>
@@ -680,7 +717,7 @@ th { background:#f1f5f9; }
 
 <table>
   <tr><th>기간 최고 체감온도</th><td>{{ s.overall_max_feels if s.overall_max_feels is not none else '-' }} °C</td>
-      <th>기간 평균 체감온도</th><td>{{ s.overall_avg_feels if s.overall_avg_feels is not none else '-' }} °C</td></tr>
+      <th>분석 일수</th><td>{{ s.daily|length }} 일</td></tr>
 </table>
 
 <h3>위험 단계 도달 일수</h3>
@@ -694,11 +731,11 @@ th { background:#f1f5f9; }
 
 <h3>일자별 트렌드</h3>
 <table repeat="1">
-<tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>평균습도(%)</th><th>33°C↑(분)</th><th>단계</th></tr>
+<tr><th>일자</th><th>최고 체감(°C)</th><th>최고온도(°C)</th><th>주의(33°C↑) 노출</th><th>최고단계</th></tr>
 {% for row in s.daily %}
-<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td><td>{{ row.avg_feels }}</td>
-<td>{{ row.max_temp }}</td><td>{{ row.avg_humidity if row.avg_humidity is not none else '-' }}</td>
-<td>{{ row.minutes_over_33 }}</td><td>{{ row.peak_label }}</td></tr>
+<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td>
+<td>{{ row.max_temp }}</td>
+<td>{{ row.minutes_over_33 }}분</td><td>{{ row.peak_label }}</td></tr>
 {% endfor %}
 </table>
 <div class="footer">자동 생성 {{ generated }}</div>
@@ -712,10 +749,10 @@ def _periodic_chart(stats: dict) -> str | None:
         return None
     days = [r["date"] for r in stats["daily"]]
     maxf = [r["max_feels"] for r in stats["daily"]]
-    avgf = [r["avg_feels"] for r in stats["daily"]]
     fig, ax = plt.subplots(figsize=(9, 3.4))
     ax.plot(days, maxf, "o-", color="#dc2626", label="일 최고 체감온도")
-    ax.plot(days, avgf, "o-", color="#f59e0b", label="일 평균 체감온도")
+    for y, c in [(31, "#84cc16"), (33, "#eab308"), (35, "#f97316"), (38, "#dc2626")]:
+        ax.axhline(y, color=c, ls="--", lw=0.8)
     ax.set_ylabel("체감온도 (°C)")
     ax.tick_params(axis="x", rotation=45, labelsize=7)
     ax.legend(fontsize=8)
@@ -756,12 +793,34 @@ def export_excel(
     - 로우데이터는 EXPORT_RAW_MAX 행으로 상한(초과 시 안내 행 추가)
     - write_only 모드로 메모리/속도 최적화
     """
-    from openpyxl.cell import WriteOnlyCell
-    from sqlalchemy import Date, case, cast, func
+    import json as _json
 
-    from ..models import SensorLog
+    from openpyxl.cell import WriteOnlyCell
+
+    from ..models import ExternalDailyCache, SensorLog
 
     sns = analytics._resolve_scope(db, tenant, device_sn)
+
+    # 야외 체감온도(기상청 시간 매칭) — 저장된 캐시만 사용(Excel 생성 중 외부 호출 없이).
+    # {(기기SN, 'YYYYMMDD'): {시: 야외체감}}
+    ext_map: dict[tuple, dict] = {}
+    if sns:
+        start_ymd, end_ymd = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+        cache_rows = db.execute(
+            select(
+                ExternalDailyCache.device_sn, ExternalDailyCache.ymd, ExternalDailyCache.hourly_json
+            ).where(
+                ExternalDailyCache.device_sn.in_(sns),
+                ExternalDailyCache.hourly_json.isnot(None),
+                ExternalDailyCache.ymd >= start_ymd,
+                ExternalDailyCache.ymd <= end_ymd,
+            )
+        ).all()
+        for csn, ymd, hj in cache_rows:
+            try:
+                ext_map[(csn, ymd)] = {int(k): v.get("feels") for k, v in _json.loads(hj).items()}
+            except Exception:  # noqa: BLE001
+                pass
 
     wb = Workbook(write_only=True)
 
@@ -775,53 +834,15 @@ def export_excel(
             cells.append(c)
         return cells
 
-    # --- 시트1: 일자별 요약 (SQL 집계) ---
-    ws1 = wb.create_sheet("일자별요약")
-    for i, w in enumerate([12, 16, 12, 12, 12, 12, 10, 10], start=1):
-        ws1.column_dimensions[chr(64 + i)].width = w
-    ws1.append(_headers(ws1, ["일자", "기기SN", "최고체감(°C)", "평균체감(°C)", "최고온도(°C)", "평균습도(%)", "33°C↑(분)", "최고단계"]))
-
-    if sns:
-        date_expr = (
-            func.date(SensorLog.measured_at)
-            if db.bind.dialect.name == "sqlite"
-            else cast(SensorLog.measured_at, Date)
-        ).label("d")
-        cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
-        q = (
-            select(
-                date_expr,
-                SensorLog.device_sn,
-                func.max(SensorLog.feels_like_temperature),
-                func.avg(SensorLog.feels_like_temperature),
-                func.max(SensorLog.temperature),
-                func.avg(SensorLog.humidity),
-                func.sum(case((SensorLog.feels_like_temperature >= settings.HEAT_CAUTION, 1), else_=0)),
-            )
-            .where(*cond)
-            .group_by(date_expr, SensorLog.device_sn)
-            .order_by(date_expr, SensorLog.device_sn)
-        )
-        for day, sn, mxf, avf, mxt, avh, over in db.execute(q):
-            mxf = float(mxf) if mxf is not None else None
-            ws1.append([
-                str(day), sn,
-                round(mxf, 1) if mxf is not None else None,
-                round(float(avf), 1) if avf is not None else None,
-                round(float(mxt), 1) if mxt is not None else None,
-                round(float(avh), 1) if avh is not None else None,
-                int(over or 0),
-                heat.classify(mxf).label,
-            ])
-
-    # --- 시트2: 로우데이터 (상한 + 안내) ---
-    ws2 = wb.create_sheet("로우데이터")
-    for i, w in enumerate([22, 16, 10, 10, 12], start=1):
+    # --- 측정데이터 (실측값 그대로 · 10분 단위 · 하루치) ---
+    ws2 = wb.create_sheet("측정데이터")
+    for i, w in enumerate([22, 16, 10, 10, 12, 20], start=1):
         ws2.column_dimensions[chr(64 + i)].width = w
-    ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)"]))
+    ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)", "야외 체감온도(기상청,°C)"]))
 
     truncated = False
     if sns:
+        cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
         raw_q = (
             select(
                 SensorLog.measured_at, SensorLog.device_sn,
@@ -837,11 +858,14 @@ def export_excel(
             if count > EXPORT_RAW_MAX:
                 truncated = True
                 break
+            ts = pd.Timestamp(mt)
+            of = ext_map.get((sn, ts.strftime("%Y%m%d")), {}).get(ts.hour)
             ws2.append([
-                pd.Timestamp(mt).strftime("%Y-%m-%d %H:%M:%S"), sn,
+                ts.strftime("%Y-%m-%d %H:%M:%S"), sn,
                 round(float(temp), 1) if temp is not None else None,
                 int(humi) if humi is not None else None,
                 round(float(feels), 1) if feels is not None else None,
+                round(float(of), 1) if of is not None else None,
             ])
     if truncated:
         note = WriteOnlyCell(ws2, value=(

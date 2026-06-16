@@ -94,19 +94,24 @@ export default function App() {
   // 업로드 직후: 업로드한 기기/일자로 대시보드 자동 이동
   const handleUploaded = useCallback(async (results: UploadResult[]) => {
     await loadDevices();
-    const r = results.find((x) => x.affected_devices.length > 0);
-    if (r) {
-      const sn = r.affected_devices[0];
+    // 전체 결과로 집계(여러 파일·여러 날짜 업로드 시 첫 파일 기준으로만 표시되던 일자 오류 수정)
+    const affected = Array.from(new Set(results.flatMap((x) => x.affected_devices)));
+    if (affected.length) {
+      const sn = affected[0];
       setDeviceSn(sn);
       await loadRange(sn);  // 전체 바운더리·날짜목록·기준일자 갱신(업로드 데이터 기준)
       const total = results.reduce((s, x) => s + x.rows_inserted + x.rows_updated, 0);
+      const dates = results.flatMap((x) => [x.min_date, x.max_date]).filter(Boolean) as string[];
+      const minD = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : "";
+      const maxD = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : "";
+      const span = minD && maxD && maxD !== minD ? `${minD}~${maxD}` : (minD || maxD);
       notifications.show({
         color: "teal",
         title: "업로드 완료",
         autoClose: 6000,
         message:
-          `${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
-          `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`,
+          `${affected.join(", ")} · ${total.toLocaleString()}건 반영` +
+          (span ? ` · ${span} 데이터를 표시합니다.` : ""),
       });
       setStep(4);  // 대시보드로 자동 진행
     }
@@ -224,7 +229,6 @@ export default function App() {
               value={String(interval)}
               onChange={(v) => v && setIntervalMin(Number(v))}
               data={[
-                { value: "1", label: "1분(원본)" },
                 { value: "10", label: "10분 평균" },
                 { value: "30", label: "30분 평균" },
               ]}

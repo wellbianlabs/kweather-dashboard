@@ -72,9 +72,12 @@ export interface Kpi {
   range_end: string | null;
   record_count: number;
   max_feels_like: number | null;
+  max_feels_like_time: string | null;
   max_temperature: number | null;
+  max_temperature_time: string | null;
   avg_humidity: number | null;
   avg_feels_like: number | null;
+  danger_minutes: number;
   current_level: HeatLevel;
   thresholds: Record<string, number>;
 }
@@ -124,6 +127,14 @@ export interface UploadResult {
   errors: string[];
 }
 
+export interface DailyHourPoint {
+  hour: number;
+  feels: number | null;
+  temperature: number | null;
+  level: string;
+  color: string;
+}
+
 export interface DailyReport {
   device_sn: string;
   date: string;
@@ -133,9 +144,14 @@ export interface DailyReport {
   max_feels_like_time: string | null;
   max_temperature: number | null;
   avg_humidity: number | null;
+  minutes_over_31: number;
   minutes_over_33: number;
   minutes_over_35: number;
   minutes_over_38: number;
+  hours: DailyHourPoint[];
+  work_hot_minutes: number;
+  legal_rest_count: number;
+  legal_rest_minutes: number;
   peak_level: HeatLevel;
   guidance: string[];
 }

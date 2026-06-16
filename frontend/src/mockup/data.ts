@@ -14,6 +14,9 @@ export const mockKpi: Kpi = {
   max_temperature: 36.2,
   avg_humidity: 68,
   avg_feels_like: 31.4,
+  max_feels_like_time: "14:30",
+  max_temperature_time: "15:00",
+  danger_minutes: 84,
   current_level: { code: "danger", label: "위험", color: "#dc2626", rank: 4 },
   thresholds: TH,
 };
