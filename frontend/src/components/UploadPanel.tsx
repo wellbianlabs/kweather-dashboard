@@ -37,12 +37,12 @@ export function UploadPanel({
     const arr = all.filter((f) => /\.txt$/i.test(f.name));
     const rejected = all.filter((f) => !/\.txt$/i.test(f.name));
     const rejectMsg = rejected.length
-      ? `케이웨더 체감온도계 TXT 파일만 업로드할 수 있습니다. 제외된 파일: ${rejected
+      ? `업로드할 수 없는 파일입니다: ${rejected
           .map((f) => f.name).slice(0, 5).join(", ")}${rejected.length > 5 ? ` 외 ${rejected.length - 5}개` : ""}`
       : null;
     if (arr.length === 0) {
       setResults(null);
-      setError(rejectMsg ?? "업로드할 TXT 파일이 없습니다.");
+      setError(rejectMsg ?? "업로드할 파일이 없습니다.");
       return;
     }
     setBusy(true);
@@ -103,7 +103,7 @@ export function UploadPanel({
   return (
     <div className="card">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="font-semibold text-slate-900">측정 데이터 업로드 (케이웨더 TXT 전용)</h3>
+        <h3 className="font-semibold text-slate-900">측정 데이터 업로드</h3>
         <button
           className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
           disabled={busy}
@@ -158,7 +158,7 @@ export function UploadPanel({
               </option>
             ))}
           </select>
-          <span className="text-xs text-slate-400">업로드한 데이터는 선택한 기기로 기록됩니다.</span>
+          <span className="text-xs text-slate-400">선택한 기기로 기록됩니다.</span>
         </div>
       )}
       <div
@@ -173,12 +173,9 @@ export function UploadPanel({
                onChange={(e) => e.target.files && handleFiles(e.target.files)} />
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-kw-50 text-kw"><IconUpload className="h-5 w-5" /></span>
         <p className="mt-1 text-sm text-slate-600">
-          {busy ? "업로드 중... (자동으로 나눠 전송합니다)" : "케이웨더 TXT 파일을 끌어다 놓거나 클릭하여 선택하세요"}
+          {busy ? "업로드 중..." : "파일을 끌어다 놓거나 클릭하여 선택하세요"}
         </p>
-        <p className="text-xs text-slate-400">
-          케이웨더 체감온도계 단말기 TXT 파일 전용 (예: 20260612.TXT) · 다중 파일/대량 업로드 지원
-          <br />그 외 형식(.csv, 엑셀 등) 및 타사 기기 파일은 업로드되지 않습니다.
-        </p>
+        <p className="text-xs text-slate-400">다중 파일·대량 업로드 지원</p>
       </div>
 
       {/* 진행률 */}

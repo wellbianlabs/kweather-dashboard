@@ -45,10 +45,8 @@ _KW_LINE = re.compile(
     r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}\s*,\s*-?\d*\.?\d*\s*,\s*-?\d*\.?\d*\s*,\s*-?\d*\.?\d*\s*,?\s*$"
 )
 
-_FORMAT_ERR = (
-    "케이웨더 체감온도계 형식의 파일이 아닙니다. "
-    "케이웨더 단말기에서 내려받은 TXT 파일(예: 20260612.TXT)만 업로드할 수 있습니다."
-)
+# 거부 메시지는 포맷을 역추론할 힌트를 남기지 않도록 의도적으로 간결하게 유지.
+_FORMAT_ERR = "올바른 측정 데이터 파일이 아닙니다."
 
 
 def _assert_kweather_txt(text: str) -> None:
@@ -58,7 +56,7 @@ def _assert_kweather_txt(text: str) -> None:
     """
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines:
-        raise ValueError("빈 파일입니다. 케이웨더 체감온도계 TXT 파일을 업로드해 주세요.")
+        raise ValueError("빈 파일입니다.")
 
     # 탭 구분(CSV/엑셀 내보내기 등)은 케이웨더 포맷이 아님 → 거부
     if any("\t" in ln for ln in lines[:100]):
@@ -81,9 +79,7 @@ def _parse_txt(text: str, default_sn: str | None) -> pd.DataFrame:
     2열이 건구온도, 3열이 상대습도.
     """
     if not default_sn:
-        raise ValueError(
-            "TXT 형식에는 기기 SN이 포함되어 있지 않습니다. 업로드할 기기를 선택해 주세요."
-        )
+        raise ValueError("업로드할 기기를 선택해 주세요.")
     df = pd.read_csv(
         io.StringIO(text),
         sep=",",
@@ -143,7 +139,7 @@ def ingest_csv(
         return UploadResult(
             filename=filename, rows_parsed=0, rows_inserted=0, rows_updated=0,
             rows_skipped=0, new_devices=[], encoding="?",
-            errors=[".csv 등의 형식은 지원하지 않습니다. 케이웨더 체감온도계 TXT 파일만 업로드할 수 있습니다."],
+            errors=["지원하지 않는 파일입니다."],
         )
     # 기기 연결: 미지정이면 테넌트에 기기가 1대일 때 자동 사용
     if not device_sn:

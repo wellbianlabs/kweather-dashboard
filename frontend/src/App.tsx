@@ -249,8 +249,7 @@ export default function App() {
         {step === 3 && (
           <>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 케이웨더 체감온도계 단말기 TXT 파일(예: 20260612.TXT)만 업로드할 수 있습니다.
-              위에서 선택한 기기로 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다. 케이웨더 단말기 형식이 아닌 파일(.csv 등)은 입력되지 않습니다.
+              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 위에서 선택한 기기로 측정 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
             </div>
             <UploadPanel devices={devices} onUploaded={handleUploaded} onReset={handleReset} />
 
