@@ -567,14 +567,13 @@ h2 .no { color:#0f499e; }
 {% if d.has_data %}
 <h2><span class="no">2.</span> 측정 결과 요약 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간: 09:00~18:00)</span></h2>
 <table class="tbl">
-  <tr><th style="width:17%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>평균 체감온도</th><th>위험단계(38°C↑) 노출</th></tr>
+  <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>위험단계(38°C↑) 노출</th></tr>
   {% if d.work %}
   <tr style="background:#fbfdff;">
     <td class="k"><b>근무시간</b></td>
     <td class="num" style="color:{{ d.work.peak_color }}">{{ d.work.max_feels }}°C</td>
     <td>{{ d.work.max_time }}</td>
     <td class="num">{{ d.work.max_temp }}°C</td>
-    <td>{{ d.work.avg_feels }}°C</td>
     <td class="num" style="color:#dc2626">{{ d.work.minutes_label['danger'] }}</td>
   </tr>
   {% endif %}
@@ -583,7 +582,6 @@ h2 .no { color:#0f499e; }
     <td class="num" style="color:{{ d.peak_color }}">{{ d.max_feels }}°C</td>
     <td>{{ d.max_time }}</td>
     <td class="num">{{ d.max_temp }}°C</td>
-    <td>{{ d.avg_feels }}°C</td>
     <td class="num" style="color:#dc2626">{{ d.level_minutes_label['danger'] }}</td>
   </tr>
 </table>
@@ -606,27 +604,25 @@ h2 .no { color:#0f499e; }
 </table>
 {% endif %}
 {% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
-<p class="note">※ 표 색상은 시간대 평균 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
+<p class="note">※ 표 색상은 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
 
 <pdf:nextpage/>
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
-    <tr><th style="width:22%">구분</th><th>최고 체감온도</th><th>평균 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
+    <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
     <tr><td class="k">외부 · 기상청 공식</td>
         <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_feels_avg if d.external_daily.out_feels_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td></tr>
     <tr><td class="k">작업장(내부 측정)</td>
         <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
-        <td>{{ d.avg_feels }}°C</td>
         <td>{{ d.external_daily.in_max }}°C</td>
         <td>{{ d.external_daily.in_avg }}°C</td></tr>
     {% if d.external_daily.diff_feels is not none %}
-    <tr><td class="k">체감온도 차(내-외)</td>
+    <tr><td class="k">최고 체감온도 차(내-외)</td>
         <td class="num" style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</td>
-        <td colspan="3" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
+        <td colspan="2" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
     {% endif %}
   </table>
   <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
@@ -701,7 +697,7 @@ th { background:#f1f5f9; }
 
 <table>
   <tr><th>기간 최고 체감온도</th><td>{{ s.overall_max_feels if s.overall_max_feels is not none else '-' }} °C</td>
-      <th>기간 평균 체감온도</th><td>{{ s.overall_avg_feels if s.overall_avg_feels is not none else '-' }} °C</td></tr>
+      <th>분석 일수</th><td>{{ s.daily|length }} 일</td></tr>
 </table>
 
 <h3>위험 단계 도달 일수</h3>
@@ -715,11 +711,11 @@ th { background:#f1f5f9; }
 
 <h3>일자별 트렌드</h3>
 <table repeat="1">
-<tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>33°C↑(분)</th><th>단계</th></tr>
+<tr><th>일자</th><th>최고 체감(°C)</th><th>최고온도(°C)</th><th>주의(33°C↑) 노출</th><th>최고단계</th></tr>
 {% for row in s.daily %}
-<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td><td>{{ row.avg_feels }}</td>
+<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td>
 <td>{{ row.max_temp }}</td>
-<td>{{ row.minutes_over_33 }}</td><td>{{ row.peak_label }}</td></tr>
+<td>{{ row.minutes_over_33 }}분</td><td>{{ row.peak_label }}</td></tr>
 {% endfor %}
 </table>
 <div class="footer">자동 생성 {{ generated }}</div>
@@ -733,10 +729,10 @@ def _periodic_chart(stats: dict) -> str | None:
         return None
     days = [r["date"] for r in stats["daily"]]
     maxf = [r["max_feels"] for r in stats["daily"]]
-    avgf = [r["avg_feels"] for r in stats["daily"]]
     fig, ax = plt.subplots(figsize=(9, 3.4))
     ax.plot(days, maxf, "o-", color="#dc2626", label="일 최고 체감온도")
-    ax.plot(days, avgf, "o-", color="#f59e0b", label="일 평균 체감온도")
+    for y, c in [(31, "#84cc16"), (33, "#eab308"), (35, "#f97316"), (38, "#dc2626")]:
+        ax.axhline(y, color=c, ls="--", lw=0.8)
     ax.set_ylabel("체감온도 (°C)")
     ax.tick_params(axis="x", rotation=45, labelsize=7)
     ax.legend(fontsize=8)
