@@ -223,12 +223,11 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
         {/* 측정 결과 요약 */}
         <section>
           <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">1.</span> 측정 결과 요약</h4>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Metric label="최고 체감온도" value={`${report.max_feels_like ?? "-"}`} unit="℃"
                     accent={lv.color} sub={report.max_feels_like_time ? `${report.max_feels_like_time} 발생` : ""} />
             <Metric label="최고 온도" value={`${report.max_temperature ?? "-"}`} unit="℃" />
-            <Metric label="평균 습도" value={`${report.avg_humidity ?? "-"}`} unit="%" />
-            <Metric label="위험단계 노출 (38℃↑)" value={`${report.minutes_over_38}`} unit="분"
+            <Metric label="위험단계 노출 (38℃↑)" value={fmtMin(report.minutes_over_38)}
                     accent={report.minutes_over_38 > 0 ? "#dc2626" : undefined}
                     sub={report.minutes_over_38 > 0 ? "온열질환 고위험" : "미발생"} />
           </div>

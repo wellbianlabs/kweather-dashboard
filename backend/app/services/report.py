@@ -340,7 +340,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         analysis.append(f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 평균 {avg_delta}°C 높게 측정됨(최대 {weather['max_delta']}°C).")
 
     if avg_humi is not None and avg_humi >= 70:
-        analysis.append(f"평균 습도 {avg_humi}%의 고온다습 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
+        analysis.append("고온다습한 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
 
     out.update(
         max_feels=max_feels, max_time=max_time, max_temp=round(float(temps.max()), 1),
@@ -587,7 +587,7 @@ h2 .no { color:#0f499e; }
     <td class="num" style="color:#dc2626">{{ d.level_minutes_label['danger'] }}</td>
   </tr>
 </table>
-<p class="note">※ 평균 습도(전일): {{ d.avg_humidity if d.avg_humidity is not none else '-' }}% · 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
+<p class="note">※ 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
 
 <h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
@@ -612,23 +612,21 @@ h2 .no { color:#0f499e; }
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
-    <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>평균 체감온도</th><th>일 최고기온</th><th>일 평균기온</th><th>평균 습도</th></tr>
+    <tr><th style="width:22%">구분</th><th>최고 체감온도</th><th>평균 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
     <tr><td class="k">외부 · 기상청 공식</td>
         <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_feels_avg if d.external_daily.out_feels_avg is not none else '-' }}°C</td>
         <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td>
-        <td>{{ d.external_daily.out_humi if d.external_daily.out_humi is not none else '-' }}%</td></tr>
+        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td></tr>
     <tr><td class="k">작업장(내부 측정)</td>
         <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
         <td>{{ d.avg_feels }}°C</td>
         <td>{{ d.external_daily.in_max }}°C</td>
-        <td>{{ d.external_daily.in_avg }}°C</td>
-        <td>{{ d.avg_humidity if d.avg_humidity is not none else '-' }}%</td></tr>
+        <td>{{ d.external_daily.in_avg }}°C</td></tr>
     {% if d.external_daily.diff_feels is not none %}
     <tr><td class="k">체감온도 차(내-외)</td>
         <td class="num" style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</td>
-        <td colspan="4" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
+        <td colspan="3" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
     {% endif %}
   </table>
   <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
@@ -717,10 +715,10 @@ th { background:#f1f5f9; }
 
 <h3>일자별 트렌드</h3>
 <table repeat="1">
-<tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>평균습도(%)</th><th>33°C↑(분)</th><th>단계</th></tr>
+<tr><th>일자</th><th>최고 체감(°C)</th><th>평균 체감(°C)</th><th>최고온도(°C)</th><th>33°C↑(분)</th><th>단계</th></tr>
 {% for row in s.daily %}
 <tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td><td>{{ row.avg_feels }}</td>
-<td>{{ row.max_temp }}</td><td>{{ row.avg_humidity if row.avg_humidity is not none else '-' }}</td>
+<td>{{ row.max_temp }}</td>
 <td>{{ row.minutes_over_33 }}</td><td>{{ row.peak_label }}</td></tr>
 {% endfor %}
 </table>
