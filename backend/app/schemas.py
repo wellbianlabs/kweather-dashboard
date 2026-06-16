@@ -157,6 +157,14 @@ class WeatherCompareOut(BaseModel):
 
 
 # ---------- Reports ----------
+class DailyHourPoint(BaseModel):
+    hour: int                     # 0~23 (시)
+    feels: float | None           # 시간 평균 체감온도
+    temperature: float | None = None
+    level: str                    # 위험 단계 code
+    color: str                    # 단계 색상(헥스)
+
+
 class DailyReportData(BaseModel):
     device_sn: str
     date: str
@@ -166,8 +174,10 @@ class DailyReportData(BaseModel):
     max_feels_like_time: str | None
     max_temperature: float | None
     avg_humidity: float | None
-    minutes_over_33: int          # 33℃ 이상 누적 지속(분)
-    minutes_over_35: int
-    minutes_over_38: int
+    minutes_over_31: int = 0      # 31℃ 이상 누적 지속(분) — 관심
+    minutes_over_33: int          # 33℃ 이상 — 주의
+    minutes_over_35: int          # 35℃ 이상 — 경고
+    minutes_over_38: int          # 38℃ 이상 — 위험
+    hours: list[DailyHourPoint] = []  # 시간별 체감온도 변화
     peak_level: HeatLevelOut
     guidance: list[str]           # 안전조치 가이드 텍스트

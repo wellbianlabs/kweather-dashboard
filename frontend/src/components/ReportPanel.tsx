@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { api } from "../api";
 import { IconFile, IconDownload, IconSpinner } from "./Icons";
-import type { DailyReport } from "../types";
+import type { DailyReport, DailyHourPoint } from "../types";
 import { HeatBadge } from "./HeatBadge";
+
+function fmtMin(min: number): string {
+  if (!min || min <= 0) return "0분";
+  const h = Math.floor(min / 60), m = min % 60;
+  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+}
 
 const KIND_LABEL: Record<string, string> = {
   daily: "일일 안전 보고서(PDF)",
@@ -225,13 +234,14 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
           </div>
         </section>
 
-        {/* 위험단계별 노출시간 */}
+        {/* 위험단계별 노출시간 — 관심/주의/경고/위험 4단계 */}
         <section>
           <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">2.</span> 폭염 위험단계별 노출시간</h4>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-center text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs text-slate-500">
+                  <th className="py-1.5 font-medium">관심 (31℃↑)</th>
                   <th className="py-1.5 font-medium">주의 (33℃↑)</th>
                   <th className="py-1.5 font-medium">경고 (35℃↑)</th>
                   <th className="py-1.5 font-medium">위험 (38℃↑)</th>
@@ -239,18 +249,26 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
               </thead>
               <tbody>
                 <tr className="font-bold text-slate-800">
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#eab308" }}>{report.minutes_over_33}분</td>
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#f97316" }}>{report.minutes_over_35}분</td>
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#dc2626" }}>{report.minutes_over_38}분</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#84cc16" }}>{fmtMin(report.minutes_over_31)}</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#eab308" }}>{fmtMin(report.minutes_over_33)}</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#f97316" }}>{fmtMin(report.minutes_over_35)}</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#dc2626" }}>{fmtMin(report.minutes_over_38)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
 
+        {/* 시간별 체감온도 변화 — 표 + 그래프 */}
+        <section>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">3.</span> 시간별 체감온도 변화</h4>
+          <HourlyTable hours={report.hours} />
+          <HourlyChart hours={report.hours} />
+        </section>
+
         {/* 안전조치 가이드 */}
         <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">3.</span> 안전조치 이행 가이드</h4>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">4.</span> 안전조치 이행 가이드</h4>
           <ul className="space-y-1.5">
             {report.guidance.map((g, i) => (
               <li key={i} className="flex gap-2 text-sm leading-snug text-slate-700">
@@ -265,6 +283,66 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
           측정·수집되었으며, 외부 기상자료를 포함한 출처는 케이웨더(주)입니다.
         </p>
       </div>
+    </div>
+  );
+}
+
+// 24시간 고정으로 정렬(없는 시간은 빈 칸)
+function fill24(hours: DailyHourPoint[]): (DailyHourPoint | null)[] {
+  const map = new Map(hours.map((h) => [h.hour, h]));
+  return Array.from({ length: 24 }, (_, h) => map.get(h) ?? null);
+}
+
+/** 시간별 체감온도 색상 표(24시간). */
+function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
+  const cells = fill24(hours);
+  if (!hours.length) return <p className="text-sm text-slate-400">시간별 데이터가 없습니다.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="w-full table-fixed text-center" style={{ minWidth: 720 }}>
+        <tbody>
+          <tr>
+            <td className="w-12 bg-slate-50 px-1 py-1 text-[10px] font-medium text-slate-500">시각</td>
+            {cells.map((_, h) => (
+              <td key={h} className="bg-slate-50 px-0.5 py-1 text-[10px] font-medium text-slate-500">
+                {String(h).padStart(2, "0")}
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <td className="w-12 bg-slate-50 px-1 py-1 text-[10px] font-medium text-slate-500">체감</td>
+            {cells.map((c, h) => (
+              <td key={h} className="px-0.5 py-1.5 text-[10px] font-bold text-white"
+                  style={{ background: c?.feels != null ? c.color : "#f1f5f9", color: c?.feels != null ? "#fff" : "#cbd5e1" }}>
+                {c?.feels != null ? c.feels.toFixed(1) : "-"}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** 시간별 체감온도 변화 그래프(단계 임계선 포함). */
+function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
+  if (!hours.length) return null;
+  const data = fill24(hours).map((c, h) => ({ time: `${String(h).padStart(2, "0")}시`, 체감온도: c?.feels ?? null }));
+  return (
+    <div className="mt-3">
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={data} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
+          <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={20} />
+          <YAxis tick={{ fontSize: 10 }} unit="℃" domain={["auto", "auto"]} />
+          <Tooltip />
+          <ReferenceLine y={31} stroke="#84cc16" strokeDasharray="4 4" label={{ value: "관심 31", fontSize: 9, fill: "#65a30d", position: "right" }} />
+          <ReferenceLine y={33} stroke="#eab308" strokeDasharray="4 4" label={{ value: "주의 33", fontSize: 9, fill: "#a16207", position: "right" }} />
+          <ReferenceLine y={35} stroke="#f97316" strokeDasharray="4 4" label={{ value: "경고 35", fontSize: 9, fill: "#c2410c", position: "right" }} />
+          <ReferenceLine y={38} stroke="#dc2626" strokeDasharray="4 4" label={{ value: "위험 38", fontSize: 9, fill: "#b91c1c", position: "right" }} />
+          <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.2} dot={false} connectNulls />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }

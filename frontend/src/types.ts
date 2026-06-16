@@ -127,6 +127,14 @@ export interface UploadResult {
   errors: string[];
 }
 
+export interface DailyHourPoint {
+  hour: number;
+  feels: number | null;
+  temperature: number | null;
+  level: string;
+  color: string;
+}
+
 export interface DailyReport {
   device_sn: string;
   date: string;
@@ -136,9 +144,11 @@ export interface DailyReport {
   max_feels_like_time: string | null;
   max_temperature: number | null;
   avg_humidity: number | null;
+  minutes_over_31: number;
   minutes_over_33: number;
   minutes_over_35: number;
   minutes_over_38: number;
+  hours: DailyHourPoint[];
   peak_level: HeatLevel;
   guidance: string[];
 }

@@ -14,6 +14,7 @@ from .. import heat
 from ..config import settings
 from ..models import Device, SensorLog, Tenant
 from ..schemas import (
+    DailyHourPoint,
     DailyReportData,
     HeatLevelOut,
     KpiSummary,
@@ -244,7 +245,8 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
             company_name=dev.company_name if dev else None,
             location_name=dev.location_name if dev else None,
             max_feels_like=None, max_feels_like_time=None, max_temperature=None,
-            avg_humidity=None, minutes_over_33=0, minutes_over_35=0, minutes_over_38=0,
+            avg_humidity=None, minutes_over_31=0, minutes_over_33=0, minutes_over_35=0,
+            minutes_over_38=0, hours=[],
             peak_level=_level_out(peak), guidance=_GUIDANCE["safe"],
         )
 
@@ -253,10 +255,32 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
     max_time = pd.to_datetime(df.loc[idx_max, "measured_at"]).strftime("%H:%M")
     peak = heat.classify(max_feels)
 
-    # 1분 주기 가정 -> 임계 이상 레코드 수 = 누적 분
-    over_33 = int((df["feels_like"] >= settings.HEAT_CAUTION).sum())
-    over_35 = int((df["feels_like"] >= settings.HEAT_WARNING).sum())
-    over_38 = int((df["feels_like"] >= settings.HEAT_DANGER).sum())
+    # 측정 간격(중앙값)을 반영해 누적 노출시간(분) 환산 — 대시보드 KPI 와 일관
+    ts = df["measured_at"].sort_values()
+    diffs = ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(diffs.median()) if len(diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+
+    def _minutes(thr: float) -> int:
+        return int(round(int((df["feels_like"] >= thr).sum()) * step))
+
+    over_31 = _minutes(settings.HEAT_ATTENTION)
+    over_33 = _minutes(settings.HEAT_CAUTION)
+    over_35 = _minutes(settings.HEAT_WARNING)
+    over_38 = _minutes(settings.HEAT_DANGER)
+
+    # 시간별 평균(체감/온도) -> 단계 색상
+    hourly = (
+        df.set_index("measured_at")[["feels_like", "temperature"]]
+        .resample("1h").mean()
+    )
+    hours = []
+    for tstamp, row in hourly.iterrows():
+        f = None if pd.isna(row["feels_like"]) else round(float(row["feels_like"]), 1)
+        t = None if pd.isna(row["temperature"]) else round(float(row["temperature"]), 1)
+        lv = heat.classify(f)
+        hours.append(DailyHourPoint(hour=int(tstamp.hour), feels=f, temperature=t, level=lv.code, color=lv.color))
 
     return DailyReportData(
         device_sn=device_sn, date=on_date.isoformat(),
@@ -266,7 +290,8 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
         max_feels_like_time=max_time,
         max_temperature=round(float(df["temperature"].max()), 1),
         avg_humidity=round(float(df["humidity"].mean()), 1) if df["humidity"].notna().any() else None,
-        minutes_over_33=over_33, minutes_over_35=over_35, minutes_over_38=over_38,
+        minutes_over_31=over_31, minutes_over_33=over_33, minutes_over_35=over_35, minutes_over_38=over_38,
+        hours=hours,
         peak_level=_level_out(peak), guidance=_GUIDANCE[peak.code],
     )
 
