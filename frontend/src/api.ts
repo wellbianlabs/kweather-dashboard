@@ -193,11 +193,31 @@ export const api = {
     return r.json();
   },
 
+  // 인증 헤더로 파일을 받아 Blob 으로 반환(화면 미리보기용 objectURL 생성에 사용).
+  fetchBlob: async (url: string): Promise<Blob> => {
+    const r = await fetch(u(url), { headers: headers() });
+    if (!r.ok) {
+      let detail = await r.text();
+      try { detail = JSON.parse(detail).detail ?? detail; } catch {}
+      throw new Error(detail);
+    }
+    return r.blob();
+  },
+
   // 다운로드 URL (브라우저가 직접 받도록). X-API-Key 헤더 대신 fetch 후 blob 처리.
   download: async (url: string, filename: string) => {
     const r = await fetch(u(url), { headers: headers() });
     if (!r.ok) throw new Error(await r.text());
     const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  },
+
+  // Blob 을 파일로 저장(이미 받아둔 미리보기 Blob 재사용).
+  saveBlob: (blob: Blob, filename: string) => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;
