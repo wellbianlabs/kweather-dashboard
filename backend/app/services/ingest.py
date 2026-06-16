@@ -1,22 +1,22 @@
 """측정 로우데이터 수집 엔진 (PRD 3.1).
 
-지원 형식 (자동 감지):
-- TXT (주력): 헤더 없는 콤마 구분 일자별 로그 — ``YYYY-MM-DD HH:MM, 체감온도, 온도, 습도,``
-  파일에 기기 SN이 없으므로 업로드 시 지정한 기기(미지정 시 테넌트 단일 기기)로 연결.
-- CSV: 탭 구분, 헤더 DATE·TIME·SN·TEMP·HUMI·A-TEMP
+**케이웨더 체감온도계 TXT 전용** — 타사 기기·임의 포맷 차단을 위해 케이웨더 단말기
+고유 포맷만 통과시킨다. CSV 등 다른 형식은 업로드 단계에서 거부한다.
+
+케이웨더 TXT 포맷(헤더 없는 콤마 구분 일자별 로그):
+    ``YYYY-MM-DD HH:MM, 체감온도, 온도, 습도,``  (분 단위 시각, 꼬리 콤마)
+파일에 기기 식별자가 없으므로 업로드 시 지정한 기기(미지정 시 테넌트 단일 기기)로 연결.
 
 공통:
 - UTF-8 / CP949 인코딩 자동 감지
 - 결측치: 기기·시간 정렬 후 선형 보간, 그래도 비면 해당 행 제외
 - 중복: (device_sn, measured_at) 기준 최신 업로드로 Upsert
-- 대용량: 청크 단위 파싱 + 배치 Upsert (OOM 방지, PRD 6.2)
-- 테넌트 격리: 신규 SN 은 업로드 테넌트로 자동 등록, 타 테넌트 소유 SN 은 거부
+- 테넌트 격리: 신규 기기는 업로드 테넌트로 자동 등록, 타 테넌트 소유 기기는 거부
 """
 from __future__ import annotations
 
 import io
 import re
-from typing import Iterable
 
 import pandas as pd
 from sqlalchemy import select
@@ -26,19 +26,6 @@ from ..models import Device, SensorLog, Tenant
 from ..schemas import UploadResult
 
 CHUNK_ROWS = 50_000
-
-# 원본 컬럼명 -> 표준 키 (대소문자/구분자 변형 허용)
-_COLUMN_ALIASES = {
-    "DATE": "date",
-    "TIME": "time",
-    "SN": "sn",
-    "TEMP": "temperature",
-    "HUMI": "humidity",
-    "A-TEMP": "feels_like",
-    "A_TEMP": "feels_like",
-    "ATEMP": "feels_like",
-}
-_REQUIRED = {"date", "time", "sn", "temperature", "feels_like"}
 
 
 def _detect_encoding(raw: bytes) -> str:
@@ -52,26 +39,39 @@ def _detect_encoding(raw: bytes) -> str:
     return "cp949"  # 마지막 폴백 (replace 로 디코드)
 
 
-def _normalize_columns(cols: Iterable[str]) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    for c in cols:
-        key = str(c).strip().upper().replace(" ", "")
-        if key in _COLUMN_ALIASES:
-            mapping[c] = _COLUMN_ALIASES[key]
-    return mapping
-
-
-# TXT(헤더 없는 기기 일자별 로그) 행 패턴: "YYYY-MM-DD HH:MM, ..." 로 시작
+# 케이웨더 단말기 데이터 행: "YYYY-MM-DD HH:MM, 체감, 온도, 습도," (분 단위, 꼬리 콤마 허용)
 _TXT_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}")
+_KW_LINE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}\s*,\s*-?\d*\.?\d*\s*,\s*-?\d*\.?\d*\s*,\s*-?\d*\.?\d*\s*,?\s*$"
+)
+
+_FORMAT_ERR = (
+    "케이웨더 체감온도계 형식의 파일이 아닙니다. "
+    "케이웨더 단말기에서 내려받은 TXT 파일(예: 20260612.TXT)만 업로드할 수 있습니다."
+)
 
 
-def _is_txt_format(text: str) -> bool:
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        return bool(_TXT_LINE.match(line)) and "," in line
-    return False
+def _assert_kweather_txt(text: str) -> None:
+    """케이웨더 단말기 고유 포맷인지 엄격 검증. 아니면 ValueError.
+
+    타사 기기·임의 CSV·헤더 포함 파일을 입력 단계에서 차단한다.
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        raise ValueError("빈 파일입니다. 케이웨더 체감온도계 TXT 파일을 업로드해 주세요.")
+
+    # 탭 구분(CSV/엑셀 내보내기 등)은 케이웨더 포맷이 아님 → 거부
+    if any("\t" in ln for ln in lines[:100]):
+        raise ValueError(_FORMAT_ERR)
+
+    # 첫 유효 라인이 'YYYY-MM-DD HH:MM' 으로 시작하지 않으면(헤더/타포맷) 거부
+    if not _TXT_LINE.match(lines[0]):
+        raise ValueError(_FORMAT_ERR)
+
+    # 케이웨더 라인 패턴 일치 비율이 충분해야 통과(타포맷 혼입 차단)
+    matched = sum(1 for ln in lines if _KW_LINE.match(ln))
+    if matched == 0 or matched < len(lines) * 0.8:
+        raise ValueError(_FORMAT_ERR)
 
 
 def _parse_txt(text: str, default_sn: str | None) -> pd.DataFrame:
@@ -103,46 +103,14 @@ def _parse_txt(text: str, default_sn: str | None) -> pd.DataFrame:
 
 
 def parse_dataframe(raw: bytes, default_sn: str | None = None) -> tuple[pd.DataFrame, str]:
-    """바이트 -> 표준화된 DataFrame(measured_at, sn, temperature, humidity, feels_like)."""
+    """바이트 -> 표준화된 DataFrame(measured_at, sn, temperature, humidity, feels_like).
+
+    케이웨더 체감온도계 TXT 포맷만 허용. 다른 포맷이면 ValueError.
+    """
     encoding = _detect_encoding(raw)
     text = raw.decode(encoding, errors="replace")
-
-    if _is_txt_format(text):
-        return _parse_txt(text, default_sn), encoding
-
-    df = pd.read_csv(
-        io.StringIO(text),
-        sep="\t",
-        dtype=str,
-        engine="python",
-        skip_blank_lines=True,
-    )
-    df.columns = [str(c).strip() for c in df.columns]
-    rename = _normalize_columns(df.columns)
-    df = df.rename(columns=rename)
-
-    missing = _REQUIRED - set(df.columns)
-    if missing:
-        raise ValueError(
-            f"필수 컬럼 누락: {sorted(missing)} (인식된 컬럼: {list(df.columns)})"
-        )
-
-    # 타입 변환
-    df["measured_at"] = pd.to_datetime(
-        df["date"].str.strip() + " " + df["time"].str.strip(),
-        format="%Y-%m-%d %H:%M:%S",
-        errors="coerce",
-    )
-    df["sn"] = df["sn"].str.strip()
-    for col in ("temperature", "humidity", "feels_like"):
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        else:
-            df[col] = pd.NA
-
-    df = df.dropna(subset=["measured_at", "sn"])
-    df = df[["measured_at", "sn", "temperature", "humidity", "feels_like"]]
-    return df, encoding
+    _assert_kweather_txt(text)
+    return _parse_txt(text, default_sn), encoding
 
 
 def _interpolate_and_clean(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
@@ -169,7 +137,15 @@ def ingest_csv(
     device_sn: str | None = None,
 ) -> UploadResult:
     errors: list[str] = []
-    # TXT(헤더 없는 형식)용 기기 연결: 미지정이면 테넌트에 기기가 1대일 때 자동 사용
+    # 확장자 가드 — 케이웨더 단말기 TXT 전용. .csv 등 다른 형식은 입력 자체를 거부.
+    low = (filename or "").lower()
+    if low.endswith(".csv") or low.endswith(".xlsx") or low.endswith(".xls"):
+        return UploadResult(
+            filename=filename, rows_parsed=0, rows_inserted=0, rows_updated=0,
+            rows_skipped=0, new_devices=[], encoding="?",
+            errors=[".csv 등의 형식은 지원하지 않습니다. 케이웨더 체감온도계 TXT 파일만 업로드할 수 있습니다."],
+        )
+    # 기기 연결: 미지정이면 테넌트에 기기가 1대일 때 자동 사용
     if not device_sn:
         tenant_sns = db.scalars(
             select(Device.device_sn).where(Device.tenant_id == tenant.id)
