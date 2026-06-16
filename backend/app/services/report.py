@@ -253,6 +253,13 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             "total": len(wdf),
             "peak_label": wpeak.label, "peak_color": wpeak.color,
         }
+        # 법정 휴식 의무 — 체감 33℃↑ 작업에 2시간마다 20분 이상(산업안전보건규칙)
+        _hot = _cum_min(wfeels, th["caution"])
+        work["hot_minutes"] = _hot
+        work["hot_label"] = _fmt_min(_hot)
+        work["legal_rest_count"] = _hot // 120
+        work["legal_rest_minutes"] = (_hot // 120) * 20
+        work["legal_rest_label"] = _fmt_min((_hot // 120) * 20)
 
     weather = None
     if deltas:
@@ -649,6 +656,19 @@ h2 .no { color:#0f499e; }
 
 <h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
 <div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
+
+<h2><span class="no">8.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
+{% if d.work and d.work.hot_minutes > 0 %}
+<table class="tbl">
+  <tr><th style="width:40%">근무시간(09~18) 체감 33°C↑ 작업</th><th>법정 최소 휴식 횟수</th><th>법정 최소 휴식 시간</th></tr>
+  <tr><td class="num" style="color:#b45309;">{{ d.work.hot_label }}</td>
+      <td class="num">{{ d.work.legal_rest_count }}회</td>
+      <td class="num" style="color:#b45309;">{{ d.work.legal_rest_label }}</td></tr>
+</table>
+<p class="note">※ 측정 체감온도 기반 <b>법정 최소 의무량</b>(2시간 작업당 20분). 실제 부여한 휴식 기록과 대조하여 준수 여부를 확인하십시오.</p>
+{% else %}
+<p class="note">근무시간 중 체감온도 33°C 이상 작업이 없어 추가 의무 휴식 대상이 아님(통상 안전보건 관리 유지).</p>
+{% endif %}
 {% else %}
 <h2><span class="no">2.</span> 측정 결과</h2>
 <p class="note">해당 일자에 수집된 측정 데이터가 없습니다.</p>

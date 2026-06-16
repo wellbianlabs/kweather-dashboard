@@ -270,6 +270,14 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
     over_35 = _minutes(settings.HEAT_WARNING)
     over_38 = _minutes(settings.HEAT_DANGER)
 
+    # 법정 휴식 의무 — 근무시간(09~18) 중 체감 33℃ 이상 작업에 '2시간마다 20분 이상'
+    # (산업안전보건규칙). 휴식 부여 여부는 측정되지 않으므로 '부여해야 할 최소 의무량'을 산정.
+    whrs = df["measured_at"].dt.hour
+    wdf = df[(whrs >= 9) & (whrs < 18)]
+    work_hot_minutes = int(round(int((wdf["feels_like"] >= settings.HEAT_CAUTION).sum()) * step)) if not wdf.empty else 0
+    legal_rest_count = work_hot_minutes // 120  # 작업 2시간(120분)마다 1회
+    legal_rest_minutes = legal_rest_count * 20
+
     # 시간별 평균(체감/온도) -> 단계 색상
     hourly = (
         df.set_index("measured_at")[["feels_like", "temperature"]]
@@ -292,6 +300,7 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
         avg_humidity=round(float(df["humidity"].mean()), 1) if df["humidity"].notna().any() else None,
         minutes_over_31=over_31, minutes_over_33=over_33, minutes_over_35=over_35, minutes_over_38=over_38,
         hours=hours,
+        work_hot_minutes=work_hot_minutes, legal_rest_count=legal_rest_count, legal_rest_minutes=legal_rest_minutes,
         peak_level=_level_out(peak), guidance=_GUIDANCE[peak.code],
     )
 

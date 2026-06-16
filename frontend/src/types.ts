@@ -149,6 +149,9 @@ export interface DailyReport {
   minutes_over_35: number;
   minutes_over_38: number;
   hours: DailyHourPoint[];
+  work_hot_minutes: number;
+  legal_rest_count: number;
+  legal_rest_minutes: number;
   peak_level: HeatLevel;
   guidance: string[];
 }

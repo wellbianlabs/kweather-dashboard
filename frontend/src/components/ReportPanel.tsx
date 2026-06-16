@@ -265,9 +265,31 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
           <HourlyChart hours={report.hours} />
         </section>
 
+        {/* 법정 휴식 의무 (산업안전보건규칙) */}
+        <section>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">4.</span> 법정 휴식 의무 <span className="text-xs font-normal text-slate-400">(산업안전보건규칙 — 체감 33℃↑ 작업 시 2시간마다 20분 이상)</span></h4>
+          {report.work_hot_minutes > 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <div className="text-slate-700">
+                근무시간(09:00~18:00) 중 체감온도 <b>33℃ 이상 작업</b>이
+                <b className="text-amber-700"> {fmtMin(report.work_hot_minutes)}</b> 발생 →
+                <b className="text-amber-700"> 최소 {report.legal_rest_count}회 · 총 {fmtMin(report.legal_rest_minutes)}</b>의
+                휴식을 부여해야 합니다.
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">
+                ※ 본 수치는 측정 체감온도 기반 <b>법정 최소 의무량</b>입니다. 실제 부여한 휴식 기록과 대조하여 준수 여부를 확인하세요.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+              근무시간 중 체감온도 33℃ 이상 작업이 없어 추가 의무 휴식 대상이 아닙니다(통상 안전보건 관리 유지).
+            </div>
+          )}
+        </section>
+
         {/* 안전조치 가이드 */}
         <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">4.</span> 안전조치 이행 가이드</h4>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">5.</span> 안전조치 이행 가이드</h4>
           <ul className="space-y-1.5">
             {report.guidance.map((g, i) => (
               <li key={i} className="flex gap-2 text-sm leading-snug text-slate-700">

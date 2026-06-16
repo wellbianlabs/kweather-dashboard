@@ -179,5 +179,9 @@ class DailyReportData(BaseModel):
     minutes_over_35: int          # 35℃ 이상 — 경고
     minutes_over_38: int          # 38℃ 이상 — 위험
     hours: list[DailyHourPoint] = []  # 시간별 체감온도 변화
+    # 법정 휴식 의무(산업안전보건규칙 — 체감 33℃↑ 작업 시 2시간마다 20분 이상)
+    work_hot_minutes: int = 0     # 근무시간(09~18) 중 체감 33℃ 이상 작업 누적(분)
+    legal_rest_count: int = 0     # 법정 최소 휴식 횟수
+    legal_rest_minutes: int = 0   # 법정 최소 휴식 총시간(분)
     peak_level: HeatLevelOut
     guidance: list[str]           # 안전조치 가이드 텍스트
