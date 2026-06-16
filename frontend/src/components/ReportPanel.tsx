@@ -134,10 +134,10 @@ export function ReportPanel({
           className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
         ><span className="inline-flex items-center gap-2">{busy === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "periodic" ? "변환 중…" : "기간 통계 보고서 PDF로 보기"}</span></button>
         <button
-          disabled={busy !== null}
-          onClick={() => downloadOnly("excel", api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
+          disabled={!deviceSn || busy !== null}
+          onClick={() => deviceSn && downloadOnly("excel", api.excelUrl(deviceSn, date, date), `data_${deviceSn}_${date}.xlsx`)}
           className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{busy === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{busy === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{busy === "excel" ? "생성 중…" : "당일 측정데이터 내보내기 (10분·Excel)"}</span></button>
       </div>
       {dlError && (
         <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>

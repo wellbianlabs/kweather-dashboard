@@ -780,7 +780,6 @@ def export_excel(
     import json as _json
 
     from openpyxl.cell import WriteOnlyCell
-    from sqlalchemy import Date, case, cast, func
 
     from ..models import ExternalDailyCache, SensorLog
 
@@ -819,53 +818,15 @@ def export_excel(
             cells.append(c)
         return cells
 
-    # --- 시트1: 일자별 요약 (SQL 집계) ---
-    ws1 = wb.create_sheet("일자별요약")
-    for i, w in enumerate([12, 16, 12, 12, 12, 12, 10, 10], start=1):
-        ws1.column_dimensions[chr(64 + i)].width = w
-    ws1.append(_headers(ws1, ["일자", "기기SN", "최고체감(°C)", "평균체감(°C)", "최고온도(°C)", "평균습도(%)", "33°C↑(분)", "최고단계"]))
-
-    if sns:
-        date_expr = (
-            func.date(SensorLog.measured_at)
-            if db.bind.dialect.name == "sqlite"
-            else cast(SensorLog.measured_at, Date)
-        ).label("d")
-        cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
-        q = (
-            select(
-                date_expr,
-                SensorLog.device_sn,
-                func.max(SensorLog.feels_like_temperature),
-                func.avg(SensorLog.feels_like_temperature),
-                func.max(SensorLog.temperature),
-                func.avg(SensorLog.humidity),
-                func.sum(case((SensorLog.feels_like_temperature >= settings.HEAT_CAUTION, 1), else_=0)),
-            )
-            .where(*cond)
-            .group_by(date_expr, SensorLog.device_sn)
-            .order_by(date_expr, SensorLog.device_sn)
-        )
-        for day, sn, mxf, avf, mxt, avh, over in db.execute(q):
-            mxf = float(mxf) if mxf is not None else None
-            ws1.append([
-                str(day), sn,
-                round(mxf, 1) if mxf is not None else None,
-                round(float(avf), 1) if avf is not None else None,
-                round(float(mxt), 1) if mxt is not None else None,
-                round(float(avh), 1) if avh is not None else None,
-                int(over or 0),
-                heat.classify(mxf).label,
-            ])
-
-    # --- 시트2: 로우데이터 (상한 + 안내) ---
-    ws2 = wb.create_sheet("로우데이터")
+    # --- 측정데이터 (실측값 그대로 · 10분 단위 · 하루치) ---
+    ws2 = wb.create_sheet("측정데이터")
     for i, w in enumerate([22, 16, 10, 10, 12, 20], start=1):
         ws2.column_dimensions[chr(64 + i)].width = w
     ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)", "야외 체감온도(기상청,°C)"]))
 
     truncated = False
     if sns:
+        cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
         raw_q = (
             select(
                 SensorLog.measured_at, SensorLog.device_sn,
