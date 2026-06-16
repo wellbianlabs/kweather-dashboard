@@ -184,9 +184,9 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
   );
   const Metric = ({ label, value, unit, sub, accent }:
     { label: string; value: string; unit?: string; sub?: string; accent?: string }) => (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-lg border border-slate-200 bg-white p-3 text-center">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
+      <div className="mt-1 flex items-baseline justify-center gap-1">
         <span className="text-xl font-bold tracking-tight" style={{ color: accent || "#0f172a" }}>{value}</span>
         {unit && <span className="text-xs text-slate-400">{unit}</span>}
       </div>
