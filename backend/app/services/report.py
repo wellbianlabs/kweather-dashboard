@@ -106,6 +106,14 @@ def _daily_chart(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls)
     return _fig_to_data_uri(fig)
 
 
+def _fmt_min(m: int | None) -> str:
+    """누적 분 -> "X시간 Y분" / "Y분" (웹 보고서·대시보드와 동일 표기)."""
+    if not m or m <= 0:
+        return "0분"
+    h, mm = divmod(int(m), 60)
+    return f"{h}시간 {mm}분" if h else f"{mm}분"
+
+
 def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls) -> dict:
     """일일 상세 리포트용 데이터 — KPI, 단계별 지속시간, 시간대별 집계, 내부 vs 외부(기상청) 비교, 분석 코멘트."""
     from . import weather as weather_svc  # 지연 임포트(순환 방지)
@@ -129,7 +137,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         safe = heat.LEVELS["safe"]
         out.update(
             peak_label=safe.label, peak_color=safe.color, guidance=analytics._GUIDANCE["safe"],
-            hours=[], level_minutes={}, total_minutes=0, weather=None, analysis=[],
+            hours=[], level_minutes={}, level_minutes_label={}, total_minutes=0, weather=None, analysis=[],
             external_daily=None, avg_humidity=None, work=None, series=[],
         )
         return out
@@ -141,14 +149,24 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     max_time = pd.to_datetime(df.loc[idx_max, "measured_at"]).strftime("%H:%M")
     peak = heat.classify(max_feels)
 
-    # 단계별 누적 분 (1분 주기 가정)
+    # 측정 간격(중앙값) 반영 누적 노출시간(분) — 대시보드 KPI·웹 보고서와 동일 기준.
+    # 각 단계 = '기준 체감온도 이상' 누적(관심 31 / 주의 33 / 경고 35 / 위험 38℃↑).
+    _ts = df["measured_at"].sort_values()
+    _diffs = _ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(_diffs.median()) if len(_diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+
+    def _cum_min(series, thr) -> int:
+        return int(round(int((series >= thr).sum()) * step))
+
     lm = {
-        "danger": int((feels >= th["danger"]).sum()),
-        "warning": int(((feels >= th["warning"]) & (feels < th["danger"])).sum()),
-        "caution": int(((feels >= th["caution"]) & (feels < th["warning"])).sum()),
-        "attention": int(((feels >= th["attention"]) & (feels < th["caution"])).sum()),
-        "safe": int((feels < th["attention"]).sum()),
+        "attention": _cum_min(feels, th["attention"]),
+        "caution": _cum_min(feels, th["caution"]),
+        "warning": _cum_min(feels, th["warning"]),
+        "danger": _cum_min(feels, th["danger"]),
     }
+    lm_label = {k: _fmt_min(v) for k, v in lm.items()}
 
     # 피크 시점의 동시 관측값(샘플 보고서 항목)
     temp_at_peak = round(float(df.loc[idx_max, "temperature"]), 1)
@@ -219,13 +237,18 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             "max_time": pd.to_datetime(wdf.loc[widx, "measured_at"]).strftime("%H:%M"),
             "max_temp": round(float(wdf["temperature"].max()), 1),
             "avg_feels": round(float(wfeels.mean()), 1),
-            "danger_minutes": int((wfeels >= th["danger"]).sum()),
+            "danger_minutes": _cum_min(wfeels, th["danger"]),
             "minutes": {
-                "danger": int((wfeels >= th["danger"]).sum()),
-                "warning": int(((wfeels >= th["warning"]) & (wfeels < th["danger"])).sum()),
-                "caution": int(((wfeels >= th["caution"]) & (wfeels < th["warning"])).sum()),
-                "attention": int(((wfeels >= th["attention"]) & (wfeels < th["caution"])).sum()),
-                "safe": int((wfeels < th["attention"]).sum()),
+                "attention": _cum_min(wfeels, th["attention"]),
+                "caution": _cum_min(wfeels, th["caution"]),
+                "warning": _cum_min(wfeels, th["warning"]),
+                "danger": _cum_min(wfeels, th["danger"]),
+            },
+            "minutes_label": {
+                "attention": _fmt_min(_cum_min(wfeels, th["attention"])),
+                "caution": _fmt_min(_cum_min(wfeels, th["caution"])),
+                "warning": _fmt_min(_cum_min(wfeels, th["warning"])),
+                "danger": _fmt_min(_cum_min(wfeels, th["danger"])),
             },
             "total": len(wdf),
             "peak_label": wpeak.label, "peak_color": wpeak.color,
@@ -300,10 +323,10 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     if work:
         analysis.append(
             f"근무시간(09:00~18:00) 중 최고 체감온도는 {work['max_time']}경 {work['max_feels']}°C(단계: {work['peak_label']})이며, "
-            f"위험단계(38°C 이상) 노출이 {work['danger_minutes']}분 누적됨."
+            f"위험단계(38°C 이상) 노출이 {_fmt_min(work['danger_minutes'])} 누적됨."
         )
     if lm["danger"]:
-        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {lm['danger']}분 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
+        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {_fmt_min(lm['danger'])} 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
     analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
                     + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
     base_label = "공식 체감온도" if has_out_feels else "기온"
@@ -325,7 +348,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         range_start=pd.to_datetime(df["measured_at"].min()).strftime("%H:%M"),
         range_end=pd.to_datetime(df["measured_at"].max()).strftime("%H:%M"),
         peak_label=peak.label, peak_color=peak.color, guidance=analytics._GUIDANCE[peak.code],
-        level_minutes=lm, total_minutes=n, hours=hours, weather=weather, analysis=analysis,
+        level_minutes=lm, level_minutes_label=lm_label, total_minutes=int(round(n * step)),
+        hours=hours, weather=weather, analysis=analysis,
         external_daily=external_daily, work=work, series=series,
         temp_at_peak=temp_at_peak, humi_at_peak=humi_at_peak,
     )
@@ -551,7 +575,7 @@ h2 .no { color:#0f499e; }
     <td>{{ d.work.max_time }}</td>
     <td class="num">{{ d.work.max_temp }}°C</td>
     <td>{{ d.work.avg_feels }}°C</td>
-    <td class="num" style="color:#dc2626">{{ d.work.danger_minutes }}분</td>
+    <td class="num" style="color:#dc2626">{{ d.work.minutes_label['danger'] }}</td>
   </tr>
   {% endif %}
   <tr>
@@ -560,20 +584,19 @@ h2 .no { color:#0f499e; }
     <td>{{ d.max_time }}</td>
     <td class="num">{{ d.max_temp }}°C</td>
     <td>{{ d.avg_feels }}°C</td>
-    <td class="num" style="color:#dc2626">{{ d.level_minutes['danger'] }}분</td>
+    <td class="num" style="color:#dc2626">{{ d.level_minutes_label['danger'] }}</td>
   </tr>
 </table>
 <p class="note">※ 평균 습도(전일): {{ d.avg_humidity if d.avg_humidity is not none else '-' }}% · 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
 
 <h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
-  <tr><th style="width:14%">위험 단계</th>{% for code in ['safe','attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
-  <tr><td class="k">기준(체감)</td><td>31°C 미만</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
-  {% if d.work %}<tr style="background:#fbfdff;"><td class="k"><b>근무시간 노출</b></td>{% for code in ['safe','attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes[code] }}분</b></td>{% endfor %}</tr>{% endif %}
-  <tr><td class="k">전일 노출</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ d.level_minutes[code] }}분</td>{% endfor %}</tr>
-  <tr><td class="k">전일 비율</td>{% for code in ['safe','attention','caution','warning','danger'] %}<td>{{ ((d.level_minutes[code] / d.total_minutes * 100) | round(1)) if d.total_minutes else 0 }}%</td>{% endfor %}</tr>
+  <tr><th style="width:16%">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
+  <tr><td class="k">기준(체감)</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
+  {% if d.work %}<tr style="background:#fbfdff;"><td class="k"><b>근무시간 노출</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_label[code] }}</b></td>{% endfor %}</tr>{% endif %}
+  <tr><td class="k">전일 노출</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_label[code] }}</td>{% endfor %}</tr>
 </table>
-<p class="note">※ 측정주기(1분) 기준 누적 노출시간 · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
+<p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 노출시간(측정 간격 반영) · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
 <h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
 {% if d.hours %}
