@@ -777,12 +777,35 @@ def export_excel(
     - 로우데이터는 EXPORT_RAW_MAX 행으로 상한(초과 시 안내 행 추가)
     - write_only 모드로 메모리/속도 최적화
     """
+    import json as _json
+
     from openpyxl.cell import WriteOnlyCell
     from sqlalchemy import Date, case, cast, func
 
-    from ..models import SensorLog
+    from ..models import ExternalDailyCache, SensorLog
 
     sns = analytics._resolve_scope(db, tenant, device_sn)
+
+    # 야외 체감온도(기상청 시간 매칭) — 저장된 캐시만 사용(Excel 생성 중 외부 호출 없이).
+    # {(기기SN, 'YYYYMMDD'): {시: 야외체감}}
+    ext_map: dict[tuple, dict] = {}
+    if sns:
+        start_ymd, end_ymd = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+        cache_rows = db.execute(
+            select(
+                ExternalDailyCache.device_sn, ExternalDailyCache.ymd, ExternalDailyCache.hourly_json
+            ).where(
+                ExternalDailyCache.device_sn.in_(sns),
+                ExternalDailyCache.hourly_json.isnot(None),
+                ExternalDailyCache.ymd >= start_ymd,
+                ExternalDailyCache.ymd <= end_ymd,
+            )
+        ).all()
+        for csn, ymd, hj in cache_rows:
+            try:
+                ext_map[(csn, ymd)] = {int(k): v.get("feels") for k, v in _json.loads(hj).items()}
+            except Exception:  # noqa: BLE001
+                pass
 
     wb = Workbook(write_only=True)
 
@@ -837,9 +860,9 @@ def export_excel(
 
     # --- 시트2: 로우데이터 (상한 + 안내) ---
     ws2 = wb.create_sheet("로우데이터")
-    for i, w in enumerate([22, 16, 10, 10, 12], start=1):
+    for i, w in enumerate([22, 16, 10, 10, 12, 20], start=1):
         ws2.column_dimensions[chr(64 + i)].width = w
-    ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)"]))
+    ws2.append(_headers(ws2, ["측정일시", "기기SN", "온도(°C)", "습도(%)", "체감온도(°C)", "야외 체감온도(기상청,°C)"]))
 
     truncated = False
     if sns:
@@ -858,11 +881,14 @@ def export_excel(
             if count > EXPORT_RAW_MAX:
                 truncated = True
                 break
+            ts = pd.Timestamp(mt)
+            of = ext_map.get((sn, ts.strftime("%Y%m%d")), {}).get(ts.hour)
             ws2.append([
-                pd.Timestamp(mt).strftime("%Y-%m-%d %H:%M:%S"), sn,
+                ts.strftime("%Y-%m-%d %H:%M:%S"), sn,
                 round(float(temp), 1) if temp is not None else None,
                 int(humi) if humi is not None else None,
                 round(float(feels), 1) if feels is not None else None,
+                round(float(of), 1) if of is not None else None,
             ])
     if truncated:
         note = WriteOnlyCell(ws2, value=(
