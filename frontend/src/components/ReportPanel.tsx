@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
@@ -6,6 +6,8 @@ import { api } from "../api";
 import { IconDownload, IconFileText, IconLoader2 } from "@tabler/icons-react";
 import type { DailyReport, DailyHourPoint } from "../types";
 import { HeatBadge } from "./HeatBadge";
+// 지연 로드: react-pdf/pdf.js(~150KB gz)를 PDF 미리보기 클릭 시에만 별도 청크로 로드(초기 번들 보호)
+const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
 
 // 삭제된 ./Icons 대체(병합) — 원작자 보고서 UI(Tailwind) 유지, 아이콘만 tabler 로 매핑. (Mantine 재변환은 후속)
 const IconFile = ({ className }: { className?: string }) => <IconFileText className={className} />;
@@ -163,11 +165,14 @@ export function ReportPanel({
               >닫기</button>
             </div>
           </div>
-          <iframe
-            src={`${preview.url}#toolbar=1&view=FitH`}
-            title="보고서 PDF 미리보기"
-            className="h-[760px] w-full bg-slate-100"
-          />
+          <Suspense fallback={<div className="flex h-40 items-center justify-center text-sm text-slate-400">뷰어 로딩…</div>}>
+            <PdfViewer
+              file={preview.blob}
+              url={preview.url}
+              height={760}
+              onDownload={() => api.saveBlob(preview.blob, preview.filename)}
+            />
+          </Suspense>
           <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-center text-[11px] text-slate-400">
             미리보기가 보이지 않으면 상단의 “다운로드”로 파일을 내려받아 확인하세요.
           </div>
