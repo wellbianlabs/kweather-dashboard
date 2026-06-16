@@ -80,9 +80,12 @@ class KpiSummary(BaseModel):
     range_end: datetime | None
     record_count: int
     max_feels_like: float | None
+    max_feels_like_time: str | None = None   # 최고 체감온도 발생 시각
     max_temperature: float | None
+    max_temperature_time: str | None = None  # 최고 온도 발생 시각
     avg_humidity: float | None
     avg_feels_like: float | None
+    danger_minutes: int = 0                  # 위험단계(체감 38℃ 이상) 누적 지속(분)
     current_level: HeatLevelOut
     # 단계별 임계값(℃) 노출 — 프론트 배지/범례용
     thresholds: dict[str, float]

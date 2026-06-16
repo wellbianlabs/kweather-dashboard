@@ -130,17 +130,41 @@ def kpi_summary(
     # 위험 단계 = 선택 기간 내 '최고 체감온도' 기준 (안전관리 목적상 최악값 노출, 지도 마커와 일관)
     current = heat.classify(max_feels)
 
+    rng_start = df["measured_at"].min().to_pydatetime()
+    rng_end = df["measured_at"].max().to_pydatetime()
+    same_day = rng_start.date() == rng_end.date()
+
+    def _at(idx) -> str:
+        t = pd.to_datetime(df.loc[idx, "measured_at"])
+        return t.strftime("%H:%M" if same_day else "%m-%d %H:%M")
+
+    max_feels_time = _at(df["feels_like"].idxmax())
+    max_temp_time = _at(df["temperature"].idxmax())
+
+    # 위험단계(체감 38℃ 이상) 누적 지속시간 — 측정 간격(중앙값)을 곱해 분으로 환산.
+    # (데이터가 10분 주기 등 비1분일 때도 실제 시간에 가깝게 추정)
+    ts = df["measured_at"].sort_values()
+    diffs = ts.diff().dropna().dt.total_seconds() / 60.0
+    step = float(diffs.median()) if len(diffs) else 1.0
+    if not step or step <= 0 or step > 60:
+        step = 1.0
+    danger_records = int((df["feels_like"] >= settings.HEAT_DANGER).sum())
+    danger_minutes = int(round(danger_records * step))
+
     return KpiSummary(
         device_sn=device_sn,
         company_name=meta.company_name if meta else None,
         location_name=meta.location_name if meta else None,
-        range_start=df["measured_at"].min().to_pydatetime(),
-        range_end=df["measured_at"].max().to_pydatetime(),
+        range_start=rng_start,
+        range_end=rng_end,
         record_count=int(len(df)),
         max_feels_like=round(max_feels, 1),
+        max_feels_like_time=max_feels_time,
         max_temperature=round(float(df["temperature"].max()), 1),
+        max_temperature_time=max_temp_time,
         avg_humidity=round(float(df["humidity"].mean()), 1) if df["humidity"].notna().any() else None,
         avg_feels_like=round(float(df["feels_like"].mean()), 1),
+        danger_minutes=danger_minutes,
         current_level=_level_out(current),
         thresholds=heat.thresholds(),
     )

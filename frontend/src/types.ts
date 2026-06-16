@@ -72,9 +72,12 @@ export interface Kpi {
   range_end: string | null;
   record_count: number;
   max_feels_like: number | null;
+  max_feels_like_time: string | null;
   max_temperature: number | null;
+  max_temperature_time: string | null;
   avg_humidity: number | null;
   avg_feels_like: number | null;
+  danger_minutes: number;
   current_level: HeatLevel;
   thresholds: Record<string, number>;
 }
