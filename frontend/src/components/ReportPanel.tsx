@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { IconFile, IconDownload, IconSpinner } from "./Icons";
+import {
+  Paper,
+  Title,
+  Group,
+  Button,
+  Alert,
+  Modal,
+  Stack,
+  Loader,
+  Text,
+  List,
+} from "@mantine/core";
+import { IconFileText, IconDownload } from "@tabler/icons-react";
 
 const KIND_LABEL: Record<string, string> = {
   daily: "일일 안전 보고서(PDF)",
@@ -22,7 +34,6 @@ export function ReportPanel({
     api.dailyReport(deviceSn, date).then(setReport).catch(() => setReport(null)).finally(() => setLoading(false));
   }, [deviceSn, date]);
 
-  const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition";
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
 
@@ -43,90 +54,98 @@ export function ReportPanel({
   }
 
   return (
-    <div className="card">
+    <Paper radius="lg" p="lg" withBorder shadow="xs" pos="relative">
       {/* 생성 중 로딩 오버레이 */}
-      {downloading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-[2px]">
-          <div className="mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-white px-8 py-9 shadow-lift">
-            <IconSpinner className="h-11 w-11 text-kw" />
-            <div className="text-center">
-              <div className="text-base font-bold tracking-tight text-slate-900">
-                {KIND_LABEL[downloading] ?? "파일"} 생성 중
-              </div>
-              <div className="mt-1.5 text-sm leading-relaxed text-slate-500">
-                데이터 양에 따라 최대 1분 정도 소요될 수 있습니다.<br />잠시만 기다려 주세요.
-              </div>
-            </div>
-            <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full w-1/3 animate-[loading_1.2s_ease-in-out_infinite] rounded-full bg-kw" />
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        opened={downloading !== null}
+        onClose={() => {}}
+        withCloseButton={false}
+        centered
+        radius="lg"
+        overlayProps={{ blur: 2 }}
+      >
+        <Stack align="center" gap="md">
+          <Loader size="lg" />
+          <Text fw={700} ta="center">
+            {KIND_LABEL[downloading ?? ""] ?? "파일"} 생성 중
+          </Text>
+          <Text size="sm" c="dimmed" ta="center">
+            데이터 양에 따라 최대 1분 정도 소요될 수 있습니다. 잠시만 기다려 주세요.
+          </Text>
+        </Stack>
+      </Modal>
 
-      <h3 className="mb-3 font-semibold text-slate-900">안전관리 리포트</h3>
+      <Title order={3} fz="md" c="#0f172a" mb="md">안전관리 리포트</Title>
 
       {/* 다운로드 버튼 */}
-      <div className="mb-2 flex flex-wrap gap-2">
-        <button
+      <Group gap="xs" mb="xs">
+        <Button
+          leftSection={<IconFileText size={16} />}
+          loading={downloading === "daily"}
           disabled={!deviceSn || downloading !== null}
           onClick={() => deviceSn && download("daily", api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
-          className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{downloading === "daily" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{downloading === "daily" ? "생성 중…" : "일일 안전 보고서 (PDF)"}</span></button>
-        <button
+        >일일 안전 보고서 (PDF)</Button>
+        <Button
+          variant="default"
+          leftSection={<IconFileText size={16} />}
+          loading={downloading === "periodic"}
           disabled={downloading !== null}
           onClick={() => download("periodic", api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
-          className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{downloading === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{downloading === "periodic" ? "생성 중…" : "기간 통계 보고서 (PDF)"}</span></button>
-        <button
+        >기간 통계 보고서 (PDF)</Button>
+        <Button
+          color="teal"
+          variant="light"
+          leftSection={<IconDownload size={16} />}
+          loading={downloading === "excel"}
           disabled={downloading !== null}
           onClick={() => download("excel", api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
-          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{downloading === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{downloading === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
-      </div>
+        >데이터 내보내기 (Excel)</Button>
+      </Group>
       {dlError && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>
+        <Alert color="red" variant="light" mb="md">{dlError}</Alert>
       )}
-      <div className="mb-2" />
 
       {/* 일일 보고서 미리보기 */}
       {loading ? (
-        <p className="text-sm text-slate-400">불러오는 중...</p>
+        <Text size="sm" c="gray.5">불러오는 중...</Text>
       ) : !deviceSn ? (
-        <p className="text-sm text-slate-400">기기를 선택하면 일일 보고서 미리보기가 표시됩니다.</p>
+        <Text size="sm" c="gray.5">기기를 선택하면 일일 보고서 미리보기가 표시됩니다.</Text>
       ) : report ? (
-        <div className="rounded-lg border border-slate-200 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm text-slate-500">
+        <Paper withBorder radius="md" p="md">
+          <Group justify="space-between" mb="xs">
+            <Text size="sm" c="dimmed">
               {report.company_name} · {report.location_name} · {report.date}
-            </div>
-            <div>최고단계 <HeatBadge level={report.peak_level} size="sm" /></div>
-          </div>
-          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            </Text>
+            <Group gap="xs">
+              <Text size="sm">최고단계</Text>
+              <HeatBadge level={report.peak_level} size="sm" />
+            </Group>
+          </Group>
+          <Group grow align="stretch" gap="xs" wrap="wrap">
             <Stat label="최고 체감온도" value={`${report.max_feels_like ?? "-"}℃`} sub={report.max_feels_like_time ?? ""} />
             <Stat label="최고 온도" value={`${report.max_temperature ?? "-"}℃`} />
             <Stat label="33℃↑ 누적" value={`${report.minutes_over_33}분`} sub={`35℃ ${report.minutes_over_35}/38℃ ${report.minutes_over_38}`} />
-          </div>
-          <div className="mt-3">
-            <div className="text-xs font-semibold text-slate-500">안전조치 이행 가이드</div>
-            <ul className="mt-1 list-disc pl-5 text-sm text-slate-700">
-              {report.guidance.map((g, i) => <li key={i}>{g}</li>)}
-            </ul>
-          </div>
-        </div>
+          </Group>
+          <Stack gap={4} mt="md">
+            <Text size="xs" fw={600} c="dimmed">안전조치 이행 가이드</Text>
+            <List size="sm" c="#334155">
+              {report.guidance.map((g, i) => <List.Item key={i}>{g}</List.Item>)}
+            </List>
+          </Stack>
+        </Paper>
       ) : (
-        <p className="text-sm text-slate-400">해당 일자 데이터가 없습니다.</p>
+        <Text size="sm" c="gray.5">해당 일자 데이터가 없습니다.</Text>
       )}
-    </div>
+    </Paper>
   );
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-lg font-bold text-slate-800">{value}</div>
-      {sub && <div className="text-xs text-slate-400">{sub}</div>}
-    </div>
+    <Paper bg="gray.0" p="xs" radius="md">
+      <Text size="xs" c="dimmed">{label}</Text>
+      <Text size="lg" fw={700} c="#1e293b">{value}</Text>
+      {sub && <Text size="xs" c="gray.5">{sub}</Text>}
+    </Paper>
   );
 }

@@ -2,6 +2,7 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import { Paper, Box, Group, Badge, Title, Text } from "@mantine/core";
 import type { Kpi, TimeSeries } from "../types";
 
 function fmtTime(t: string) {
@@ -27,23 +28,27 @@ export function TimeSeriesChart({ ts, kpi, date }: { ts: TimeSeries | null; kpi:
   const th = kpi?.thresholds;
 
   return (
-    <div className="card">
+    <Paper radius="lg" p="lg" withBorder shadow="xs">
       {/* 측정 일자 — 언제 데이터인지 한눈에 */}
       {date && (
-        <div className="mb-3 flex items-center gap-3 rounded-xl bg-kw-50 px-4 py-2.5">
-          <span className="rounded-lg bg-kw px-2.5 py-1 text-[11px] font-bold text-white">측정일</span>
-          <span className="text-xl font-extrabold tracking-tight text-kw sm:text-2xl">{fmtDate(date)}</span>
-          <span className="ml-auto text-xs text-slate-400">데이터 기준 일자</span>
-        </div>
+        <Box bg="kw.0" p="xs" mb="md" style={{ borderRadius: "0.75rem" }}>
+          <Group gap="sm" wrap="nowrap">
+            <Badge color="kw">측정일</Badge>
+            <Text fw={800} c="kw" fz="xl">{fmtDate(date)}</Text>
+            <Text size="xs" c="dimmed" ml="auto">데이터 기준 일자</Text>
+          </Group>
+        </Box>
       )}
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-900">시계열 분석 (온·습도 / 체감온도)</h3>
-        <span className="text-xs text-slate-400">
+      <Group justify="space-between" mb="xs">
+        <Title order={3} fz="md" c="#0f172a">시계열 분석 (온·습도 / 체감온도)</Title>
+        <Text size="xs" c="dimmed">
           {ts ? `${ts.interval_minutes}분 평균 다운샘플링` : ""}
-        </span>
-      </div>
+        </Text>
+      </Group>
       {data.length === 0 ? (
-        <div className="flex h-72 items-center justify-center text-slate-400">데이터가 없습니다.</div>
+        <Box h={288} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Text c="dimmed">데이터가 없습니다.</Text>
+        </Box>
       ) : (
         <ResponsiveContainer width="100%" height={320}>
           <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -72,6 +77,6 @@ export function TimeSeriesChart({ ts, kpi, date }: { ts: TimeSeries | null; kpi:
           </ComposedChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </Paper>
   );
 }

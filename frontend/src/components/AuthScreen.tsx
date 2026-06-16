@@ -2,115 +2,161 @@ import { useState } from "react";
 import { api, setToken } from "../api";
 import type { AuthData } from "../types";
 import { SiteFooter } from "./SiteFooter";
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Divider,
+  Paper,
+  PasswordInput,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { useForm } from "@mantine/form";
+import { IconAlertTriangle } from "@tabler/icons-react";
 
 export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [company, setCompany] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  const form = useForm({
+    initialValues: { email: "", password: "", company: "" },
+    validate: {
+      // email/password 는 mode 와 무관 → 안정적 클로저로 검증
+      email: (v) => (/^\S+@\S+\.\S+$/.test(v) ? null : "올바른 이메일 형식을 입력하세요."),
+      password: (v) => (v.length >= 4 ? null : "비밀번호는 4자 이상이어야 합니다."),
+    },
+  });
+
+  // mode 의존 검증(회사명)은 최신 mode 를 캡처하도록 제출 핸들러에서 처리
+  const handleSubmit = form.onSubmit(async (values) => {
+    if (mode === "signup" && !values.company.trim()) {
+      form.setFieldError("company", "회사명 / 사업장명을 입력하세요.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const auth = mode === "login"
-        ? await api.login(email, password)
-        : await api.signup(email, password, company);
+      const auth =
+        mode === "login"
+          ? await api.login(values.email, values.password)
+          : await api.signup(values.email, values.password, values.company);
       setToken(auth.token);
       onAuthed(auth);
     } catch (err: any) {
-      setError(String(err.message || err));
+      setError(String(err?.message || err));
     } finally {
       setBusy(false);
     }
-  }
+  });
 
   async function demo() {
     setBusy(true);
     setError(null);
     try {
       setToken("demo-key");
-      const auth = await api.me();
-      onAuthed(auth);
+      onAuthed(await api.me());
     } catch (err: any) {
-      setError("데모 로그인 실패: " + String(err.message || err));
+      setError("데모 로그인 실패: " + String(err?.message || err));
     } finally {
       setBusy(false);
     }
   }
 
-  const inp = "input";
-
   return (
-    <div className="flex min-h-screen flex-col bg-[#f7f8fa]">
-      <div className="flex flex-1 items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-7 text-center">
-          <img src="/kweather-logo.png" alt="KWEATHER" className="mx-auto h-9" />
-          <h1 className="mt-5 text-[21px] font-bold tracking-tight text-slate-900">체감온도계 데이터 분석 프로그램</h1>
-          <p className="mt-1 text-sm text-slate-500">폭염·체감온도 데이터 분석 및 안전관리</p>
-          <span className="mt-3 inline-block rounded-full bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-            케이웨더 단말기 이용자 전용 · 평생 무료
-          </span>
-        </div>
+    <Box style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#f7f8fa" }}>
+      <Center style={{ flex: 1 }} px="md" py={40}>
+        <Box w="100%" maw={420}>
+          <Stack gap={6} align="center" mb="xl">
+            <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 36 }} />
+            <Title order={1} ta="center" mt="sm" fz={21} fw={700} c="#0f172a">
+              체감온도계 데이터 분석 프로그램
+            </Title>
+            <Text size="sm" c="dimmed" ta="center">
+              폭염·체감온도 데이터 분석 및 안전관리
+            </Text>
+            <Badge color="teal" variant="light" size="lg" radius="xl" mt={6}>
+              케이웨더 단말기 이용자 전용 · 평생 무료
+            </Badge>
+          </Stack>
 
-        <div className="rounded-3xl border border-slate-200/70 bg-white p-7 shadow-lift">
-          <div className="mb-6 flex rounded-xl bg-slate-100/80 p-1 text-sm font-medium">
-            <button
-              onClick={() => { setMode("login"); setError(null); }}
-              className={`flex-1 rounded-lg py-2 ${mode === "login" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
-            >로그인</button>
-            <button
-              onClick={() => { setMode("signup"); setError(null); }}
-              className={`flex-1 rounded-lg py-2 ${mode === "signup" ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
-            >회원가입</button>
-          </div>
+          <Paper radius="xl" p="xl" shadow="md" withBorder>
+            <SegmentedControl
+              fullWidth
+              radius="md"
+              mb="lg"
+              value={mode}
+              onChange={(v) => {
+                setMode(v as "login" | "signup");
+                setError(null);
+              }}
+              data={[
+                { label: "로그인", value: "login" },
+                { label: "회원가입", value: "signup" },
+              ]}
+            />
 
-          <form onSubmit={submit} className="space-y-3">
-            {mode === "signup" && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">회사명 / 사업장명</label>
-                <input className={inp} value={company} onChange={(e) => setCompany(e.target.value)}
-                       placeholder="(주)한국제강" required />
-              </div>
-            )}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">이메일</label>
-              <input type="email" className={inp} value={email} onChange={(e) => setEmail(e.target.value)}
-                     placeholder="safety@company.com" required />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">비밀번호</label>
-              <input type="password" className={inp} value={password} onChange={(e) => setPassword(e.target.value)}
-                     placeholder="••••••••" required minLength={4} />
-            </div>
+            <form onSubmit={handleSubmit}>
+              <Stack gap="sm">
+                {mode === "signup" && (
+                  <TextInput
+                    label="회사명 / 사업장명"
+                    placeholder="(주)한국제강"
+                    withAsterisk
+                    {...form.getInputProps("company")}
+                  />
+                )}
+                <TextInput
+                  label="이메일"
+                  type="email"
+                  placeholder="safety@company.com"
+                  withAsterisk
+                  {...form.getInputProps("email")}
+                />
+                <PasswordInput
+                  label="비밀번호"
+                  placeholder="••••••••"
+                  withAsterisk
+                  {...form.getInputProps("password")}
+                />
 
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+                {error && (
+                  <Alert color="red" variant="light" p="sm" icon={<IconAlertTriangle size={16} />}>
+                    {error}
+                  </Alert>
+                )}
 
-            <button type="submit" disabled={busy}
-                    className="btn-primary w-full !py-3">
-              {busy ? "처리 중..." : mode === "login" ? "로그인" : "회원가입하고 시작하기"}
-            </button>
-          </form>
+                <Button type="submit" fullWidth size="md" mt={4} loading={busy}>
+                  {mode === "login" ? "로그인" : "회원가입하고 시작하기"}
+                </Button>
+              </Stack>
+            </form>
 
-          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-            <div className="h-px flex-1 bg-slate-200" /> 또는 <div className="h-px flex-1 bg-slate-200" />
-          </div>
-          <button onClick={demo} disabled={busy}
-                  className="btn-ghost w-full !py-3">
-            데모 계정으로 둘러보기
-          </button>
-        </div>
-        <p className="mt-4 text-center text-xs text-slate-400">
-          케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다.<br/>
-          회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는 <b className="text-slate-600">평생 무료</b>로 사용합니다.
-        </p>
-      </div>
-      </div>
+            <Divider my="md" label="또는" labelPosition="center" />
+
+            <Button variant="default" fullWidth size="md" onClick={demo} disabled={busy}>
+              데모 계정으로 둘러보기
+            </Button>
+          </Paper>
+
+          <Text size="xs" c="dimmed" ta="center" mt="md">
+            케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다.
+            <br />
+            회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는{" "}
+            <Text span fw={700} c="dark.4">
+              평생 무료
+            </Text>
+            로 사용합니다.
+          </Text>
+        </Box>
+      </Center>
       <SiteFooter />
-    </div>
+    </Box>
   );
 }

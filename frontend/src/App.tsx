@@ -5,7 +5,6 @@ import { KpiCards } from "./components/KpiCards";
 import { TimeSeriesChart } from "./components/TimeSeriesChart";
 import { WeatherCompareChart } from "./components/WeatherCompareChart";
 import { HeatGuidelines } from "./components/HeatGuidelines";
-import { IconCheck } from "./components/Icons";
 import { UploadPanel } from "./components/UploadPanel";
 import { DeviceRegister } from "./components/DeviceRegister";
 import { ReportPanel } from "./components/ReportPanel";
@@ -13,6 +12,9 @@ import { AuthScreen } from "./components/AuthScreen";
 import { Stepper, type Step } from "./components/Stepper";
 import { SiteFooter } from "./components/SiteFooter";
 import { AdminPage } from "./components/AdminPage";
+import { Alert, Button, Group, Paper, Select, Text } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
 
 export default function App() {
   const [auth, setAuth] = useState<AuthData | null>(null);
@@ -32,7 +34,6 @@ export default function App() {
   const [ts, setTs] = useState<TimeSeries | null>(null);
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
@@ -96,10 +97,14 @@ export default function App() {
       setDeviceSn(sn);
       await loadRange(sn);  // 전체 바운더리·날짜목록·기준일자 갱신(업로드 데이터 기준)
       const total = results.reduce((s, x) => s + x.rows_inserted + x.rows_updated, 0);
-      setUploadNotice(
-        `업로드 완료: ${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
-        `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`
-      );
+      notifications.show({
+        color: "teal",
+        title: "업로드 완료",
+        autoClose: 6000,
+        message:
+          `${r.affected_devices.join(", ")} · ${total.toLocaleString()}건 반영 · ` +
+          `${r.min_date ?? ""}~${r.max_date ?? ""} 데이터를 표시합니다.`,
+      });
       setStep(4);  // 대시보드로 자동 진행
     }
   }, [loadDevices, loadRange]);
@@ -108,7 +113,6 @@ export default function App() {
   const handleReset = useCallback(async () => {
     setKpi(null); setTs(null); setCmp(null);
     setAvailableDates([]);
-    setUploadNotice(null);
     await loadRange(deviceSn);
   }, [loadRange, deviceSn]);
 
@@ -149,14 +153,11 @@ export default function App() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {auth.is_admin && (
-                <button
-                  onClick={() => setAdminOpen((v) => !v)}
-                  className={`shrink-0 !py-2 text-sm ${adminOpen ? "btn-primary" : "btn-ghost"}`}
-                >
+                <Button size="xs" variant={adminOpen ? "filled" : "default"} onClick={() => setAdminOpen((v) => !v)}>
                   {adminOpen ? "← 일반 화면" : "관리자"}
-                </button>
+                </Button>
               )}
-              <button onClick={logout} className="btn-ghost shrink-0 !py-2 text-sm">로그아웃</button>
+              <Button size="xs" variant="default" onClick={logout}>로그아웃</Button>
             </div>
           </div>
         </div>
@@ -176,46 +177,71 @@ export default function App() {
       {!adminOpen && step === 4 && (
         <div className="border-b border-slate-200/60 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
-            <Field label="기기 선택">
-              <select className="select"
-                value={deviceSn ?? ""}
-                onChange={(e) => { const v = e.target.value || null; setDeviceSn(v); loadRange(v); }}>
-                <option value="">(전체 사업장)</option>
-                {devices.map((d) => (
-                  <option key={d.device_sn} value={d.device_sn}>
-                    {d.device_sn}{d.location_name ? ` · ${d.location_name}` : (d.company_name ? ` · ${d.company_name}` : "")}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="기준 일자 (데이터 보유일)">
-              {availableDates.length > 0 ? (
-                <select className="select"
-                  value={date} onChange={(e) => setDate(e.target.value)}>
-                  {availableDates.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-              ) : (
-                <input type="date" className="select"
-                  value={date} onChange={(e) => setDate(e.target.value)} />
-              )}
-            </Field>
-            <Field label="다운샘플링">
-              <select className="select"
-                value={interval} onChange={(e) => setIntervalMin(Number(e.target.value))}>
-                <option value={1}>1분(원본)</option>
-                <option value={10}>10분 평균</option>
-                <option value={30}>30분 평균</option>
-              </select>
-            </Field>
-            <div className="mx-2 h-8 w-px bg-slate-200" />
-            <Field label="리포트 기간(시작)">
-              <input type="date" className="select"
-                value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
-            </Field>
-            <Field label="리포트 기간(종료)">
-              <input type="date" className="select"
-                value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
-            </Field>
+            <Select
+              label="기기 선택"
+              size="sm"
+              w={240}
+              allowDeselect={false}
+              value={deviceSn ?? ""}
+              onChange={(v) => { const nv = v || null; setDeviceSn(nv); loadRange(nv); }}
+              data={[
+                { value: "", label: "(전체 사업장)" },
+                ...devices.map((d) => ({
+                  value: d.device_sn,
+                  label: `${d.device_sn}${d.location_name ? ` · ${d.location_name}` : (d.company_name ? ` · ${d.company_name}` : "")}`,
+                })),
+              ]}
+            />
+            {availableDates.length > 0 ? (
+              <Select
+                label="기준 일자 (데이터 보유일)"
+                size="sm"
+                w={180}
+                allowDeselect={false}
+                value={date}
+                onChange={(v) => v && setDate(v)}
+                data={availableDates}
+              />
+            ) : (
+              <DatePickerInput
+                label="기준 일자"
+                size="sm"
+                w={180}
+                valueFormat="YYYY-MM-DD"
+                value={date}
+                onChange={(v) => v && setDate(v)}
+              />
+            )}
+            <Select
+              label="다운샘플링"
+              size="sm"
+              w={140}
+              allowDeselect={false}
+              value={String(interval)}
+              onChange={(v) => v && setIntervalMin(Number(v))}
+              data={[
+                { value: "1", label: "1분(원본)" },
+                { value: "10", label: "10분 평균" },
+                { value: "30", label: "30분 평균" },
+              ]}
+            />
+            <div className="mx-1 h-9 w-px self-center bg-slate-200" />
+            <DatePickerInput
+              label="리포트 기간(시작)"
+              size="sm"
+              w={160}
+              valueFormat="YYYY-MM-DD"
+              value={rangeStart}
+              onChange={(v) => v && setRangeStart(v)}
+            />
+            <DatePickerInput
+              label="리포트 기간(종료)"
+              size="sm"
+              w={160}
+              valueFormat="YYYY-MM-DD"
+              value={rangeEnd}
+              onChange={(v) => v && setRangeEnd(v)}
+            />
             {selected && (
               <div className="ml-auto text-right text-xs text-slate-400">
                 <div className="font-semibold text-slate-600">{selected.device_sn}</div>
@@ -229,53 +255,44 @@ export default function App() {
       {!adminOpen && (
       <main className="mx-auto max-w-7xl space-y-5 px-5 py-7">
         {loadErr && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadErr}</div>
+          <Alert color="red" variant="light" title="불러오기 오류">{loadErr}</Alert>
         )}
 
         {step === 2 && (
           <>
-            <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b className="text-slate-900">STEP 2 · 사업장·기기 등록</b> — 측정 데이터를 등록하기 전에 기기를 먼저 등록합니다.
-              기기명은 관리자가 알아보기 쉬운 이름으로 자유롭게 입력하고, 여러 대를 각각 등록할 수 있습니다.
-            </div>
+            <Paper withBorder radius="lg" p="md" shadow="xs">
+              <Text size="sm" c="dimmed">
+                <b style={{ color: "#0f172a" }}>STEP 2 · 사업장·기기 등록</b> — 측정 데이터를 등록하기 전에 기기를 먼저 등록합니다.
+                기기명은 관리자가 알아보기 쉬운 이름으로 자유롭게 입력하고, 여러 대를 각각 등록할 수 있습니다.
+              </Text>
+            </Paper>
             <DeviceRegister devices={devices} defaultCompany={auth.company_name} onChange={loadDevices} />
-            <button onClick={() => setStep(3)}
-                    className="btn-primary w-full !py-3">
+            <Button fullWidth size="md" onClick={() => setStep(3)}>
               {canDashboard ? "다음: 데이터 업로드 →" : "기기 없이 업로드로 진행 →"}
-            </button>
+            </Button>
           </>
         )}
 
         {step === 3 && (
           <>
-            <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b className="text-slate-900">STEP 3 · 측정 데이터 업로드</b> — 위에서 선택한 기기로 측정 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
-            </div>
+            <Paper withBorder radius="lg" p="md" shadow="xs">
+              <Text size="sm" c="dimmed">
+                <b style={{ color: "#0f172a" }}>STEP 3 · 측정 데이터 업로드</b> — 위에서 선택한 기기로 측정 데이터가 연결되며, 완료 시 대시보드로 자동 전환됩니다.
+              </Text>
+            </Paper>
             <UploadPanel devices={devices} onUploaded={handleUploaded} onReset={handleReset} />
 
-            <div className="flex gap-2">
-              <button onClick={() => setStep(2)}
-                      className="btn-ghost flex-1 !py-3">
-                ← 기기 등록으로
-              </button>
+            <Group grow>
+              <Button variant="default" size="md" onClick={() => setStep(2)}>← 기기 등록으로</Button>
               {canDashboard && (
-                <button onClick={() => setStep(4)}
-                        className="btn-primary flex-1 !py-3">
-                  대시보드로 이동 →
-                </button>
+                <Button size="md" onClick={() => setStep(4)}>대시보드로 이동 →</Button>
               )}
-            </div>
+            </Group>
           </>
         )}
 
         {step === 4 && (
           <>
-            {uploadNotice && (
-              <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4 text-emerald-600" />{uploadNotice}</span>
-                <button onClick={() => setUploadNotice(null)} className="text-emerald-600 hover:text-emerald-800">✕</button>
-              </div>
-            )}
             <KpiCards kpi={kpi} />
             <TimeSeriesChart ts={ts} kpi={kpi} date={date} />
             <WeatherCompareChart cmp={cmp} />
@@ -288,14 +305,5 @@ export default function App() {
 
       <SiteFooter withBanner />
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      {children}
-    </label>
   );
 }

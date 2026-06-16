@@ -1,30 +1,56 @@
+import { Paper, SimpleGrid, Text } from "@mantine/core";
 import type { Kpi } from "../types";
 import { HeatBadge } from "./HeatBadge";
 
-function Card({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent?: string }) {
+function ValueCard({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent?: string }) {
   return (
-    <div className="card !p-4">
-      <div className="text-xs font-medium tracking-tight text-slate-400">{label}</div>
-      <div className="mt-1.5 flex items-baseline gap-1">
-        <span className="text-[26px] font-bold tracking-tight" style={{ color: accent || "#0f172a" }}>{value}</span>
-        {unit && <span className="text-sm text-slate-400">{unit}</span>}
+    <Paper radius="lg" p="md" withBorder shadow="xs">
+      <Text size="xs" fw={500} c="dimmed">
+        {label}
+      </Text>
+      <div style={{ marginTop: "0.375rem", display: "flex", alignItems: "baseline", gap: "0.25rem" }}>
+        <Text component="span" fw={700} style={{ fontSize: 26, color: accent || "#0f172a" }}>
+          {value}
+        </Text>
+        {unit && (
+          <Text component="span" size="sm" c="dimmed">
+            {unit}
+          </Text>
+        )}
       </div>
-    </div>
+    </Paper>
   );
 }
 
 export function KpiCards({ kpi }: { kpi: Kpi | null }) {
   const v = (n: number | null | undefined, d = 1) => (n == null ? "-" : n.toFixed(d));
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div className="flex flex-col justify-between rounded-2xl border border-slate-200/70 p-4 shadow-card"
-           style={{ background: kpi ? `linear-gradient(135deg, #ffffff 30%, ${kpi.current_level.color}1a)` : "#fff" }}>
-        <div className="text-xs font-medium tracking-tight text-slate-400">폭염 위험 단계 (기간 최고)</div>
-        <div className="mt-2">{kpi ? <HeatBadge level={kpi.current_level} size="lg" /> : "-"}</div>
-      </div>
-      <Card label="최고 체감온도 (A-TEMP)" value={v(kpi?.max_feels_like)} unit="℃"
-            accent={kpi?.current_level.color} />
-      <Card label="최고 온도 (TEMP)" value={v(kpi?.max_temperature)} unit="℃" />
-    </div>
+    <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+      <Paper
+        radius="lg"
+        p="md"
+        withBorder
+        shadow="xs"
+        style={{
+          background: kpi
+            ? `linear-gradient(135deg,#fff 30%, ${kpi.current_level.color}1a)`
+            : undefined,
+        }}
+      >
+        <Text size="xs" fw={500} c="dimmed">
+          폭염 위험 단계 (기간 최고)
+        </Text>
+        <div style={{ marginTop: "0.5rem" }}>
+          {kpi ? <HeatBadge level={kpi.current_level} size="lg" /> : "-"}
+        </div>
+      </Paper>
+      <ValueCard
+        label="최고 체감온도 (A-TEMP)"
+        value={v(kpi?.max_feels_like)}
+        unit="℃"
+        accent={kpi?.current_level.color}
+      />
+      <ValueCard label="최고 온도 (TEMP)" value={v(kpi?.max_temperature)} unit="℃" />
+    </SimpleGrid>
   );
 }
