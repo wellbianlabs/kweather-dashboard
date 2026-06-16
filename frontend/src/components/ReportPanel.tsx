@@ -102,10 +102,9 @@ export function ReportPanel({
             </div>
             <div>최고단계 <HeatBadge level={report.peak_level} size="sm" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
             <Stat label="최고 체감온도" value={`${report.max_feels_like ?? "-"}℃`} sub={report.max_feels_like_time ?? ""} />
             <Stat label="최고 온도" value={`${report.max_temperature ?? "-"}℃`} />
-            <Stat label="평균 습도" value={`${report.avg_humidity ?? "-"}%`} />
             <Stat label="33℃↑ 누적" value={`${report.minutes_over_33}분`} sub={`35℃ ${report.minutes_over_35}/38℃ ${report.minutes_over_38}`} />
           </div>
           <div className="mt-3">

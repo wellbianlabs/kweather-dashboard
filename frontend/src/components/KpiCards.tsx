@@ -16,7 +16,7 @@ function Card({ label, value, unit, accent }: { label: string; value: string; un
 export function KpiCards({ kpi }: { kpi: Kpi | null }) {
   const v = (n: number | null | undefined, d = 1) => (n == null ? "-" : n.toFixed(d));
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div className="flex flex-col justify-between rounded-2xl border border-slate-200/70 p-4 shadow-card"
            style={{ background: kpi ? `linear-gradient(135deg, #ffffff 30%, ${kpi.current_level.color}1a)` : "#fff" }}>
         <div className="text-xs font-medium tracking-tight text-slate-400">폭염 위험 단계 (기간 최고)</div>
@@ -25,8 +25,6 @@ export function KpiCards({ kpi }: { kpi: Kpi | null }) {
       <Card label="최고 체감온도 (A-TEMP)" value={v(kpi?.max_feels_like)} unit="℃"
             accent={kpi?.current_level.color} />
       <Card label="최고 온도 (TEMP)" value={v(kpi?.max_temperature)} unit="℃" />
-      <Card label="평균 체감온도" value={v(kpi?.avg_feels_like)} unit="℃" />
-      <Card label="평균 습도" value={v(kpi?.avg_humidity)} unit="%" />
     </div>
   );
 }

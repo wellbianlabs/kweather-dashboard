@@ -9,7 +9,15 @@ function fmtTime(t: string) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export function TimeSeriesChart({ ts, kpi }: { ts: TimeSeries | null; kpi: Kpi | null }) {
+const _WD = ["일", "월", "화", "수", "목", "금", "토"];
+function fmtDate(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || "");
+  if (!m) return d || "";
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일 (${_WD[dt.getDay()]})`;
+}
+
+export function TimeSeriesChart({ ts, kpi, date }: { ts: TimeSeries | null; kpi: Kpi | null; date?: string }) {
   const data = (ts?.points || []).map((p) => ({
     time: fmtTime(p.t),
     온도: p.temperature,
@@ -20,6 +28,14 @@ export function TimeSeriesChart({ ts, kpi }: { ts: TimeSeries | null; kpi: Kpi |
 
   return (
     <div className="card">
+      {/* 측정 일자 — 언제 데이터인지 한눈에 */}
+      {date && (
+        <div className="mb-3 flex items-center gap-3 rounded-xl bg-kw-50 px-4 py-2.5">
+          <span className="rounded-lg bg-kw px-2.5 py-1 text-[11px] font-bold text-white">측정일</span>
+          <span className="text-xl font-extrabold tracking-tight text-kw sm:text-2xl">{fmtDate(date)}</span>
+          <span className="ml-auto text-xs text-slate-400">데이터 기준 일자</span>
+        </div>
+      )}
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-semibold text-slate-900">시계열 분석 (온·습도 / 체감온도)</h3>
         <span className="text-xs text-slate-400">

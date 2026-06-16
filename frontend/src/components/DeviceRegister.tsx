@@ -65,7 +65,7 @@ export function DeviceRegister({
 
   async function register() {
     setError(null); setOkMsg(null);
-    if (!form.device_sn.trim()) { setError("기기 시리얼번호(SN)를 입력하세요."); return; }
+    if (!form.device_sn.trim()) { setError("기기명을 입력하세요."); return; }
     setBusy(true);
     try {
       await api.createDevice({
@@ -84,7 +84,7 @@ export function DeviceRegister({
       onChange();
     } catch (e: any) {
       const msg = String(e.message || e);
-      setError(msg.includes("409") || msg.includes("이미") ? "이미 등록된 기기 SN 입니다." : msg);
+      setError(msg.includes("409") || msg.includes("이미") ? "이미 등록된 기기명입니다. 다른 이름을 사용해 주세요." : msg);
     } finally {
       setBusy(false);
     }
@@ -97,15 +97,15 @@ export function DeviceRegister({
       <div className="card">
         <h3 className="font-semibold text-slate-800">사업장 · 기기 등록</h3>
         <p className="mt-1 text-xs text-slate-500">
-          데이터를 올리기 전에 먼저 기기를 등록하세요. <b>같은 회사라도 장소·기기별로 각각 추가 등록</b>할 수 있습니다.
-          (위경도를 입력하면 기상청 외부 날씨 비교가 활성화됩니다.)
+          데이터를 올리기 전에 먼저 기기를 등록하세요. 기기명은 <b>관리자가 알아보기 쉬운 이름으로 자유롭게</b> 입력하면 되며,
+          <b>여러 대를 각각 추가 등록</b>할 수 있습니다. (위경도를 입력하면 기상청 외부 날씨 비교가 활성화됩니다.)
         </p>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">기기 시리얼번호 (SN) *</span>
+            <span className="text-xs font-medium text-slate-600">기기명 *</span>
             <input className={inp} value={form.device_sn} onChange={(e) => set("device_sn", e.target.value)}
-                   placeholder="예: IST4W1800044" />
+                   placeholder="예: 1공장 정련로, 본관 사무실 등 (자유 입력)" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-slate-600">회사명</span>

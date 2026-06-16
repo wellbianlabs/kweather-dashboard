@@ -45,7 +45,7 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-slate-500">
-              <th className="py-2 pr-2">기기 SN</th>
+              <th className="py-2 pr-2">기기명</th>
               <th className="pr-2">회사명</th>
               <th className="pr-2">설치 위치</th>
               <th className="pr-2">주소</th>
@@ -60,7 +60,7 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
               const ed = editing === d.device_sn;
               return (
                 <tr key={d.device_sn} className="border-b last:border-0">
-                  <td className="py-2 pr-2 font-mono text-xs">{d.device_sn}</td>
+                  <td className="py-2 pr-2 font-semibold text-slate-800">{d.device_sn}</td>
                   {ed ? (
                     <>
                       <td className="pr-2"><input className={inp} value={draft.company_name ?? ""} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} /></td>
@@ -92,7 +92,7 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
               );
             })}
             {devices.length === 0 && (
-              <tr><td colSpan={8} className="py-4 text-center text-slate-400">등록된 기기가 없습니다. 위 양식으로 등록하거나, SN이 포함된 CSV 업로드 시 자동 등록됩니다.</td></tr>
+              <tr><td colSpan={8} className="py-4 text-center text-slate-400">등록된 기기가 없습니다. 위 양식에서 기기명을 입력해 등록하세요.</td></tr>
             )}
           </tbody>
         </table>

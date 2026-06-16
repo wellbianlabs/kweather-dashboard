@@ -46,7 +46,7 @@ def create_device(
 ):
     existing = db.get(Device, payload.device_sn)
     if existing is not None:
-        raise HTTPException(409, "이미 존재하는 기기 SN 입니다.")
+        raise HTTPException(409, "이미 등록된 기기명입니다. 다른 이름을 사용해 주세요.")
     dev = Device(tenant_id=tenant.id, **payload.model_dump())
     _ensure_region_code(dev)
     db.add(dev)

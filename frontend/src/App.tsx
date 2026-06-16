@@ -143,7 +143,7 @@ export default function App() {
               <img src="/kweather-logo.png" alt="KWEATHER" className="h-6 shrink-0 sm:h-7" />
               <div className="hidden h-8 w-px bg-slate-200 sm:block" />
               <div className="min-w-0">
-                <h1 className="truncate text-[15px] font-bold tracking-tight text-slate-900">체감온도계 안전보건 대시보드</h1>
+                <h1 className="truncate text-[15px] font-bold tracking-tight text-slate-900">체감온도계 데이터 분석 프로그램</h1>
                 <p className="truncate text-xs text-slate-400">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function App() {
                 <option value="">(전체 사업장)</option>
                 {devices.map((d) => (
                   <option key={d.device_sn} value={d.device_sn}>
-                    {d.company_name ? `${d.company_name} / ${d.location_name ?? ""}` : d.device_sn}
+                    {d.device_sn}{d.location_name ? ` · ${d.location_name}` : (d.company_name ? ` · ${d.company_name}` : "")}
                   </option>
                 ))}
               </select>
@@ -218,7 +218,7 @@ export default function App() {
             </Field>
             {selected && (
               <div className="ml-auto text-right text-xs text-slate-400">
-                <div className="font-mono">{selected.device_sn}</div>
+                <div className="font-semibold text-slate-600">{selected.device_sn}</div>
                 <div>{selected.address}</div>
               </div>
             )}
@@ -235,8 +235,8 @@ export default function App() {
         {step === 2 && (
           <>
             <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 text-sm text-slate-600 shadow-card">
-              <b className="text-slate-900">STEP 2 · 사업장·기기 등록</b> — 측정 데이터를 등록하기 전에 기기 정보를 먼저 등록합니다.
-              동일 법인이라도 사업장(장소)·기기 단위로 각각 등록할 수 있습니다.
+              <b className="text-slate-900">STEP 2 · 사업장·기기 등록</b> — 측정 데이터를 등록하기 전에 기기를 먼저 등록합니다.
+              기기명은 관리자가 알아보기 쉬운 이름으로 자유롭게 입력하고, 여러 대를 각각 등록할 수 있습니다.
             </div>
             <DeviceRegister devices={devices} defaultCompany={auth.company_name} onChange={loadDevices} />
             <button onClick={() => setStep(3)}
@@ -278,7 +278,7 @@ export default function App() {
               </div>
             )}
             <KpiCards kpi={kpi} />
-            <TimeSeriesChart ts={ts} kpi={kpi} />
+            <TimeSeriesChart ts={ts} kpi={kpi} date={date} />
             <WeatherCompareChart cmp={cmp} />
             <HeatGuidelines kpi={kpi} />
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />
