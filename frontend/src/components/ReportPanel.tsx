@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { IconFile, IconDownload, IconSpinner } from "./Icons";
+import type { DailyReport } from "../types";
+import { HeatBadge } from "./HeatBadge";
 
 const KIND_LABEL: Record<string, string> = {
   daily: "일일 안전 보고서(PDF)",
   periodic: "기간 통계 보고서(PDF)",
   excel: "Excel 데이터 파일",
 };
-import type { DailyReport } from "../types";
-import { HeatBadge } from "./HeatBadge";
 
 type Preview = { kind: string; url: string; blob: Blob; filename: string } | null;
 
@@ -42,7 +42,7 @@ export function ReportPanel({
     return msg;
   }
 
-  // PDF 를 화면에 먼저 표출(미리보기). 인증 헤더로 Blob 을 받아 임베드한다.
+  // PDF 로 변환하여 화면에 표출(미리보기). 인증 헤더로 Blob 을 받아 임베드한다.
   async function showPreview(kind: string, url: string, filename: string) {
     setBusy(kind); setDlError(null);
     try {
@@ -51,16 +51,14 @@ export function ReportPanel({
         if (prev?.url) URL.revokeObjectURL(prev.url);
         return { kind, url: URL.createObjectURL(blob), blob, filename };
       });
-      // 미리보기 위치로 부드럽게 스크롤
       setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } catch (e: any) {
-      setDlError(`미리보기 실패: ${friendlyError(e)}`);
+      setDlError(`PDF 변환 실패: ${friendlyError(e)}`);
     } finally {
       setBusy(null);
     }
   }
 
-  // 다운로드 전용(미리보기 부적합한 Excel 등)
   async function downloadOnly(kind: string, url: string, filename: string) {
     setBusy(kind); setDlError(null);
     try {
@@ -101,20 +99,31 @@ export function ReportPanel({
       )}
 
       <h3 className="mb-1 font-semibold text-slate-900">안전관리 리포트</h3>
-      <p className="mb-3 text-xs text-slate-400">버튼을 누르면 화면에서 먼저 확인한 뒤 내려받을 수 있습니다.</p>
+      <p className="mb-3 text-xs text-slate-400">웹 보고서로 먼저 확인한 뒤, PDF로 변환해 보거나 내려받을 수 있습니다.</p>
 
-      {/* 보고서 생성/미리보기 버튼 */}
-      <div className="mb-2 flex flex-wrap gap-2">
+      {/* 1) 웹 보고서 — 화면에 먼저 표출 (하단 요약을 통합) */}
+      {loading ? (
+        <p className="text-sm text-slate-400">불러오는 중...</p>
+      ) : !deviceSn ? (
+        <p className="text-sm text-slate-400">기기를 선택하면 웹 보고서가 표시됩니다.</p>
+      ) : report ? (
+        <WebReport report={report} deviceSn={deviceSn} />
+      ) : (
+        <p className="text-sm text-slate-400">해당 일자 데이터가 없습니다.</p>
+      )}
+
+      {/* 변환/내보내기 버튼 */}
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           disabled={!deviceSn || busy !== null}
           onClick={() => deviceSn && showPreview("daily", api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
           className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "daily" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "daily" ? "생성 중…" : "일일 안전 보고서 (PDF)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{busy === "daily" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "daily" ? "변환 중…" : "일일 보고서 PDF로 보기"}</span></button>
         <button
           disabled={busy !== null}
           onClick={() => showPreview("periodic", api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
           className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "periodic" ? "생성 중…" : "기간 통계 보고서 (PDF)"}</span></button>
+        ><span className="inline-flex items-center gap-2">{busy === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "periodic" ? "변환 중…" : "기간 통계 보고서 PDF로 보기"}</span></button>
         <button
           disabled={busy !== null}
           onClick={() => downloadOnly("excel", api.excelUrl(deviceSn, rangeStart, rangeEnd), `export_${rangeStart}_${rangeEnd}.xlsx`)}
@@ -122,14 +131,14 @@ export function ReportPanel({
         ><span className="inline-flex items-center gap-2">{busy === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{busy === "excel" ? "생성 중…" : "데이터 내보내기 (Excel)"}</span></button>
       </div>
       {dlError && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>
+        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>
       )}
 
-      {/* PDF 미리보기 — 화면에 먼저 표출 + 다운로드 */}
+      {/* 2) PDF 변환 미리보기 — 웹 보고서 다음에 표출 */}
       {preview && (
-        <div ref={previewRef} className="mb-4 mt-1 overflow-hidden rounded-xl border border-slate-200">
+        <div ref={previewRef} className="mt-4 overflow-hidden rounded-xl border border-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="text-sm font-semibold text-slate-700">{KIND_LABEL[preview.kind] ?? "보고서"} 미리보기</span>
+            <span className="text-sm font-semibold text-slate-700">{KIND_LABEL[preview.kind] ?? "보고서"} — PDF 변환 미리보기</span>
             <div className="flex gap-2">
               <button
                 onClick={() => api.saveBlob(preview.blob, preview.filename)}
@@ -143,7 +152,7 @@ export function ReportPanel({
           </div>
           <iframe
             src={`${preview.url}#toolbar=1&view=FitH`}
-            title="보고서 미리보기"
+            title="보고서 PDF 미리보기"
             className="h-[760px] w-full bg-slate-100"
           />
           <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-center text-[11px] text-slate-400">
@@ -151,45 +160,111 @@ export function ReportPanel({
           </div>
         </div>
       )}
-
-      {/* 일일 보고서 요약(빠른 수치 확인) */}
-      {loading ? (
-        <p className="text-sm text-slate-400">불러오는 중...</p>
-      ) : !deviceSn ? (
-        <p className="text-sm text-slate-400">기기를 선택하면 일일 보고서 요약이 표시됩니다.</p>
-      ) : report ? (
-        <div className="rounded-lg border border-slate-200 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm text-slate-500">
-              {report.company_name} · {report.location_name} · {report.date}
-            </div>
-            <div>최고단계 <HeatBadge level={report.peak_level} size="sm" /></div>
-          </div>
-          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-            <Stat label="최고 체감온도" value={`${report.max_feels_like ?? "-"}℃`} sub={report.max_feels_like_time ?? ""} />
-            <Stat label="최고 온도" value={`${report.max_temperature ?? "-"}℃`} />
-            <Stat label="33℃↑ 누적" value={`${report.minutes_over_33}분`} sub={`35℃ ${report.minutes_over_35}/38℃ ${report.minutes_over_38}`} />
-          </div>
-          <div className="mt-3">
-            <div className="text-xs font-semibold text-slate-500">안전조치 이행 가이드</div>
-            <ul className="mt-1 list-disc pl-5 text-sm text-slate-700">
-              {report.guidance.map((g, i) => <li key={i}>{g}</li>)}
-            </ul>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-slate-400">해당 일자 데이터가 없습니다.</p>
-      )}
     </div>
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 p-2">
+/** 웹 보고서 — 일일 보고서를 PDF 변환 전 HTML 레이아웃으로 표출. */
+function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string }) {
+  const lv = report.peak_level;
+  const Info = ({ k, v }: { k: string; v: string }) => (
+    <div className="flex">
+      <div className="w-24 shrink-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">{k}</div>
+      <div className="flex-1 px-3 py-2 text-sm text-slate-800">{v}</div>
+    </div>
+  );
+  const Metric = ({ label, value, unit, sub, accent }:
+    { label: string; value: string; unit?: string; sub?: string; accent?: string }) => (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-lg font-bold text-slate-800">{value}</div>
-      {sub && <div className="text-xs text-slate-400">{sub}</div>}
+      <div className="mt-1 flex items-baseline gap-1">
+        <span className="text-xl font-bold tracking-tight" style={{ color: accent || "#0f172a" }}>{value}</span>
+        {unit && <span className="text-xs text-slate-400">{unit}</span>}
+      </div>
+      <div className="mt-0.5 h-4 text-[11px] text-slate-400">{sub || ""}</div>
+    </div>
+  );
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {/* 제목 */}
+      <div className="border-b-2 border-kw px-5 py-4 text-center">
+        <div className="text-lg font-extrabold tracking-tight text-slate-900">폭염 안전관리 일일 보고서</div>
+        <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+          Heat Stress Daily Management Report
+        </div>
+      </div>
+
+      {/* 문서 정보 */}
+      <div className="grid grid-cols-1 divide-y divide-slate-100 border-b border-slate-100 sm:grid-cols-2 sm:divide-y-0">
+        <div className="divide-y divide-slate-100 sm:border-r sm:border-slate-100">
+          <Info k="사업장" v={report.company_name || "-"} />
+          <Info k="설치 위치" v={report.location_name || "-"} />
+        </div>
+        <div className="divide-y divide-slate-100">
+          <Info k="대상 일자" v={report.date} />
+          <div className="flex items-center">
+            <div className="w-24 shrink-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">최고 위험단계</div>
+            <div className="flex-1 px-3 py-1.5"><HeatBadge level={lv} size="sm" /></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4 p-5">
+        {/* 측정 결과 요약 */}
+        <section>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">1.</span> 측정 결과 요약</h4>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Metric label="최고 체감온도" value={`${report.max_feels_like ?? "-"}`} unit="℃"
+                    accent={lv.color} sub={report.max_feels_like_time ? `${report.max_feels_like_time} 발생` : ""} />
+            <Metric label="최고 온도" value={`${report.max_temperature ?? "-"}`} unit="℃" />
+            <Metric label="평균 습도" value={`${report.avg_humidity ?? "-"}`} unit="%" />
+            <Metric label="위험단계 노출 (38℃↑)" value={`${report.minutes_over_38}`} unit="분"
+                    accent={report.minutes_over_38 > 0 ? "#dc2626" : undefined}
+                    sub={report.minutes_over_38 > 0 ? "온열질환 고위험" : "미발생"} />
+          </div>
+        </section>
+
+        {/* 위험단계별 노출시간 */}
+        <section>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">2.</span> 폭염 위험단계별 노출시간</h4>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <table className="w-full text-center text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500">
+                  <th className="py-1.5 font-medium">주의 (33℃↑)</th>
+                  <th className="py-1.5 font-medium">경고 (35℃↑)</th>
+                  <th className="py-1.5 font-medium">위험 (38℃↑)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="font-bold text-slate-800">
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#eab308" }}>{report.minutes_over_33}분</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#f97316" }}>{report.minutes_over_35}분</td>
+                  <td className="border-t border-slate-100 py-2" style={{ color: "#dc2626" }}>{report.minutes_over_38}분</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* 안전조치 가이드 */}
+        <section>
+          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">3.</span> 안전조치 이행 가이드</h4>
+          <ul className="space-y-1.5">
+            {report.guidance.map((g, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-snug text-slate-700">
+                <span className="mt-0.5 text-kw">○</span>{g}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <p className="border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-400">
+          측정기기: 케이웨더(주) 체감온도계 (기기: {deviceSn}) · 모든 측정 데이터는 케이웨더(주) 체감온도계 장비로
+          측정·수집되었으며, 외부 기상자료를 포함한 출처는 케이웨더(주)입니다.
+        </p>
+      </div>
     </div>
   );
 }
