@@ -387,6 +387,37 @@ def _pil_fonts():
     return F
 
 
+def _text_w(d, text, font) -> float:
+    try:
+        return d.textlength(text, font=font)
+    except Exception:  # noqa: BLE001
+        b = d.textbbox((0, 0), text, font=font)
+        return b[2] - b[0]
+
+
+def _fill_gradient_area(img, pts, base_y, rgb, top_alpha):
+    """라인 아래 영역을 수직 그라데이션(top_alpha→0)으로 채움 — recharts area 감성."""
+    from PIL import Image, ImageDraw
+
+    if len(pts) < 2:
+        return
+    W, H = img.size
+    top = max(0, int(min(p[1] for p in pts)) - 1)
+    bottom = int(base_y)
+    if bottom <= top:
+        return
+    poly = list(pts) + [(pts[-1][0], base_y), (pts[0][0], base_y)]
+    mask = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(mask).polygon(poly, fill=255)
+    grad = Image.new("L", (W, H), 0)
+    gd = ImageDraw.Draw(grad)
+    span = max(1, bottom - top)
+    for y in range(top, bottom + 1):
+        gd.line([(0, y), (W, y)], fill=int(top_alpha * (1 - (y - top) / span)))
+    alpha = Image.composite(grad, Image.new("L", (W, H), 0), mask)
+    img.paste(Image.new("RGB", (W, H), rgb), (0, 0), alpha)
+
+
 def _chart_hourly_feels(series, th) -> str | None:
     """시간별 체감온도 라인 차트 — 위험단계 색상 구간선 + 임계선 + 피크 주석."""
     try:
@@ -438,18 +469,32 @@ def _chart_hourly_feels(series, th) -> str | None:
     band = Image.new("RGBA", (int(X(18)) - int(X(9)), int(H - B - T)), (15, 73, 158, 14))
     img.paste(band, (int(X(9)), int(T)), band)
 
+    # 영역 그라데이션(라인 아래) — recharts area 감성
+    line_pts = [(X(x), Y(v)) for x, v in series]
+    _fill_gradient_area(img, line_pts, Y(ymin), (220, 38, 38), 46)
+
     # 단계 색상 구간 폴리라인
     for i in range(len(series) - 1):
         (x1, v1), (x2, v2) = series[i], series[i + 1]
         seg_color = heat.classify((v1 + v2) / 2).color
         d.line([(X(x1), Y(v1)), (X(x2), Y(v2))], fill=seg_color, width=5)
 
-    # 피크 주석
+    # 피크 — 점 + 값 배지
     pi = max(range(len(series)), key=lambda i: series[i][1])
     px_, pv = series[pi]
     pc = heat.classify(pv).color
-    d.ellipse([X(px_) - 9, Y(pv) - 9, X(px_) + 9, Y(pv) + 9], fill="white", outline=pc, width=4)
-    d.text((X(px_), Y(pv) - 18), f"{pv:.1f}", font=F(30), fill=pc, anchor="mb", stroke_width=1, stroke_fill=pc)
+    cx, cy = X(px_), Y(pv)
+    d.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=pc, outline="white", width=3)
+    lab = f"{pv:.1f}℃"
+    tw = _text_w(d, lab, F(26))
+    by = cy - 14
+    bx0, bx1 = cx - tw / 2 - 11, cx + tw / 2 + 11
+    if bx0 < L:
+        bx0, bx1 = float(L), L + tw + 22
+    if bx1 > W - R:
+        bx1, bx0 = float(W - R), W - R - tw - 22
+    d.rounded_rectangle([bx0, by - 34, bx1, by - 2], radius=9, fill=pc)
+    d.text(((bx0 + bx1) / 2, by - 18), lab, font=F(26), fill="white", anchor="mm")
 
     return _png_data_uri(img)
 
@@ -491,11 +536,15 @@ def _chart_compare(hours) -> str | None:
     d.line([(L, H - B), (W - R, H - B)], fill="#cbd5e1", width=3)
     d.line([(L, T), (L, H - B)], fill="#cbd5e1", width=3)
 
+    # 영역 그라데이션(라인 아래) — 외부(블루)·내부(레드)
+    _fill_gradient_area(img, [(X(x), Y(v)) for x, v in pts_out], Y(ymin), (23, 144, 205), 28)
+    _fill_gradient_area(img, [(X(x), Y(v)) for x, v in pts_in], Y(ymin), (220, 38, 38), 30)
+
     def poly(pts, color):
         for i in range(len(pts) - 1):
-            d.line([(X(pts[i][0]), Y(pts[i][1])), (X(pts[i + 1][0]), Y(pts[i + 1][1]))], fill=color, width=5)
+            d.line([(X(pts[i][0]), Y(pts[i][1])), (X(pts[i + 1][0]), Y(pts[i + 1][1]))], fill=color, width=4)
         for x, v in pts:
-            d.ellipse([X(x) - 4, Y(v) - 4, X(x) + 4, Y(v) + 4], fill=color)
+            d.ellipse([X(x) - 4, Y(v) - 4, X(x) + 4, Y(v) + 4], fill="white", outline=color, width=2)
 
     poly(pts_out, "#1790cd")
     poly(pts_in, "#dc2626")

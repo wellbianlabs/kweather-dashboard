@@ -10,7 +10,13 @@ import { renderDailyReportHtml } from "./dailyReportHtml";
 const A4_W = 794; // 210mm @ 96dpi
 
 export function ReportStudio() {
-  const pdfHtml = renderDailyReportHtml(SAMPLE_PDF, { previewMargins: true });
+  // iframe srcDoc(about:srcdoc)은 상대경로가 안 잡혀 절대 URL 사용. 차트는 서버 렌더 샘플 PNG.
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const pdfHtml = renderDailyReportHtml(SAMPLE_PDF, {
+    previewMargins: true,
+    chartHourly: `${base}/report-sample-chart-hourly.png`,
+    chartCompare: `${base}/report-sample-chart-compare.png`,
+  });
   const iref = useRef<HTMLIFrameElement>(null);
 
   const fit = () => {
@@ -47,7 +53,7 @@ export function ReportStudio() {
             style={{ width: A4_W, height: 1400, border: 0, background: "#fff", display: "block" }}
           />
         </Box>
-        <Text size="xs" c="dimmed" maw={A4_W}>※ A4 폭 미리보기(브라우저 렌더). 실제 PDF는 xhtml2pdf + 서버 렌더 PNG 차트 — 차트 영역은 플레이스홀더로 표시.</Text>
+        <Text size="xs" c="dimmed" maw={A4_W}>※ A4 폭 미리보기(브라우저 렌더). 차트는 실제 서버 렌더 PNG 샘플(report.py PIL). 실 PDF는 xhtml2pdf 변환.</Text>
       </Stack>
     </Group>
   );

@@ -14,7 +14,7 @@ export function renderDailyReportHtml(
   const generated = opts.generated ?? `${d.date} 09:42`;
   const font = opts.font ?? '"Pretendard Variable", Pretendard, -apple-system, sans-serif';
   // 브라우저 미리보기에서 A4 인쇄 여백(@page margin)을 시뮬레이션 — 실제 PDF는 @page 가 처리(포팅 시 제외).
-  const bodyPad = opts.previewMargins ? "padding:1.4cm 1.5cm;" : "margin:0;";
+  const bodyPad = opts.previewMargins ? "padding:60px;" : "margin:0;";
 
   const chartBox = (label: string, img?: string | null) =>
     img
@@ -30,7 +30,7 @@ export function renderDailyReportHtml(
   const workHours = d.hours.filter((h) => h.hour >= 9 && h.hour < 18);
 
   return `<!doctype html><html><head><meta charset="utf-8"/><style>
-@page { size: A4; margin: 1.4cm 1.5cm; }
+@page { size: A4; margin: 60px; }
 body { font-family: ${font}; font-size: 9pt; color:#1f2937; line-height:1.5; ${bodyPad} }
 table { width:100%; border-collapse: collapse; }
 
