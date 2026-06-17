@@ -1206,7 +1206,7 @@ def export_excel(
 ) -> bytes:
     """Excel 내보내기 — 일일 '측정 기록부'(순수 기록 보고용).
 
-    분석 요약·가이드 없이, 선택한 하루의 기기 측정값(시각·온도·습도·체감온도·위험단계)을
+    분석 요약·가이드 없이, 선택한 하루의 기기 측정값(시각·습도·온도·체감온도·위험단계)을
     그대로 나열하고, 안전관리자가 온도 상황에 따른 조치사항·비고를 수기로 기록할 수 있게
     빈 칸을 제공한다.
     """
@@ -1252,7 +1252,7 @@ def export_excel(
     r += 2
 
     # --- 측정 표(위험단계 + 수기 조치사항·비고) ---
-    headers = ["측정시각", "온도(℃)", "습도(%)", "체감온도(℃)", "위험단계", "조치사항(수기)", "비고(수기)"]
+    headers = ["측정시각", "습도(%)", "온도(℃)", "체감온도(℃)", "위험단계", "조치사항(수기)", "비고(수기)"]
     for ci, h in enumerate(headers, start=1):
         cell = ws.cell(r, ci, h)
         cell.fill = _HEADER_FILL
@@ -1278,8 +1278,8 @@ def export_excel(
             fv = float(feels) if feels is not None else None
             lvl = heat.classify(fv)
             c1 = ws.cell(r, 1, ts.strftime("%H:%M"))
-            c2 = ws.cell(r, 2, round(float(temp), 1) if temp is not None else None)
-            c3 = ws.cell(r, 3, int(humi) if humi is not None else None)
+            c2 = ws.cell(r, 2, int(humi) if humi is not None else None)
+            c3 = ws.cell(r, 3, round(float(temp), 1) if temp is not None else None)
             c4 = ws.cell(r, 4, round(fv, 1) if fv is not None else None)
             c5 = ws.cell(r, 5, lvl.label if fv is not None else "")
             if fv is not None:
