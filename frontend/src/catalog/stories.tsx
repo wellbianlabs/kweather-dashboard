@@ -9,6 +9,8 @@ import { Stepper } from "../components/Stepper";
 import { UploadPanel } from "../components/UploadPanel";
 import { DeviceRegister } from "../components/DeviceRegister";
 import { ReportPanel } from "../components/ReportPanel";
+import { WebPeriodicReport } from "./PeriodicReport";
+import { buildPeriodicData, PERIODIC_DEFAULT } from "./periodicSample";
 import { SiteFooter } from "../components/SiteFooter";
 import { RiskMapSkeleton } from "../components/RiskMapSkeleton";
 import { AppNavbar } from "../components/ui/AppNavbar";
@@ -161,6 +163,12 @@ export const STORIES: Story[] = [
   { id: "upload", group: "입력", title: "업로드 패널 (Dropzone)", file: "src/components/UploadPanel.tsx", render: () => <UploadPanel devices={mockDevices} onUploaded={() => {}} onReset={() => {}} /> },
   { id: "devices", group: "입력", title: "기기 등록·관리", file: "src/components/DeviceRegister.tsx · DeviceManager.tsx", render: () => <DeviceRegister devices={mockDevices} defaultCompany="데모 제강(주)" onChange={() => {}} /> },
   // 리포트
+  {
+    id: "periodic-report", group: "리포트", title: "기간 통계 보고서 (웹)",
+    file: "catalog/PeriodicReport.tsx · periodicReportHtml.ts",
+    desc: "기간 분석 보고서 웹 레이아웃. 2칼럼(웹↔PDF) 편집 스튜디오는 독립 URL /periodic-report-studio.html.",
+    render: () => <WebPeriodicReport data={buildPeriodicData(PERIODIC_DEFAULT)} />,
+  },
   {
     id: "report", group: "리포트", title: "리포트 패널", file: "src/components/ReportPanel.tsx",
     knobs: [{ type: "boolean", key: "hasDevice", label: "기기 선택됨", default: false }],
