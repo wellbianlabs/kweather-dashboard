@@ -596,12 +596,11 @@ def _mpl_hourly(series, th) -> str | None:
 
     # 영역 그라데이션(라인 아래) — imshow + 폴리곤 클립
     fillc = ax.fill_between(xs, ys, ymin, color="none")
-    grad = np.linspace(0.30, 0.0, 256).reshape(-1, 1)
     rgba = np.zeros((256, 1, 4))
     rgba[..., 0] = 0.86  # dc2626
     rgba[..., 1] = 0.15
     rgba[..., 2] = 0.15
-    rgba[..., 3] = grad[..., 0]
+    rgba[..., 3] = np.linspace(0.30, 0.0, 256).reshape(-1, 1)  # 위→아래 알파 감소
     im = ax.imshow(rgba, aspect="auto", extent=[0, 24, ymin, ymax], origin="upper", zorder=1)
     im.set_clip_path(fillc.get_paths()[0], transform=ax.transData)
 
