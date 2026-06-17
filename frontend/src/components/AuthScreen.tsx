@@ -1,24 +1,15 @@
 import { useState } from "react";
 import { api, setToken } from "../api";
 import type { AuthData } from "../types";
-import { SiteFooter } from "./SiteFooter";
 import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Center,
-  Divider,
-  Paper,
-  PasswordInput,
-  SegmentedControl,
-  Stack,
-  Text,
-  TextInput,
-  Title,
+  Alert, Badge, Box, Button, Divider, Group, Paper, PasswordInput,
+  SegmentedControl, Stack, Text, TextInput, ThemeIcon, Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import {
+  IconAlertTriangle, IconChartLine, IconClockShield, IconReportAnalytics,
+} from "@tabler/icons-react";
+import classes from "./AuthScreen.module.css";
 
 export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -70,23 +61,24 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
   }
 
   return (
-    <Box style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#f7f8fa" }}>
-      <Center style={{ flex: 1 }} px="md" py={40}>
-        <Box w="100%" maw={420}>
-          <Stack gap={6} align="center" mb="xl">
-            <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 36 }} />
-            <Title order={1} ta="center" mt="sm" fz={21} fw={700} c="#0f172a">
-              체감온도계 데이터 분석 프로그램
-            </Title>
-            <Text size="sm" c="dimmed" ta="center">
-              폭염·체감온도 데이터 분석 및 안전관리
-            </Text>
-            <Badge color="teal" variant="light" size="lg" radius="xl" mt={6}>
-              케이웨더 단말기 이용자 전용 · 평생 무료
-            </Badge>
-          </Stack>
+    <div className={classes.wrapper}>
+      <Paper className={classes.form} radius={0}>
+        <Box style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <Box w="100%" maw={400} mx="auto">
+            {/* 브랜딩 */}
+            <Stack gap={6} align="center" mb="xl">
+              <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 36 }} />
+              <Title order={1} ta="center" mt="sm" fz={21} fw={700}>
+                체감온도계 데이터 분석 프로그램
+              </Title>
+              <Text size="sm" c="dimmed" ta="center">
+                폭염·체감온도 데이터 분석 및 안전관리
+              </Text>
+              <Badge color="teal" variant="light" size="lg" radius="xl" mt={6}>
+                케이웨더 단말기 이용자 전용 · 평생 무료
+              </Badge>
+            </Stack>
 
-          <Paper radius="xl" p="xl" shadow="md" withBorder>
             <SegmentedControl
               fullWidth
               radius="md"
@@ -143,20 +135,44 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
             <Button variant="default" fullWidth size="md" onClick={demo} disabled={busy}>
               데모 계정으로 둘러보기
             </Button>
-          </Paper>
 
-          <Text size="xs" c="dimmed" ta="center" mt="md">
-            케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다.
-            <br />
-            회사별로 격리된 안전한 공간에서 데이터를 관리하며, 단말기 이용자는{" "}
-            <Text span fw={700} c="dark.4">
-              평생 무료
+            <Text size="xs" c="dimmed" ta="center" mt="md">
+              케이웨더 폭염온도계(체감온도계) 단말기 이용자 전용 서비스입니다. 회사별로 격리된 안전한 공간에서
+              데이터를 관리하며, 단말기 이용자는{" "}
+              <Text span fw={700} c="dark.4">평생 무료</Text>로 사용합니다.
             </Text>
-            로 사용합니다.
-          </Text>
+          </Box>
         </Box>
-      </Center>
-      <SiteFooter />
-    </Box>
+
+        <Text size="xs" c="dimmed" ta="center" pt="md">
+          © 2026 KWeather Inc. · 케이웨더(주)
+        </Text>
+      </Paper>
+
+      {/* 우측 이미지 영역 — 브랜드 카피 */}
+      <div className={classes.brand}>
+        <Title order={2} c="#fff" fz={32} fw={800} lh={1.2} mb="md" style={{ maxWidth: 560 }}>
+          현장을 지키는<br />폭염 데이터
+        </Title>
+        <Text c="rgba(255,255,255,0.82)" fz="md" mb="xl" style={{ maxWidth: 480 }}>
+          케이웨더 체감온도계로 측정한 실측 데이터로 폭염 위험을 진단하고, 산업안전보건 기준에 따른 안전관리
+          리포트를 자동 생성합니다.
+        </Text>
+        <Group gap="sm">
+          <BrandPill icon={IconReportAnalytics} label="실측 기반 안전 리포트" />
+          <BrandPill icon={IconClockShield} label="법정 휴식 의무 진단" />
+          <BrandPill icon={IconChartLine} label="위험단계 모니터링" />
+        </Group>
+      </div>
+    </div>
+  );
+}
+
+function BrandPill({ icon: Icon, label }: { icon: typeof IconChartLine; label: string }) {
+  return (
+    <span className={classes.brandPill}>
+      <ThemeIcon size={20} radius="xl" variant="transparent" c="#fff"><Icon size={16} /></ThemeIcon>
+      {label}
+    </span>
   );
 }

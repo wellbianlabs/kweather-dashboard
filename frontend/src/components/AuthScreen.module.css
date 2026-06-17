@@ -1,0 +1,54 @@
+/* 이식: Mantine UI "Authentication with image" (ui.mantine.dev, MIT)
+   좌측 폼 패널 + 우측 커버 이미지(폭염·산업현장 테마, 브랜드 그라데이션 오버레이). */
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-color: #082f68; /* 이미지 미로드 시 폴백(브랜드 네이비) */
+  background-image:
+    linear-gradient(135deg, rgba(8, 47, 104, 0.9) 0%, rgba(15, 73, 158, 0.72) 45%, rgba(217, 119, 6, 0.5) 100%),
+    url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1600&q=80');
+}
+
+.form {
+  min-height: 100vh;
+  max-width: 480px;
+  width: 100%;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-7));
+  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+/* 우측 이미지 영역의 브랜드 카피 */
+.brand {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 56px;
+  color: #fff;
+}
+
+.brandPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(4px);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 62em) {
+  .brand { display: none; }
+  .form {
+    max-width: 100%;
+    border-right: none;
+  }
+}
