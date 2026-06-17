@@ -528,6 +528,11 @@ def compare(
             if nearest[0] != -1:
                 v = outdoor.iloc[nearest[0]]
                 ot = None if pd.isna(v) else round(float(v), 1)
+                # mock(데모/시뮬레이션): 기온만 제공하므로 외부 습도·공식 체감을 합성
+                # 해 비교 그래프(기상청 체감/습도)와 보고서가 채워 보이도록 한다.
+                if ot is not None and provider.name == "mock":
+                    oh = round(max(35.0, min(85.0, 80.0 - (ot - 22.0) * 1.6)), 1)
+                    of = kma_feels_like(ot, oh)
         delta = None
         base = of if of is not None else ot
         if p.feels_like is not None and base is not None:

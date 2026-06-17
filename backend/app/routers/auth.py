@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_tenant, is_admin
+from ..deps import block_demo, get_tenant, is_admin, is_demo
 from ..models import Device, SensorLog, Tenant
 from ..schemas import AuthOut, LoginIn, ProfileUpdateIn, SignupIn
 from ..security import hash_password, new_api_key, verify_password
@@ -46,7 +46,7 @@ def signup(payload: SignupIn, db: Session = Depends(get_db)):
     db.refresh(tenant)
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=False, is_admin=is_admin(tenant),
+        has_data=False, is_admin=is_admin(tenant), is_demo=is_demo(tenant),
     )
 
 
@@ -58,7 +58,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
         raise HTTPException(401, "이메일 또는 비밀번호가 올바르지 않습니다.")
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=_has_data(db, tenant), is_admin=is_admin(tenant),
+        has_data=_has_data(db, tenant), is_admin=is_admin(tenant), is_demo=is_demo(tenant),
     )
 
 
@@ -66,7 +66,7 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 def me(tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)):
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=_has_data(db, tenant), is_admin=is_admin(tenant),
+        has_data=_has_data(db, tenant), is_admin=is_admin(tenant), is_demo=is_demo(tenant),
     )
 
 
@@ -77,6 +77,7 @@ def update_me(
     db: Session = Depends(get_db),
 ):
     """현재 테넌트의 회원정보 수정 — 이메일/사업장명/비밀번호(선택)."""
+    block_demo(tenant)
     # 이메일 변경(값이 들어왔고 기존과 다를 때만 검증/적용)
     if payload.email is not None:
         email = payload.email.strip().lower()
@@ -115,5 +116,5 @@ def update_me(
     db.refresh(tenant)
     return AuthOut(
         token=tenant.api_key, email=tenant.email, company_name=tenant.name,
-        has_data=_has_data(db, tenant), is_admin=is_admin(tenant),
+        has_data=_has_data(db, tenant), is_admin=is_admin(tenant), is_demo=is_demo(tenant),
     )

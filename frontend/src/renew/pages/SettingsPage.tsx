@@ -14,7 +14,7 @@ import { api } from "../../api";
 // 백엔드 thresholds 키(attention/caution/warning/danger)와 1:1 일치 — 관심31/주의33/경고35/위험38.
 const THRESHOLD_LABEL: Record<string, { label: string; color: string }> = {
   attention: { label: "관심", color: "#84cc16" },
-  caution: { label: "주의", color: "#eab308" },
+  caution: { label: "주의", color: "#facc15" },
   warning: { label: "경고", color: "#f97316" },
   danger: { label: "위험", color: "#dc2626" },
 };
@@ -24,6 +24,7 @@ export function SettingsPage() {
   const computed = useComputedColorScheme("light");
   const { kpi, auth, onAuthed } = useDashboard();
   const thresholds = kpi?.thresholds ?? {};
+  const isDemo = !!auth?.is_demo;
 
   const [pwOpen, setPwOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -177,8 +178,11 @@ export function SettingsPage() {
               </Stack>
             </Collapse>
 
+            {isDemo && (
+              <Text size="xs" c="dimmed">데모 계정은 읽기 전용이라 회원정보를 저장할 수 없습니다.</Text>
+            )}
             <Group justify="flex-end" mt="xs">
-              <Button type="submit" color="kw" loading={saving}>저장</Button>
+              <Button type="submit" color="kw" loading={saving} disabled={isDemo}>저장</Button>
             </Group>
           </Stack>
         </form>

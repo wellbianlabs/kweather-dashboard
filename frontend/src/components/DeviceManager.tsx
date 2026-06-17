@@ -4,7 +4,7 @@ import { modals } from "@mantine/modals";
 import { api } from "../api";
 import type { Device } from "../types";
 
-export function DeviceManager({ devices, onChange }: { devices: Device[]; onChange: () => void }) {
+export function DeviceManager({ devices, onChange, readOnly = false }: { devices: Device[]; onChange: () => void; readOnly?: boolean }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Device>>({});
   const [saving, setSaving] = useState(false);
@@ -90,8 +90,8 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
                       <Table.Td c="dimmed">{d.longitude ?? "-"}</Table.Td>
                       <Table.Td c="dimmed">{d.region_code || "-"}</Table.Td>
                       <Table.Td style={{ whiteSpace: "nowrap" }}>
-                        <Button size="xs" variant="default" onClick={() => startEdit(d)}>편집</Button>
-                        <Button size="xs" color="red" variant="subtle" ml="xs" onClick={() => remove(d.device_sn)}>삭제</Button>
+                        <Button size="xs" variant="default" disabled={readOnly} onClick={() => startEdit(d)}>편집</Button>
+                        <Button size="xs" color="red" variant="subtle" ml="xs" disabled={readOnly} onClick={() => remove(d.device_sn)}>삭제</Button>
                       </Table.Td>
                     </>
                   )}

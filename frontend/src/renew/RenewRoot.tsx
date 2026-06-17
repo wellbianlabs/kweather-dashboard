@@ -1,7 +1,7 @@
 // 리뉴얼 실 진입점 — 부팅/인증 게이트 + react-router 셸(AppShell) + 컨텍스트 바.
 // 운영 모드: 상시 네비(사이드바/모바일 탭) + 라우팅(/, /map, /report, /devices, /settings, /admin).
 import {
-  ActionIcon, AppShell, Box, Button, Center, Container, Group, Loader, Paper,
+  ActionIcon, AppShell, Badge, Box, Button, Center, Container, Group, Loader, Paper,
   SegmentedControl, Select, Stack, Text, Tooltip, useComputedColorScheme, useMantineColorScheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
@@ -67,6 +67,8 @@ function Shell() {
             onUpload={(sn) => openUpload(sn)}
             colorScheme={computed}
             onToggleTheme={toggleColorScheme}
+            isAdmin={!!auth?.is_admin}
+            isDemo={!!auth?.is_demo}
           />
         </AppShell.Navbar>
 
@@ -129,10 +131,11 @@ function Shell() {
 /** 컨텍스트 바 — 기기/기준일자/다운샘플링/리포트 기간 (실 상태 배선). */
 function ContextBar() {
   const {
-    devices, deviceSn, setDeviceSn, loadRange, date, setDate, availableDates,
+    auth, devices, deviceSn, setDeviceSn, loadRange, date, setDate, availableDates,
     interval, setIntervalMin, openUpload, lastUpload,
   } = useDashboard();
   const navigate = useNavigate();
+  const isDemo = !!auth?.is_demo;
   const lastUploadAt = deviceSn && lastUpload[deviceSn] ? lastUpload[deviceSn].slice(0, 16).replace("T", " ") : null;
 
   return (
@@ -152,9 +155,9 @@ function ContextBar() {
               })),
             ]}
           />
-          <Tooltip label={lastUploadAt ? `최근 업로드 ${lastUploadAt}` : "측정 데이터 업로드"} withArrow>
+          <Tooltip label={isDemo ? "데모 계정은 읽기 전용입니다" : (lastUploadAt ? `최근 업로드 ${lastUploadAt}` : "측정 데이터 업로드")} withArrow>
             <Button size="sm" variant="default" leftSection={<IconUpload size={16} />}
-              onClick={() => openUpload(deviceSn)}>업로드</Button>
+              disabled={isDemo} onClick={() => openUpload(deviceSn)}>업로드</Button>
           </Tooltip>
           {availableDates.length > 0 ? (
             <Select
@@ -175,10 +178,15 @@ function ContextBar() {
             />
           </Box>
         </Group>
-        <Button size="sm" variant="light" color="kw"
-          leftSection={<IconFileText size={16} />} onClick={() => navigate("/report")}>
-          기간 통계 보고서
-        </Button>
+        <Group gap="xs">
+          {isDemo && (
+            <Badge color="gray" variant="light" size="lg" radius="sm">읽기 전용 데모</Badge>
+          )}
+          <Button size="sm" variant="light" color="kw"
+            leftSection={<IconFileText size={16} />} onClick={() => navigate("/report")}>
+            기간 통계 보고서
+          </Button>
+        </Group>
       </Group>
     </Paper>
   );

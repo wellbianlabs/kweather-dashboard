@@ -14,7 +14,7 @@ import { useDashboard } from "../DashboardProvider";
 const LV = {
   safe: { label: "안전", color: "#16a34a" },
   attention: { label: "관심", color: "#84cc16" },
-  caution: { label: "주의", color: "#eab308" },
+  caution: { label: "주의", color: "#facc15" },
   warning: { label: "경고", color: "#f97316" },
   danger: { label: "위험", color: "#dc2626" },
 } as const;

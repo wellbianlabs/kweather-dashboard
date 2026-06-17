@@ -11,8 +11,8 @@ const EMPTY = (company: string) => ({
 });
 
 export function DeviceRegister({
-  devices, defaultCompany, onChange,
-}: { devices: Device[]; defaultCompany: string; onChange: () => void }) {
+  devices, defaultCompany, onChange, readOnly = false,
+}: { devices: Device[]; defaultCompany: string; onChange: () => void; readOnly?: boolean }) {
   const [form, setForm] = useState(EMPTY(defaultCompany));
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -162,14 +162,15 @@ export function DeviceRegister({
           />
         </SimpleGrid>
 
+        {readOnly && <Alert color="gray" variant="light" mt="sm">데모 계정은 읽기 전용입니다. 기기 등록·수정은 정식 계정에서 가능합니다.</Alert>}
         {geoMsg && <Alert color="teal" variant="light" mt="sm">{geoMsg}</Alert>}
         {error && <Alert color="red" variant="light" mt="sm">{error}</Alert>}
         {okMsg && <Alert color="teal" variant="light" mt="sm">{okMsg}</Alert>}
 
-        <Button loading={busy} onClick={register} mt="md">기기 등록</Button>
+        <Button loading={busy} onClick={register} mt="md" disabled={readOnly}>기기 등록</Button>
       </Paper>
 
-      <DeviceManager devices={devices} onChange={onChange} />
+      <DeviceManager devices={devices} onChange={onChange} readOnly={readOnly} />
     </Stack>
   );
 }

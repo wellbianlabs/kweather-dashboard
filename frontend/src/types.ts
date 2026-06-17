@@ -4,6 +4,7 @@ export interface AuthData {
   company_name: string;
   has_data: boolean;
   is_admin?: boolean;
+  is_demo?: boolean;
 }
 
 export interface AdminDaily {

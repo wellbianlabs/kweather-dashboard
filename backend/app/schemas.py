@@ -24,6 +24,7 @@ class AuthOut(BaseModel):
     company_name: str
     has_data: bool = False  # 기존 업로드 데이터 유무 (온보딩 단계 결정용)
     is_admin: bool = False  # 관리자 대시보드 접근 가능 여부
+    is_demo: bool = False   # 공용 데모(읽기 전용) 계정 여부
 
 
 class ProfileUpdateIn(BaseModel):

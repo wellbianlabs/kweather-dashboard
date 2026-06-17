@@ -8,7 +8,7 @@ export function DevicesPage() {
   const { devices, auth, loadDevices } = useDashboard();
   return (
     <Stack gap="md">
-      <DeviceRegister devices={devices} defaultCompany={auth?.company_name ?? ""} onChange={loadDevices} />
+      <DeviceRegister devices={devices} defaultCompany={auth?.company_name ?? ""} onChange={loadDevices} readOnly={!!auth?.is_demo} />
     </Stack>
   );
 }

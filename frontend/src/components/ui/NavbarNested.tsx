@@ -27,11 +27,13 @@ interface NavbarNestedProps {
   onUpload?: (sn: string) => void;
   colorScheme?: "light" | "dark";
   onToggleTheme?: () => void;
+  isAdmin?: boolean;
+  isDemo?: boolean;
 }
 
 export function NavbarNested({
   currentPath, onNavigate, account, devices = [], currentDevice, onSelectDevice, onUpload,
-  colorScheme = "light", onToggleTheme,
+  colorScheme = "light", onToggleTheme, isAdmin = false, isDemo = false,
 }: NavbarNestedProps) {
   const onDash = currentPath === "/";
 
@@ -56,9 +58,10 @@ export function NavbarNested({
               onClick={() => { onSelectDevice?.(d.device_sn); onNavigate?.("/"); }}
               leftSection={<Box w={8} h={8} style={{ borderRadius: 4, background: cur ? "var(--mantine-color-kw-6)" : "var(--mantine-color-gray-4)" }} />}
               rightSection={
-                <Tooltip label="측정 데이터 업로드" withArrow position="right">
+                <Tooltip label={isDemo ? "데모 계정은 읽기 전용입니다" : "측정 데이터 업로드"} withArrow position="right">
                   <ActionIcon component="div" variant="light" color="kw" size="md" radius="sm" aria-label="upload"
-                    onClick={(e) => { e.stopPropagation(); onUpload?.(d.device_sn); }}>
+                    disabled={isDemo} data-disabled={isDemo || undefined}
+                    onClick={(e) => { e.stopPropagation(); if (!isDemo) onUpload?.(d.device_sn); }}>
                     <IconPlus size={16} />
                   </ActionIcon>
                 </Tooltip>
@@ -79,8 +82,10 @@ export function NavbarNested({
           leftSection={<IconFileText size={20} stroke={1.6} />} onClick={() => onNavigate?.("/report")} />
         <NavLink label="기기 관리" active={currentPath === "/devices"} variant="light" color="kw" mb={4} styles={ITEM_STYLES}
           leftSection={<IconDeviceDesktopAnalytics size={20} stroke={1.6} />} onClick={() => onNavigate?.("/devices")} />
-        <NavLink label="관리자" active={currentPath === "/admin"} variant="light" color="kw" styles={ITEM_STYLES}
-          leftSection={<IconShieldHalf size={20} stroke={1.6} />} onClick={() => onNavigate?.("/admin")} />
+        {isAdmin && (
+          <NavLink label="관리자" active={currentPath === "/admin"} variant="light" color="kw" styles={ITEM_STYLES}
+            leftSection={<IconShieldHalf size={20} stroke={1.6} />} onClick={() => onNavigate?.("/admin")} />
+        )}
       </div>
 
       <div className={classes.footer}>
