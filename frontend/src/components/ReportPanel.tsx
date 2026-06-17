@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from "recharts";
 import {
   Alert, Box, Button, Center, Group, List, Loader, Modal, Paper, Progress,
@@ -422,19 +422,29 @@ function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
 export function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
   if (!hours.length) return null;
   const data = fill24(hours).map((c, h) => ({ time: `${String(h).padStart(2, "0")}시`, 체감온도: c?.feels ?? null }));
+  const valid = data.filter((d): d is { time: string; 체감온도: number } => d.체감온도 != null);
+  const peak = valid.length ? valid.reduce((a, b) => (b.체감온도 > a.체감온도 ? b : a)) : null;
+  const tline = (v: number, label: string, stroke: string, fill: string) => (
+    <ReferenceLine y={v} stroke={stroke} strokeDasharray="5 4"
+      label={{ value: label, fontSize: 10, fontWeight: 600, fill, position: "insideRight", dy: -7 }} />
+  );
   return (
     <Box mt="sm">
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={data} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-          <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={20} />
-          <YAxis tick={{ fontSize: 10 }} unit="℃" domain={["auto", "auto"]} />
+      <ResponsiveContainer width="100%" height={250}>
+        <ComposedChart data={data} margin={{ top: 24, right: 12, left: -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+          <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#94a3b8" }} minTickGap={20} axisLine={{ stroke: "#cbd5e1" }} tickLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} unit="℃" domain={["auto", "auto"]} axisLine={false} tickLine={false} />
           <Tooltip content={<ChartTooltip units={{ 체감온도: "℃" }} />} />
-          <ReferenceLine y={31} stroke="#84cc16" strokeDasharray="4 4" label={{ value: "관심 31", fontSize: 9, fill: "#65a30d", position: "right" }} />
-          <ReferenceLine y={33} stroke="#eab308" strokeDasharray="4 4" label={{ value: "주의 33", fontSize: 9, fill: "#a16207", position: "right" }} />
-          <ReferenceLine y={35} stroke="#f97316" strokeDasharray="4 4" label={{ value: "경고 35", fontSize: 9, fill: "#c2410c", position: "right" }} />
-          <ReferenceLine y={38} stroke="#dc2626" strokeDasharray="4 4" label={{ value: "위험 38", fontSize: 9, fill: "#b91c1c", position: "right" }} />
-          <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.2} dot={false} connectNulls />
+          {tline(31, "관심 31", "#84cc16", "#65a30d")}
+          {tline(33, "주의 33", "#eab308", "#a16207")}
+          {tline(35, "경고 35", "#f97316", "#c2410c")}
+          {tline(38, "위험 38", "#dc2626", "#b91c1c")}
+          <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.4} dot={false} connectNulls />
+          {peak && (
+            <ReferenceDot x={peak.time} y={peak.체감온도} r={4.5} fill="#dc2626" stroke="#fff" strokeWidth={2}
+              label={{ value: `${peak.체감온도}℃`, position: "top", fontSize: 12, fontWeight: 700, fill: "#dc2626", dy: -2 }} />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </Box>

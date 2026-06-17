@@ -46,7 +46,7 @@ export function ReportStudio() {
   // recharts 렌더 후 PNG 캡처
   useEffect(() => {
     const t = setTimeout(async () => {
-      const opts = { pixelRatio: 2, backgroundColor: "#ffffff", cacheBust: true };
+      const opts = { pixelRatio: 3, backgroundColor: "#ffffff", cacheBust: true }; // 고해상도(3×)
       try {
         const [hourly, compare] = await Promise.all([
           hourlyRef.current ? toPng(hourlyRef.current, opts) : Promise.resolve(undefined),
