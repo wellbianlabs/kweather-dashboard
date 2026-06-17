@@ -9,7 +9,10 @@
 - **#5 리뉴얼 실 진입점 승격** — react-router + 인증 게이트 + 실데이터 배선. `index.html`→`RenewRoot`. 라우트 `/`·`/map`·`/report`·`/devices`·`/settings`·`/admin`. 컨텍스트바·다크모드·모바일탭. 실렌더 검증 콘솔에러 0(`design_screenshots/renew_*.png`).
   - 신규: `src/renew/{DashboardProvider,RenewRoot}.tsx` + `src/renew/pages/{Dashboard,Map,Report,Devices,Settings}Page.tsx`. ui/ NavbarNested·LinksGroup·AccountButton 라우터-인지화.
   - **미푸시 결정**: 사용자 "로컬만 유지" · **리브랜딩(#6) 보류**(theme v2/다크 컨셉 나중).
-  - **남은 폴리시(#5 후속)**: DataTable·RiskMapSkeleton 실데이터 미배선(데모) · DataTable 다크모드 색 · `App.tsx`(구 위저드)·`renew.html`/`renew.tsx`/구 `RenewApp` = **고아**(승격으로 대체, 추후 제거) · BrowserRouter SPA fallback(백엔드 서빙 시 catch-all 필요).
+- **로그인 화면 Mantine "Authentication with image" 이식**(커밋 `6211fb1`) — 2단(폼+커버) 반응형, 인증로직 보존. 배경이미지 비테마(안개 건물) → 교체 후보.
+- **클래스 네임스페이스 kw-dash 재정립**(커밋 `fea144d`) — `classNamesPrefix="kw-dash"`×5 + Vite css.modules. mantine-* 잔존 2(전역 focus/active)만.
+- **#5 후속 완료**(커밋 `a05e2a7`): DataTable·RiskMap **실데이터 배선**(per-device kpi `sites` 레이어+`siteAdapters`) · **다크모드 수정**(index.css body light-dark — 하드코딩 #1e293b가 다크 텍스트 묻히던 핵심버그) · **고아 4종 삭제**(App.tsx·renew.*) · **백엔드 SPA fallback**(`SPAStaticFiles`, /api 가드).
+  - **남은 폴리시**: DataTable/RiskMap 정렬·`현재 외부 날씨` 위젯 정식 엔드포인트(`/api/weather/current` 고아) · Leaflet 정식지도(현 스켈레톤) · 로그인 배경이미지 교체 · #6 리브랜딩 · origin push.
 
 ## 1. 현재 상태
 - **스택**: React 19.2.7 + Mantine 9.3.1 + recharts 3.8.1 + Vite 5 + d3-geo + react-pdf 10.4.1
