@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date as date_cls, datetime, time
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -18,6 +19,13 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 def _now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def _content_disposition(filename: str) -> str:
+    """한글 등 비-ASCII 파일명 안전 처리(RFC 5987). HTTP 헤더는 latin-1만 허용하므로
+    ASCII 폴백 + UTF-8 percent-encoding(filename*)을 함께 제공한다."""
+    ascii_fb = filename.encode("ascii", "ignore").decode().strip() or "report.pdf"
+    return f"attachment; filename=\"{ascii_fb}\"; filename*=UTF-8''{quote(filename)}"
 
 
 @router.get("/daily", response_model=DailyReportData)
@@ -40,7 +48,7 @@ def daily_pdf(
     fn = f"daily_{device_sn}_{on_date.isoformat()}.pdf"
     return Response(
         content=pdf, media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+        headers={"Content-Disposition": _content_disposition(fn)},
     )
 
 
@@ -53,7 +61,7 @@ def periodic_pdf(
     fn = f"periodic_{start.isoformat()}_{end.isoformat()}.pdf"
     return Response(
         content=pdf, media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+        headers={"Content-Disposition": _content_disposition(fn)},
     )
 
 
@@ -70,5 +78,5 @@ def export_xlsx(
     return Response(
         content=xlsx,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+        headers={"Content-Disposition": _content_disposition(fn)},
     )
