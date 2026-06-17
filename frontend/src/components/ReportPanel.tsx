@@ -419,7 +419,7 @@ function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
 }
 
 /** 시간별 체감온도 변화 그래프(단계 임계선 포함). */
-function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
+export function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
   if (!hours.length) return null;
   const data = fill24(hours).map((c, h) => ({ time: `${String(h).padStart(2, "0")}시`, 체감온도: c?.feels ?? null }));
   return (
