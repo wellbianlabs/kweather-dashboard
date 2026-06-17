@@ -117,7 +117,7 @@ export function ReportPage() {
     dailyReady && showPreview("daily", api.dailyPdfUrl(deviceSn!, onDate), `daily_${deviceSn}_${onDate}.pdf`);
   const onDailyDownload = () =>
     dailyReady && downloadOnly("daily", api.dailyPdfUrl(deviceSn!, onDate), `daily_${deviceSn}_${onDate}.pdf`);
-  // 엑셀은 '당일 측정데이터' — 분석 일자(onDate) 하루치. 측정기 선택 필수.
+  // 엑셀은 '일일 측정데이터' — 분석 일자(onDate) 하루치. 측정기 선택 필수.
   const onExcel = () =>
     dailyReady && downloadOnly("excel", api.excelUrl(deviceSn, onDate, onDate), `data_${deviceSn}_${onDate}.xlsx`);
 
@@ -158,7 +158,7 @@ export function ReportPage() {
             leftSection={<IconDeviceDesktopAnalytics size={16} />}
             value={deviceSn ?? ""} onChange={(v) => setDeviceSn(v || null)} data={deviceData} />
 
-          {/* 분석 일자: 일일 보고서 & 당일 Excel 공용 기준(항상 표시) */}
+          {/* 분석 일자: 일일 보고서 & 일일 Excel 공용 기준(항상 표시) */}
           <DateField label="분석 일자" value={onDate} onChange={setOnDate} />
           {type === "periodic" && (
             <>
@@ -173,12 +173,12 @@ export function ReportPage() {
               data={[{ label: "일일 보고서", value: "daily" }, { label: "기간 통계 보고서", value: "periodic" }]} />
           </Box>
 
-          {/* 메뉴 항상 노출: 보고서 생성 + 당일 Excel */}
+          {/* 메뉴 항상 노출: 보고서 생성 + 일일 Excel */}
           <Button color="kw" leftSection={<IconFileText size={16} />}
             loading={busy === "report" || busy === "periodic"} disabled={!submitReady || busy !== null}
             onClick={onSubmit}>보고서 생성</Button>
           <Button variant="light" color="teal" leftSection={<IconFileSpreadsheet size={16} />}
-            loading={busy === "excel"} disabled={!dailyReady || busy !== null} onClick={onExcel}>당일 Excel</Button>
+            loading={busy === "excel"} disabled={!dailyReady || busy !== null} onClick={onExcel}>일일 Excel</Button>
         </Group>
         {type === "periodic" && start > end && (
           <Text size="xs" c="red.7" mt="xs">종료 일자는 시작 일자 이후여야 합니다.</Text>
