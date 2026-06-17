@@ -1,29 +1,26 @@
 // 일일 보고서 리디자인 2칼럼 워크스페이스 (독립 URL /report-studio.html).
-// 좌: 실 WebReport · 우: PDF 생성전 HTML(A4, xhtml2pdf 호환).
-// 차트 = 웹 recharts 를 그대로 PNG 캡처(html-to-image)해 PDF 에 임베드 → 웹과 픽셀 동일, 백엔드 차트엔진 불필요.
+// 상단 편집 컨트롤로 핵심 값을 임의 입력 → 웹/PDF 즉시 갱신. 차트=recharts PNG 캡처.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Box, Group, Stack, Text } from "@mantine/core";
+import {
+  Badge, Box, Button, Group, NumberInput, Paper, SimpleGrid, Stack, Text, TextInput,
+} from "@mantine/core";
 import {
   CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { toPng } from "html-to-image";
 import { HourlyChart, HourlyTable, WebReport } from "../components/ReportPanel";
 import { ChartTooltip } from "../components/chartkit";
-import { SAMPLE_DAILY, SAMPLE_PDF, SAMPLE_SN } from "./reportSample";
+import { buildReportData, DEFAULT_PARAMS, type ReportParams, type PdfData } from "./reportSample";
 import { renderDailyReportHtml } from "./dailyReportHtml";
 
-const A4_W = 794; // 210mm @ 96dpi
-const CAP_W = 980; // 캡처 폭(가로형 차트)
+const A4_W = 794;
+const CAP_W = 980;
 
-/** PDF 임베드용 내·외부 비교 recharts 차트 (캡처 소스). */
-function ReportCompareChart() {
-  const data = SAMPLE_PDF.hours.map((h) => ({ t: `${String(h.hour).padStart(2, "0")}시`, 현장: h.feels, 야외: h.out_feels }));
+function ReportCompareChart({ hours }: { hours: PdfData["hours"] }) {
+  const data = hours.map((h) => ({ t: `${String(h.hour).padStart(2, "0")}시`, 현장: h.feels, 야외: h.out_feels }));
   return (
     <ResponsiveContainer width="100%" height={250}>
       <ComposedChart data={data} margin={{ top: 16, right: 16, left: -8, bottom: 0 }}>
-        <defs>
-          <linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#dc2626" stopOpacity={0.16} /><stop offset="100%" stopColor="#dc2626" stopOpacity={0} /></linearGradient>
-        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
         <XAxis dataKey="t" tick={{ fontSize: 11, fill: "#94a3b8" }} minTickGap={24} axisLine={{ stroke: "#cbd5e1" }} tickLine={false} />
         <YAxis unit="℃" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
@@ -37,6 +34,9 @@ function ReportCompareChart() {
 }
 
 export function ReportStudio() {
+  const [params, setParams] = useState<ReportParams>(DEFAULT_PARAMS);
+  const { daily, pdf } = useMemo(() => buildReportData(params), [params]);
+
   const hourlyRef = useRef<HTMLDivElement>(null);
   const cmpRef = useRef<HTMLDivElement>(null);
   const heatRef = useRef<HTMLDivElement>(null);
@@ -44,33 +44,32 @@ export function ReportStudio() {
   const [charts, setCharts] = useState<{ hourly?: string; compare?: string; heatmap?: string }>({});
   const [capturing, setCapturing] = useState(true);
 
-  // recharts/히트맵 렌더 후 PNG 캡처
+  // 데이터 변경 시 차트 재렌더 후 PNG 캡처(타임아웃이 디바운스 역할)
   useEffect(() => {
+    setCapturing(true);
     const t = setTimeout(async () => {
-      const opts = { pixelRatio: 3, backgroundColor: "#ffffff", cacheBust: true }; // 고해상도(3×)
+      const opts = { pixelRatio: 3, backgroundColor: "#ffffff", cacheBust: true };
       const cap = (el: HTMLElement | null) => (el ? toPng(el, opts) : Promise.resolve(undefined));
       try {
-        const [hourly, compare, heatmap] = await Promise.all([
-          cap(hourlyRef.current), cap(cmpRef.current), cap(heatRef.current),
-        ]);
+        const [hourly, compare, heatmap] = await Promise.all([cap(hourlyRef.current), cap(cmpRef.current), cap(heatRef.current)]);
         setCharts({ hourly, compare, heatmap });
       } catch (e) {
         console.error("chart capture failed", e);
       } finally {
         setCapturing(false);
       }
-    }, 700); // 애니메이션/폰트 안정화 대기
+    }, 700);
     return () => clearTimeout(t);
-  }, []);
+  }, [daily, pdf]);
 
   const pdfHtml = useMemo(
-    () => renderDailyReportHtml(SAMPLE_PDF, {
+    () => renderDailyReportHtml(pdf, {
       previewMargins: true,
       chartHourly: charts.hourly ?? null,
       chartCompare: charts.compare ?? null,
       heatmap: charts.heatmap ?? null,
     }),
-    [charts],
+    [pdf, charts],
   );
 
   const fit = () => {
@@ -81,13 +80,43 @@ export function ReportStudio() {
     } catch { /* noop */ }
   };
 
+  const num = (key: keyof ReportParams, label: string, props: Record<string, unknown> = {}) => (
+    <NumberInput size="xs" label={label} value={params[key] as number}
+      onChange={(v) => setParams((p) => ({ ...p, [key]: Number(v) || 0 }))} {...props} />
+  );
+  const txt = (key: keyof ReportParams, label: string, w?: number) => (
+    <TextInput size="xs" label={label} w={w} value={params[key] as string}
+      onChange={(e) => setParams((p) => ({ ...p, [key]: e.currentTarget.value }))} />
+  );
+
   return (
-    <>
-      {/* 오프스크린 캡처 소스 — recharts 차트(PDF 임베드용 PNG 생성) */}
+    <Stack gap="md">
+      {/* 편집 컨트롤 — 각 값 임의 적용 */}
+      <Paper withBorder radius="md" p="md">
+        <Group justify="space-between" mb="sm">
+          <Group gap="xs"><Badge color="kw" radius="sm">데이터 편집</Badge><Text size="xs" c="dimmed">값 변경 시 웹·PDF 즉시 갱신(차트는 ~0.7s 후 재캡처)</Text></Group>
+          <Button size="xs" variant="default" onClick={() => setParams(DEFAULT_PARAMS)}>기본값 복원</Button>
+        </Group>
+        <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="sm" verticalSpacing="sm">
+          {txt("company", "사업장")}
+          {txt("location", "설치 위치")}
+          {txt("address", "소재지")}
+          {txt("sn", "측정기 SN")}
+          {txt("date", "대상 일자")}
+          {num("humidity", "평균 습도(%)", { min: 0, max: 100 })}
+          {num("baseFeels", "기준 체감(℃)", { step: 0.5, min: 10, max: 45 })}
+          {num("peakFeels", "최고 체감(℃)", { step: 0.1, min: 10, max: 50 })}
+          {num("peakHour", "피크 시각(0~23)", { min: 0, max: 23 })}
+          {num("maxTemp", "최고 기온(℃)", { step: 0.1, min: 10, max: 50 })}
+          {num("extDiff", "외부 체감차(℃)", { step: 0.1, min: -5, max: 15 })}
+        </SimpleGrid>
+      </Paper>
+
+      {/* 오프스크린 캡처 소스 */}
       <Box style={{ position: "absolute", left: -99999, top: 0, width: CAP_W, pointerEvents: "none" }} aria-hidden>
-        <div ref={hourlyRef} style={{ width: CAP_W, background: "#fff" }}><HourlyChart hours={SAMPLE_DAILY.hours} animate={false} /></div>
-        <div ref={cmpRef} style={{ width: CAP_W, background: "#fff" }}><ReportCompareChart /></div>
-        <div ref={heatRef} style={{ width: CAP_W, background: "#fff", padding: "6px 4px" }}><HourlyTable hours={SAMPLE_DAILY.hours} /></div>
+        <div ref={hourlyRef} style={{ width: CAP_W, background: "#fff" }}><HourlyChart hours={daily.hours} animate={false} /></div>
+        <div ref={cmpRef} style={{ width: CAP_W, background: "#fff" }}><ReportCompareChart hours={pdf.hours} /></div>
+        <div ref={heatRef} style={{ width: CAP_W, background: "#fff", padding: "6px 4px" }}><HourlyTable hours={daily.hours} /></div>
       </Box>
 
       <Group align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: "min-content" }}>
@@ -95,12 +124,12 @@ export function ReportStudio() {
         <Stack gap={8} style={{ flex: 1, minWidth: 460 }}>
           <Group gap="xs" wrap="nowrap">
             <Badge variant="light" color="kw" radius="sm">웹 보고서</Badge>
-            <Text size="xs" c="dimmed" truncate>src/components/ReportPanel.tsx · WebReport</Text>
+            <Text size="xs" c="dimmed" truncate>ReportPanel.tsx · WebReport</Text>
           </Group>
-          <WebReport report={SAMPLE_DAILY} deviceSn={SAMPLE_SN} />
+          <WebReport report={daily} deviceSn={params.sn} />
         </Stack>
 
-        {/* 우: PDF 생성전 HTML (A4) */}
+        {/* 우: PDF 생성전 HTML */}
         <Stack gap={8} style={{ flexShrink: 0, width: A4_W }}>
           <Group gap="xs" wrap="nowrap">
             <Badge variant="light" color="grape" radius="sm">PDF 생성전 HTML</Badge>
@@ -111,9 +140,9 @@ export function ReportStudio() {
             <iframe ref={iref} title="daily-pdf-html" srcDoc={pdfHtml} onLoad={fit}
               style={{ width: A4_W, height: 1400, border: 0, background: "#fff", display: "block" }} />
           </Box>
-          <Text size="xs" c="dimmed" maw={A4_W}>※ 차트는 웹 recharts 를 html-to-image 로 PNG 캡처 → PDF 임베드(웹과 픽셀 동일). 백엔드 차트엔진 불필요.</Text>
+          <Text size="xs" c="dimmed" maw={A4_W}>※ 차트는 웹 recharts 를 PNG 캡처해 임베드(웹=PDF). 실 PDF는 xhtml2pdf 변환.</Text>
         </Stack>
       </Group>
-    </>
+    </Stack>
   );
 }
