@@ -5,9 +5,11 @@ import {
   Badge, Box, Button, Group, NumberInput, Paper, SimpleGrid, Stack, Text, TextInput,
 } from "@mantine/core";
 import { toPng } from "html-to-image";
+import { IconDownload } from "@tabler/icons-react";
 import { PeriodicTrendChart, WebPeriodicReport } from "./PeriodicReport";
 import { buildPeriodicData, PERIODIC_DEFAULT, type PeriodicParams } from "./periodicSample";
 import { renderPeriodicReportHtml } from "./periodicReportHtml";
+import { downloadHtml } from "./downloadHtml";
 
 const A4_W = 794;
 const CAP_W = 980;
@@ -93,10 +95,16 @@ export function PeriodicReportStudio() {
         </Stack>
 
         <Stack gap={8} style={{ flexShrink: 0, width: A4_W }}>
-          <Group gap="xs" wrap="nowrap">
-            <Badge variant="light" color="grape" radius="sm">PDF 생성전 HTML</Badge>
-            <Text size="xs" c="dimmed" truncate>_PERIODIC_TEMPLATE (xhtml2pdf · A4) · 차트=recharts PNG</Text>
-            {capturing && <Badge variant="light" color="yellow" radius="sm" size="sm">차트 캡처 중…</Badge>}
+          <Group gap="xs" wrap="nowrap" justify="space-between">
+            <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+              <Badge variant="light" color="grape" radius="sm">PDF 생성전 HTML</Badge>
+              <Text size="xs" c="dimmed" truncate>_PERIODIC_TEMPLATE (xhtml2pdf · A4)</Text>
+              {capturing && <Badge variant="light" color="yellow" radius="sm" size="sm">캡처 중…</Badge>}
+            </Group>
+            <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} disabled={capturing}
+              onClick={() => downloadHtml(pdfHtml, `폭염안전관리_기간보고서_${data.start}_${data.end}_${data.sn}.html`)}>
+              HTML 내보내기
+            </Button>
           </Group>
           <Box style={{ width: A4_W, background: "#fff", boxShadow: "0 2px 14px rgba(15,23,42,0.13)", border: "1px solid var(--mantine-color-gray-3)" }}>
             <iframe ref={iref} title="periodic-pdf-html" srcDoc={pdfHtml} onLoad={fit}
