@@ -7,7 +7,7 @@ import {
   CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { toPng } from "html-to-image";
-import { HourlyChart, WebReport } from "../components/ReportPanel";
+import { HourlyChart, HourlyTable, WebReport } from "../components/ReportPanel";
 import { ChartTooltip } from "../components/chartkit";
 import { SAMPLE_DAILY, SAMPLE_PDF, SAMPLE_SN } from "./reportSample";
 import { renderDailyReportHtml } from "./dailyReportHtml";
@@ -39,20 +39,21 @@ function ReportCompareChart() {
 export function ReportStudio() {
   const hourlyRef = useRef<HTMLDivElement>(null);
   const cmpRef = useRef<HTMLDivElement>(null);
+  const heatRef = useRef<HTMLDivElement>(null);
   const iref = useRef<HTMLIFrameElement>(null);
-  const [charts, setCharts] = useState<{ hourly?: string; compare?: string }>({});
+  const [charts, setCharts] = useState<{ hourly?: string; compare?: string; heatmap?: string }>({});
   const [capturing, setCapturing] = useState(true);
 
-  // recharts 렌더 후 PNG 캡처
+  // recharts/히트맵 렌더 후 PNG 캡처
   useEffect(() => {
     const t = setTimeout(async () => {
       const opts = { pixelRatio: 3, backgroundColor: "#ffffff", cacheBust: true }; // 고해상도(3×)
+      const cap = (el: HTMLElement | null) => (el ? toPng(el, opts) : Promise.resolve(undefined));
       try {
-        const [hourly, compare] = await Promise.all([
-          hourlyRef.current ? toPng(hourlyRef.current, opts) : Promise.resolve(undefined),
-          cmpRef.current ? toPng(cmpRef.current, opts) : Promise.resolve(undefined),
+        const [hourly, compare, heatmap] = await Promise.all([
+          cap(hourlyRef.current), cap(cmpRef.current), cap(heatRef.current),
         ]);
-        setCharts({ hourly, compare });
+        setCharts({ hourly, compare, heatmap });
       } catch (e) {
         console.error("chart capture failed", e);
       } finally {
@@ -67,6 +68,7 @@ export function ReportStudio() {
       previewMargins: true,
       chartHourly: charts.hourly ?? null,
       chartCompare: charts.compare ?? null,
+      heatmap: charts.heatmap ?? null,
     }),
     [charts],
   );
@@ -85,6 +87,7 @@ export function ReportStudio() {
       <Box style={{ position: "absolute", left: -99999, top: 0, width: CAP_W, pointerEvents: "none" }} aria-hidden>
         <div ref={hourlyRef} style={{ width: CAP_W, background: "#fff" }}><HourlyChart hours={SAMPLE_DAILY.hours} animate={false} /></div>
         <div ref={cmpRef} style={{ width: CAP_W, background: "#fff" }}><ReportCompareChart /></div>
+        <div ref={heatRef} style={{ width: CAP_W, background: "#fff", padding: "6px 4px" }}><HourlyTable hours={SAMPLE_DAILY.hours} /></div>
       </Box>
 
       <Group align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: "min-content" }}>

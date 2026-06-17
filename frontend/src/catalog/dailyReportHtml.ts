@@ -8,7 +8,7 @@ const CODES = ["attention", "caution", "warning", "danger"] as const;
 /** 재설계 PDF HTML(문자열). chartImg* 가 주어지면(백엔드 PNG data-uri) 삽입, 없으면(카탈로그) 플레이스홀더. */
 export function renderDailyReportHtml(
   d: PdfData,
-  opts: { reportNo?: string; generated?: string; chartHourly?: string | null; chartCompare?: string | null; font?: string; previewMargins?: boolean } = {},
+  opts: { reportNo?: string; generated?: string; chartHourly?: string | null; chartCompare?: string | null; heatmap?: string | null; font?: string; previewMargins?: boolean } = {},
 ): string {
   const reportNo = opts.reportNo ?? `KW-HS-${d.date.replace(/-/g, "")}-${d.device_sn.slice(-4)}`;
   const generated = opts.generated ?? `${d.date} 09:42`;
@@ -27,6 +27,9 @@ export function renderDailyReportHtml(
     <tr><td class="h24k">체감(℃)</td>${d.hours.map((h) => `<td style="background:${h.color}; color:#fff; font-weight:bold;">${h.feels ?? "-"}</td>`).join("")}</tr>
   </table>`;
 
+  // 히트맵: 캡처 PNG(웹 라운드칩 동일) 우선, 없으면 테이블 폴백
+  const heatmapHtml = opts.heatmap ? `<img src="${opts.heatmap}" style="width:100%; display:block;"/>` : hourlyStrip;
+
   const workHours = d.hours.filter((h) => h.hour >= 9 && h.hour < 18);
 
   return `<!doctype html><html><head><meta charset="utf-8"/><style>
@@ -34,15 +37,14 @@ export function renderDailyReportHtml(
 body { font-family: ${font}; font-size: 9pt; color:#1f2937; line-height:1.5; ${bodyPad} }
 table { width:100%; border-collapse: collapse; }
 
-/* 헤더 밴드(네이비) */
+/* 헤더 — 미니멀(네이비 밴드 제거, 영문 부제 → 식별번호) */
 .band { margin-bottom: 0; }
-.band td { padding: 11px 14px; vertical-align: middle; }
-.band-l { background:#0c3d85; }
-.band-r { background:#0c3d85; text-align:right; width:30%; }
-.band-title { color:#ffffff; font-size:15pt; font-weight:bold; letter-spacing:-0.3pt; }
-.band-sub { color:#9dc0ea; font-size:6.6pt; letter-spacing:2pt; margin-top:2pt; }
-.band-meta { color:#9dc0ea; font-size:7pt; }
-.band-date { color:#ffffff; font-size:11pt; font-weight:bold; margin-top:1pt; }
+.band td { padding: 0 0 9px 0; vertical-align: bottom; border-bottom: 1px solid #cbd5e1; }
+.band-r { text-align:right; width:30%; }
+.band-title { color:#0f172a; font-size:16pt; font-weight:bold; letter-spacing:-0.4pt; }
+.band-id { color:#64748b; font-size:8pt; letter-spacing:0.3pt; margin-top:3pt; }
+.band-meta { color:#94a3b8; font-size:7pt; }
+.band-date { color:#0f172a; font-size:12pt; font-weight:bold; margin-top:1pt; }
 
 /* 요약 히어로 스트립 */
 .hero td { border-bottom:1px solid #e2e8f0; padding:8px 12px; vertical-align:top; }
@@ -89,10 +91,10 @@ h2 .ex { font-size:7.8pt; color:#64748b; font-weight:normal; }
 <table class="band"><tr>
   <td class="band-l">
     <div class="band-title">폭염 안전관리 일일 보고서</div>
-    <div class="band-sub">HEAT STRESS DAILY MANAGEMENT REPORT</div>
+    <div class="band-id">${reportNo}</div>
   </td>
   <td class="band-r">
-    <div class="band-meta">${reportNo}</div>
+    <div class="band-meta">대상 일자</div>
     <div class="band-date">${d.date}</div>
   </td>
 </tr></table>
@@ -146,8 +148,8 @@ h2 .ex { font-size:7.8pt; color:#64748b; font-weight:normal; }
 </table>
 <p class="note">※ 각 단계 기준 체감온도 이상 누적 노출시간 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
-<h2><span class="no">4</span> 시간별 체감온도 변화 <span class="ex">(전일 24시간 · 음영=근무시간)</span></h2>
-${hourlyStrip}
+<h2><span class="no">4</span> 시간별 체감온도 변화 <span class="ex">(전일 24시간 · 테두리=근무시간)</span></h2>
+${heatmapHtml}
 ${chartBox("시간별 체감온도 변화 그래프", opts.chartHourly)}
 <p class="note">※ 표 색상 = 시간대별 폭염 위험단계 · 그래프 점선 = 단계 임계값</p>
 

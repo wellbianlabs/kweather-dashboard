@@ -226,6 +226,7 @@ function HeroCell({ label, value, unit, sub, accent, node, divider }: {
 /** 웹 보고서 — 일일 보고서를 PDF 변환 전 HTML 레이아웃으로 표출. */
 export function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string }) {
   const lv = report.peak_level;
+  const reportNo = `KW-HS-${report.date.replace(/-/g, "")}-${deviceSn.slice(-4)}`;
   const Info = ({ k, v }: { k: string; v: ReactNode }) => (
     <Group gap={0} wrap="nowrap" align="stretch"
       style={{ borderBottom: "1px solid var(--mantine-color-gray-1)" }}>
@@ -251,18 +252,16 @@ export function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn:
 
   return (
     <Paper withBorder radius="lg" style={{ overflow: "hidden" }}>
-      {/* 헤더 밴드 — 네이비 */}
-      <Box px="lg" py="md" style={{ background: "linear-gradient(120deg, var(--mantine-color-kw-8), var(--mantine-color-kw-6))" }}>
-        <Group justify="space-between" align="center" wrap="nowrap">
+      {/* 헤더 — 미니멀 (네이비 밴드 제거, 영문 부제 → 식별번호) */}
+      <Box px="lg" pt="lg" pb="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+        <Group justify="space-between" align="flex-end" wrap="nowrap">
           <Box style={{ minWidth: 0 }}>
-            <Text fw={800} fz="lg" c="#fff" style={{ letterSpacing: "-0.01em" }}>폭염 안전관리 일일 보고서</Text>
-            <Text fz={10} fw={500} mt={2} style={{ color: "rgba(255,255,255,0.72)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-              Heat Stress Daily Management Report
-            </Text>
+            <Text fw={800} fz="xl" style={{ letterSpacing: "-0.02em" }}>폭염 안전관리 일일 보고서</Text>
+            <Text fz="xs" c="dimmed" mt={4} style={{ letterSpacing: "0.02em" }}>{reportNo}</Text>
           </Box>
           <Box ta="right" style={{ flexShrink: 0 }}>
-            <Text fz={10} style={{ color: "rgba(255,255,255,0.7)" }}>대상 일자</Text>
-            <Text fw={700} c="#fff">{report.date}</Text>
+            <Text fz={10} c="dimmed">대상 일자</Text>
+            <Text fw={700} fz="md">{report.date}</Text>
           </Box>
         </Group>
       </Box>
@@ -385,36 +384,46 @@ function fill24(hours: DailyHourPoint[]): (DailyHourPoint | null)[] {
   return Array.from({ length: 24 }, (_, h) => map.get(h) ?? null);
 }
 
-/** 시간별 체감온도 색상 표(24시간). */
-function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
+const HEAT_LEGEND: [string, string][] = [["관심", "#84cc16"], ["주의", "#eab308"], ["경고", "#f97316"], ["위험", "#dc2626"]];
+
+/** 시간별 체감온도 히트맵(24시간) — 라운드 칩 + 근무시간 강조 + 범례. */
+export function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
   const cells = fill24(hours);
   if (!hours.length) return <Text size="sm" c="dimmed">시간별 데이터가 없습니다.</Text>;
   return (
-    <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
-      <Table.ScrollContainer minWidth={720}>
-        <Table layout="fixed" ta="center" withRowBorders={false} horizontalSpacing={2} verticalSpacing={4}>
-          <Table.Tbody>
-            <Table.Tr>
-              <Table.Td w={48} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>시각</Table.Td>
-              {cells.map((_, h) => (
-                <Table.Td key={h} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>
-                  {String(h).padStart(2, "0")}
-                </Table.Td>
-              ))}
-            </Table.Tr>
-            <Table.Tr>
-              <Table.Td w={48} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>체감</Table.Td>
-              {cells.map((c, h) => (
-                <Table.Td key={h} fz={10} fw={700}
-                  style={{ background: c?.feels != null ? c.color : "#f1f5f9", color: c?.feels != null ? "#fff" : "#cbd5e1" }}>
-                  {c?.feels != null ? c.feels.toFixed(1) : "-"}
-                </Table.Td>
-              ))}
-            </Table.Tr>
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
-    </Paper>
+    <Stack gap={8}>
+      <Group gap={3} wrap="nowrap" align="stretch">
+        {cells.map((c, h) => {
+          const has = c?.feels != null;
+          const work = h >= 9 && h < 18;
+          return (
+            <Stack key={h} gap={3} style={{ flex: 1, minWidth: 0 }} align="stretch">
+              <Text fz={9} ta="center" c={work ? "dark.3" : "dimmed"} fw={work ? 700 : 400}>{String(h).padStart(2, "0")}</Text>
+              <Box style={{
+                borderRadius: 5, paddingTop: 6, paddingBottom: 6,
+                background: has ? c!.color : "var(--mantine-color-gray-1)",
+                boxShadow: work ? "inset 0 0 0 1.5px rgba(15,73,158,0.4)" : undefined,
+              }}>
+                <Text fz={9.5} fw={700} ta="center" c={has ? "#fff" : "dimmed"} style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
+                  {has ? c!.feels!.toFixed(1) : "–"}
+                </Text>
+              </Box>
+            </Stack>
+          );
+        })}
+      </Group>
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        <Text fz={9} c="dimmed">■ 테두리 = 근무시간(09~18시) · 셀 색 = 시간대별 폭염 위험단계</Text>
+        <Group gap="sm" wrap="nowrap">
+          {HEAT_LEGEND.map(([l, col]) => (
+            <Group key={l} gap={4} wrap="nowrap">
+              <Box w={9} h={9} style={{ borderRadius: 2, background: col }} />
+              <Text fz={9} c="dimmed">{l}</Text>
+            </Group>
+          ))}
+        </Group>
+      </Group>
+    </Stack>
   );
 }
 
