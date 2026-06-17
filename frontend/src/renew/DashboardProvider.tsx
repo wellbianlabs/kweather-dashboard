@@ -50,6 +50,16 @@ interface DashboardCtx {
   loadRange: (sn: string | null) => Promise<void>;
   handleUploaded: (results: UploadResult[]) => Promise<void>;
   handleReset: () => Promise<void>;
+
+  // 공통 업로더 제어 + 최근 업로드 기록(localStorage)
+  uploadOpen: boolean;
+  uploadTarget: string | null;
+  openUpload: (sn?: string | null) => void;
+  closeUpload: () => void;
+  lastUpload: Record<string, string>;
+
+  // 최근 7일 일 최고 체감(실측) — 주간 위젯용
+  weekly: { date: string; max_feels: number | null }[];
 }
 
 const Ctx = createContext<DashboardCtx | null>(null);
@@ -77,6 +87,19 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
   const [sites, setSites] = useState<SiteRisk[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  // 공통 업로더 모달 제어 + 기기별 최근 업로드 일시
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<string | null>(null);
+  const [lastUpload, setLastUpload] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("kw_last_upload") || "{}"); } catch { return {}; }
+  });
+  const [weekly, setWeekly] = useState<{ date: string; max_feels: number | null }[]>([]);
+  const openUpload = useCallback((sn?: string | null) => {
+    setUploadTarget(sn ?? null);
+    setUploadOpen(true);
+  }, []);
+  const closeUpload = useCallback(() => setUploadOpen(false), []);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
@@ -128,6 +151,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     await loadDevices();
     const affected = Array.from(new Set(results.flatMap((x) => x.affected_devices)));
     if (affected.length) {
+      // 기기별 최근 업로드 일시 기록(영속)
+      const stamp = new Date().toISOString();
+      setLastUpload((prev) => {
+        const next = { ...prev };
+        affected.forEach((sn) => { next[sn] = stamp; });
+        try { localStorage.setItem("kw_last_upload", JSON.stringify(next)); } catch { /* noop */ }
+        return next;
+      });
       const sn = affected[0];
       setDeviceSn(sn);
       await loadRange(sn);
@@ -183,6 +214,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return () => { on = false; };
   }, [auth, devices, dayStart, dayEnd]);
 
+  // 최근 7일 일 최고 체감(실측) — 선택 기기 기준(데이터 있는 일자 우선)
+  useEffect(() => {
+    if (!auth || !deviceSn) { setWeekly([]); return; }
+    const days = (availableDates.length ? availableDates : [date]).slice(-7);
+    let on = true;
+    Promise.all(days.map(async (d) => {
+      try {
+        const k = await api.kpi(deviceSn, `${d}T00:00:00`, `${d}T23:59:59`);
+        return { date: d, max_feels: k.max_feels_like };
+      } catch { return { date: d, max_feels: null }; }
+    })).then((rows) => { if (on) setWeekly(rows); });
+    return () => { on = false; };
+  }, [auth, deviceSn, availableDates, date]);
+
   const selected = devices.find((d) => d.device_sn === deviceSn);
 
   const value: DashboardCtx = {
@@ -191,6 +236,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     date, setDate, rangeStart, setRangeStart, rangeEnd, setRangeEnd, availableDates, interval, setIntervalMin,
     kpi, ts, cmp, sites, loadErr,
     loadDevices, loadRange, handleUploaded, handleReset,
+    uploadOpen, uploadTarget, openUpload, closeUpload, lastUpload, weekly,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

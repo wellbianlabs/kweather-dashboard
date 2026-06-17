@@ -1,146 +1,245 @@
-// 대시보드 페이지 — 위험 히어로·현재날씨·KPI·차트·지도 미니·안전가이드 (실데이터 배선).
-import {
-  Badge, Box, Divider, Grid, Group, Paper, Stack, Text, ThemeIcon, Title,
-} from "@mantine/core";
-import { IconAlertTriangle, IconFlame } from "@tabler/icons-react";
-import { KpiCards } from "../../components/KpiCards";
+// 대시보드 페이지 — 협업팀 목업 정합본(실데이터 배선).
+// 구성: KPI 3종 + 좌(일일 리포트 요약 · 데이터 분석[TimeSeriesChart]) + 우(주간 예보 · 폭염 관심 지수 게이지).
+// 위험지도·외부날씨비교·사업장표는 목업 기준으로 제외(컴포넌트는 보존).
+import type { ReactNode } from "react";
+import { Badge, Box, Button, Card, Grid, Group, Stack, Text } from "@mantine/core";
+import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { IconArrowUpRight } from "@tabler/icons-react";
+import { useNavigate } from "react-router-dom";
 import { TimeSeriesChart } from "../../components/TimeSeriesChart";
-import { HeatGuidelines } from "../../components/HeatGuidelines";
-import { RiskMapSkeleton } from "../../components/RiskMapSkeleton";
-import { DataTable } from "../../components/ui/DataTable";
-import type { Kpi, WeatherCompare } from "../../types";
+import type { TimeSeries } from "../../types";
 import { useDashboard } from "../DashboardProvider";
-import { toRiskSites, toSiteRows } from "../siteAdapters";
 
+/* ── heat scale (시스템 색) ── */
+const LV = {
+  safe: { label: "안전", color: "#16a34a" },
+  attention: { label: "관심", color: "#84cc16" },
+  caution: { label: "주의", color: "#eab308" },
+  warning: { label: "경고", color: "#f97316" },
+  danger: { label: "위험", color: "#dc2626" },
+} as const;
+type LvKey = keyof typeof LV;
+type Stage = { label: string; color: string };
+
+function classifyBy(v: number | null | undefined, th: Record<string, number>): LvKey {
+  if (v == null) return "safe";
+  if (v >= (th.danger ?? 38)) return "danger";
+  if (v >= (th.warning ?? 35)) return "warning";
+  if (v >= (th.caution ?? 33)) return "caution";
+  if (v >= (th.attention ?? 31)) return "attention";
+  return "safe";
+}
 function fmtMin(min?: number | null): string {
   if (!min || min <= 0) return "0분";
   const h = Math.floor(min / 60), m = min % 60;
   return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
 }
-
-const ACTION_BY_RANK: Record<number, string> = {
-  0: "정상 작업",
-  1: "수분·휴식 권장",
-  2: "매시간 휴식",
-  3: "작업 단축·교대",
-  4: "옥외작업 중지",
-};
-
-export function DashboardPage() {
-  const { kpi, ts, cmp, date, selected, deviceSn, sites } = useDashboard();
-  return (
-    <Stack gap="md">
-      <Grid gap="md">
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <RiskHero kpi={kpi} subtitle={selected ? `${selected.device_sn} / ${selected.location_name ?? selected.address ?? ""}` : (deviceSn ?? "전체 사업장")} measuredAt={kpi?.max_feels_like_time ?? null} />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <CurrentWeatherWidget cmp={cmp} kpi={kpi} />
-        </Grid.Col>
-      </Grid>
-
-      <KpiCards kpi={kpi} />
-
-      <TimeSeriesChart ts={ts} cmp={cmp} kpi={kpi} date={date} />
-
-      <RiskMapSkeleton sites={toRiskSites(sites)} compact height={240} />
-
-      <Paper withBorder radius="lg" p="lg" shadow="xs">
-        <Title order={3} fz="md" mb="sm">사업장별 현재 위험 현황</Title>
-        <DataTable rows={toSiteRows(sites)} />
-      </Paper>
-
-      <HeatGuidelines kpi={kpi} />
-    </Stack>
-  );
-}
-
-function RiskHero({ kpi, subtitle, measuredAt }: { kpi: Kpi | null; subtitle: string; measuredAt: string | null }) {
-  const lvl = kpi?.current_level;
-  const color = lvl?.color ?? "var(--mantine-color-gray-5)";
-  const feels = kpi?.max_feels_like;
-  return (
-    <Paper radius="lg" p="lg" withBorder shadow="xs" h="100%" style={{ borderLeft: `5px solid ${color}` }}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Box>
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">위험 단계 (기간 내 최고 체감 기준)</Text>
-          <Group gap="sm" align="center" mt={8} wrap="nowrap">
-            <Badge size="xl" radius="md" styles={{ root: { background: color, color: "#fff" } }}>{lvl?.label ?? "데이터 없음"}</Badge>
-            <Text fz={44} fw={800} lh={1} c={color}>
-              {feels != null ? feels : "–"}<Text span fz={18} fw={700}>℃</Text>
-            </Text>
-          </Group>
-          <Text size="sm" c="dimmed" mt="xs">현장 체감온도{measuredAt ? ` · 최고 ${measuredAt}` : ""} · {subtitle}</Text>
-        </Box>
-        <ThemeIcon size={56} radius="md" variant="light" color={(lvl?.rank ?? 0) >= 3 ? "red" : "kw"}>
-          <IconFlame size={30} />
-        </ThemeIcon>
-      </Group>
-      <Divider my="md" />
-      <Group gap={0} grow>
-        <HeroStat label="최고 체감" value={feels != null ? `${feels}℃` : "–"} />
-        <HeroStat label="38℃↑ 누적" value={fmtMin(kpi?.danger_minutes)} />
-        <HeroStat label="권고 조치" value={ACTION_BY_RANK[lvl?.rank ?? 0] ?? "–"} />
-      </Group>
-    </Paper>
-  );
-}
-
-function HeroStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Box>
-      <Text size="xs" c="dimmed">{label}</Text>
-      <Text fw={700} fz="lg" mt={2}>{value}</Text>
-    </Box>
-  );
-}
-
-/** 마지막 유효 측정 포인트 추출. */
-function lastPoint(cmp: WeatherCompare | null) {
-  if (!cmp?.points?.length) return null;
-  for (let i = cmp.points.length - 1; i >= 0; i--) {
-    const p = cmp.points[i];
-    if (p.outdoor_temperature != null || p.indoor_feels_like != null) return p;
+function lastFeels(ts: TimeSeries | null): { v: number; t: string } | null {
+  const pts = ts?.points ?? [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    if (pts[i].feels_like != null) return { v: pts[i].feels_like as number, t: pts[i].t };
   }
   return null;
 }
 
-function CurrentWeatherWidget({ cmp, kpi }: { cmp: WeatherCompare | null; kpi: Kpi | null }) {
-  const p = lastPoint(cmp);
-  const provider = cmp?.provider ?? "케이웨더";
-  const enclosed = cmp?.enclosed_alert ?? false;
-  const delta = cmp?.max_delta;
-  const loc = kpi?.location_name ?? kpi?.company_name ?? "";
+/* ── KPI 카드 ── */
+function KpiCard({ label, value, unit, stage, sub }:
+  { label: string; value: string; unit?: string; stage: Stage; sub?: string }) {
   return (
-    <Paper radius="lg" p="lg" withBorder shadow="xs" h="100%">
-      <Group justify="space-between">
-        <Text fw={600} fz="md">외부 날씨 비교</Text>
-        <Badge variant="light" color="sky">{provider}</Badge>
+    <Card radius="lg" p="lg" withBorder shadow="xs" h="100%">
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Text fw={600} c="dark.5" fz="sm">{label}</Text>
+        <Badge radius="sm" styles={{ root: { background: stage.color, color: "#fff" } }}>{stage.label}</Badge>
       </Group>
-      <Group mt="md" gap="xl">
-        <Box>
-          <Text size="xs" c="dimmed">외부 기온</Text>
-          <Text fz={28} fw={800} lh={1.1}>{p?.outdoor_temperature != null ? `${p.outdoor_temperature}℃` : "–"}</Text>
-        </Box>
-        <Box>
-          <Text size="xs" c="dimmed">외부 체감</Text>
-          <Text fz={28} fw={800} lh={1.1} c="sky">{p?.outdoor_feels != null ? `${p.outdoor_feels}℃` : "–"}</Text>
-        </Box>
+      <Group align="baseline" gap={4} mt="lg">
+        <Text fw={800} fz={34} lh={1} style={{ color: stage.color, letterSpacing: "-0.02em" }}>{value}</Text>
+        {unit && <Text fw={700} fz="lg" c="dimmed">{unit}</Text>}
       </Group>
-      <Divider my="sm" />
-      <Group justify="space-between">
-        <Text size="sm" c="dimmed">현장 내부 체감</Text>
-        <Text fw={700}>{p?.indoor_feels_like != null ? `${p.indoor_feels_like}℃` : "–"}</Text>
-      </Group>
-      {enclosed && delta != null && (
-        <Box mt="sm" p="xs" style={{ background: "var(--mantine-color-red-light)", borderRadius: 8 }}>
-          <Group gap={6} wrap="nowrap">
-            <IconAlertTriangle size={16} color="var(--mantine-color-red-6)" />
-            <Text size="xs" c="red.7">밀폐형 폭염 — 내부가 외부 대비 <b>+{delta.toFixed(1)}℃</b> 높음</Text>
-          </Group>
-        </Box>
-      )}
-      {loc && <Text size="xs" c="dimmed" mt="xs">{loc}</Text>}
-    </Paper>
+      <Text fz="xs" c="dimmed" mt={8} style={{ minHeight: 16 }}>{sub ?? ""}</Text>
+    </Card>
+  );
+}
+
+function CardHead({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
+  return (
+    <Group justify="space-between" align="flex-start" wrap="nowrap" mb="md">
+      <Box>
+        <Text fw={700} fz="sm">{title}</Text>
+        {sub && <Text fz={10} c="dimmed" mt={2}>{sub}</Text>}
+      </Box>
+      {right}
+    </Group>
+  );
+}
+
+/* ── 반원 4단계 게이지 (관심/주의/경고/위험 색·임계 준수) ── */
+const ZONES: LvKey[] = ["attention", "caution", "warning", "danger"];
+function HeatGauge({ temp, th }: { temp: number | null; th: Record<string, number> }) {
+  const key = classifyBy(temp, th);
+  const lvl = LV[key];
+  const N = 52, cx = 130, cy = 122, rIn = 74, rOut = 106;
+  const ticks = Array.from({ length: N }, (_, i) => {
+    const t = i / (N - 1);
+    const ang = Math.PI - t * Math.PI;
+    const x1 = cx + rIn * Math.cos(ang), y1 = cy - rIn * Math.sin(ang);
+    const x2 = cx + rOut * Math.cos(ang), y2 = cy - rOut * Math.sin(ang);
+    const zKey = ZONES[Math.min(3, Math.floor(Math.min(0.999, t) * 4))];
+    return { x1, y1, x2, y2, color: LV[zKey].color, active: zKey === key };
+  });
+  const bounds = [0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+    const ang = Math.PI - t * Math.PI, r = rOut + 11;
+    return { x: cx + r * Math.cos(ang), y: cy - r * Math.sin(ang), v: [31, 33, 35, 38, 42][i] };
+  });
+  return (
+    <Box style={{ width: "100%" }}>
+      <svg viewBox="0 0 260 150" style={{ width: "100%", display: "block" }}>
+        {ticks.map((tk, i) => (
+          <line key={i} x1={tk.x1} y1={tk.y1} x2={tk.x2} y2={tk.y2}
+            stroke={tk.color} strokeWidth={4} strokeLinecap="round" opacity={tk.active ? 1 : 0.3} />
+        ))}
+        {bounds.map((b, i) => (
+          <text key={i} x={b.x} y={b.y} textAnchor="middle" dominantBaseline="middle"
+            style={{ fontSize: 8.5, fill: "#cbd5e1" }}>{b.v}</text>
+        ))}
+        <text x={cx} y={cy - 20} textAnchor="middle" style={{ fontSize: 30, fontWeight: 800, fill: lvl.color }}>{lvl.label}</text>
+        <text x={cx} y={cy + 2} textAnchor="middle" style={{ fontSize: 12, fill: "#64748b" }}>
+          {temp != null ? `실시간 ${temp.toFixed(1)}℃` : "측정 없음"}
+        </text>
+      </svg>
+    </Box>
+  );
+}
+
+/* 최근 7일 일 최고 체감(실측) — 단계색 막대. */
+function ForecastBar({ weekly, th }: { weekly: { date: string; max_feels: number | null }[]; th: Record<string, number> }) {
+  const rows = weekly.map((w) => ({
+    d: w.date.slice(5),
+    f: w.max_feels,
+    color: w.max_feels != null ? LV[classifyBy(w.max_feels, th)].color : "#e5e7eb",
+  }));
+  const vals = rows.map((r) => r.f).filter((v): v is number => v != null);
+  if (!vals.length) {
+    return <Box style={{ height: 150, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Text size="sm" c="dimmed">측정 데이터 없음</Text></Box>;
+  }
+  const ymin = Math.max(20, Math.floor((Math.min(...vals) - 3) / 5) * 5);
+  const ymax = Math.ceil((Math.max(...vals) + 3) / 5) * 5;
+  return (
+    <Box style={{ height: 156 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 24, right: 12, left: 12, bottom: 4 }} barCategoryGap="22%">
+          <XAxis dataKey="d" interval={0} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+          <YAxis hide width={0} domain={[ymin, ymax]} />
+          <Bar dataKey="f" radius={[5, 5, 0, 0]} maxBarSize={34} isAnimationActive={false}
+            label={{ position: "top", fontSize: 10, fontWeight: 600, fill: "#475569" }}>
+            {rows.map((r, i) => <Cell key={i} fill={r.color} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </Box>
+  );
+}
+
+export function DashboardPage() {
+  const { kpi, ts, cmp, date, selected, deviceSn, weekly } = useDashboard();
+  const navigate = useNavigate();
+  const th = kpi?.thresholds ?? {};
+  const interval = ts?.interval_minutes ?? 10;
+
+  // 파생값(실데이터)
+  const cautionMin = (ts?.points ?? []).filter((p) => p.feels_like != null && (p.feels_like as number) >= (th.caution ?? 33)).length * interval;
+  const spark = (ts?.points ?? []).map((p) => ({ t: p.t, feels: p.feels_like }));
+  const cur = lastFeels(ts);
+  const devLabel = selected ? `${selected.device_sn}${selected.location_name ? ` · ${selected.location_name}` : ""}` : (deviceSn ?? "전체 사업장");
+
+  const feelStage: Stage = kpi?.current_level ?? LV.safe;
+  const tempStage: Stage = LV[classifyBy(kpi?.max_temperature, th)];
+  const cautionStage: Stage = cautionMin > 0 ? LV.caution : LV.safe;
+
+  return (
+    <Grid gap="md">
+      {/* KPI 3종 */}
+      <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+        <KpiCard label="일 최고 체감온도" value={kpi?.max_feels_like != null ? kpi.max_feels_like.toFixed(1) : "–"} unit="℃"
+          stage={feelStage} sub={kpi?.max_feels_like_time ? `${kpi.max_feels_like_time} 발생` : ""} />
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+        <KpiCard label="일 최고 온도" value={kpi?.max_temperature != null ? kpi.max_temperature.toFixed(1) : "–"} unit="℃"
+          stage={tempStage} sub={kpi?.max_temperature_time ? `${kpi.max_temperature_time} 발생` : ""} />
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+        <KpiCard label="체감 주의단계(33℃↑) 지속" value={fmtMin(cautionMin)}
+          stage={cautionStage} sub="분석일 측정 누적" />
+      </Grid.Col>
+
+      {/* 좌 칼럼(8) */}
+      <Grid.Col span={{ base: 12, md: 8 }}>
+        <Stack gap="md">
+          {/* 일일 리포트 요약 */}
+          <Card radius="lg" withBorder shadow="xs" p="lg">
+            <CardHead title="일일 리포트 요약" sub={`${devLabel} · ${date}`}
+              right={<Button size="xs" variant="light" color="kw" rightSection={<IconArrowUpRight size={14} />}
+                onClick={() => navigate("/report")}>상세 보고서</Button>} />
+            <Group align="flex-end" gap="xl" wrap="wrap">
+              <Box>
+                <Text fz="xs" c="dimmed">최고 체감온도</Text>
+                <Group align="baseline" gap={4}>
+                  <Text fw={800} fz={30} lh={1} c={feelStage.color}>{kpi?.max_feels_like != null ? kpi.max_feels_like.toFixed(1) : "–"}</Text>
+                  <Text fw={700} c="dimmed">℃</Text>
+                  <Badge ml={6} radius="sm" styles={{ root: { background: feelStage.color, color: "#fff" } }}>{feelStage.label}</Badge>
+                </Group>
+              </Box>
+              <Box>
+                <Text fz="xs" c="dimmed">위험단계 노출(38℃↑)</Text>
+                <Text fw={800} fz={22} c={LV.danger.color} mt={2}>{fmtMin(kpi?.danger_minutes)}</Text>
+              </Box>
+              <Box>
+                <Text fz="xs" c="dimmed">평균 습도</Text>
+                <Text fw={800} fz={22} mt={2}>{kpi?.avg_humidity != null ? `${kpi.avg_humidity}%` : "–"}</Text>
+              </Box>
+              <Box style={{ flex: 1, minWidth: 160, height: 64 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={spark} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="dsp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={feelStage.color} stopOpacity={0.28} />
+                        <stop offset="100%" stopColor={feelStage.color} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="feels" stroke={feelStage.color} strokeWidth={2} fill="url(#dsp)" isAnimationActive={false} connectNulls />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Box>
+            </Group>
+          </Card>
+
+          {/* 데이터 분석 — 운영 TimeSeriesChart */}
+          <TimeSeriesChart ts={ts} cmp={cmp} kpi={kpi} date={date} />
+        </Stack>
+      </Grid.Col>
+
+      {/* 우 칼럼(4) */}
+      <Grid.Col span={{ base: 12, md: 4 }}>
+        <Stack gap="md">
+          {/* 최근 7일 일 최고 체감(실측) */}
+          <Card radius="lg" withBorder shadow="xs" p="lg">
+            <CardHead title="최근 7일 일 최고 체감" sub={`${selected?.device_sn ?? deviceSn ?? "측정기"} · 일별 최고 체감(실측)`}
+              right={<Text fz={10} c="dimmed">단계색</Text>} />
+            <ForecastBar weekly={weekly} th={th} />
+          </Card>
+
+          {/* 폭염 단계 관심 지수 게이지 — 현재 디바이스 실시간(최근 측정) */}
+          <Card radius="lg" withBorder shadow="xs" p="lg">
+            <CardHead title="폭염 단계 관심 지수"
+              sub={`${devLabel} — 현재 디바이스${cur ? ` · ${cur.t.slice(11, 16)}` : ""}`}
+              right={<Group gap={5} wrap="nowrap" align="center">
+                <Box style={{ width: 7, height: 7, borderRadius: "50%", background: "#16a34a" }} />
+                <Text fz={10} c="dimmed">실시간</Text>
+              </Group>} />
+            <HeatGauge temp={cur?.v ?? kpi?.avg_feels_like ?? null} th={th} />
+          </Card>
+        </Stack>
+      </Grid.Col>
+    </Grid>
   );
 }
