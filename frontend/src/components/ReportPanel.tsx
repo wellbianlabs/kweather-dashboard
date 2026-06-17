@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import {
   Alert, Box, Button, Center, Group, List, Loader, Modal, Paper, Progress,
-  SimpleGrid, Stack, Table, Text, Title,
+  SimpleGrid, Stack, Table, Text, ThemeIcon, Title,
 } from "@mantine/core";
 import { IconDownload, IconFileText } from "@tabler/icons-react";
 import { api } from "../api";
@@ -188,18 +188,43 @@ export function ReportPanel({
   );
 }
 
-/** 섹션 제목(번호 강조). */
+/** 섹션 제목 — 네이비 번호 칩 + 라벨. */
 function SectionTitle({ n, children, extra }: { n: number; children: ReactNode; extra?: ReactNode }) {
   return (
-    <Text fw={700} size="sm" mb="xs">
-      <Text span c="kw" inherit fw={700}>{n}.</Text> {children}
-      {extra && <Text span size="xs" fw={400} c="dimmed"> {extra}</Text>}
-    </Text>
+    <Group gap="xs" mb="sm" wrap="nowrap" align="center">
+      <ThemeIcon size={22} radius="sm" variant="filled" color="kw">
+        <Text fz={11} fw={800} c="#fff">{n}</Text>
+      </ThemeIcon>
+      <Text fw={700} size="sm">
+        {children}
+        {extra && <Text span size="xs" fw={400} c="dimmed"> {extra}</Text>}
+      </Text>
+    </Group>
+  );
+}
+
+/** 요약 히어로 셀 — 보고서 상단 at-a-glance 지표. */
+function HeroCell({ label, value, unit, sub, accent, node, divider }: {
+  label: string; value?: string; unit?: string; sub?: string; accent?: string; node?: ReactNode; divider?: boolean;
+}) {
+  return (
+    <Box px="lg" py="md" style={divider ? { borderLeft: "1px solid var(--mantine-color-gray-2)" } : undefined}>
+      <Text size="xs" c="dimmed" fw={600} tt="uppercase" style={{ letterSpacing: "0.04em" }}>{label}</Text>
+      <Group gap={4} align="flex-end" mt={6} mih={34}>
+        {node ?? (
+          <>
+            <Text fw={800} fz={28} lh={1} style={{ color: accent ?? "var(--mantine-color-dark-9)", letterSpacing: "-0.02em" }}>{value}</Text>
+            {unit && <Text fz="sm" fw={700} c="dimmed" mb={3}>{unit}</Text>}
+          </>
+        )}
+      </Group>
+      {sub && <Text size="xs" c="dimmed" mt={6}>{sub}</Text>}
+    </Box>
   );
 }
 
 /** 웹 보고서 — 일일 보고서를 PDF 변환 전 HTML 레이아웃으로 표출. */
-function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string }) {
+export function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string }) {
   const lv = report.peak_level;
   const Info = ({ k, v }: { k: string; v: ReactNode }) => (
     <Group gap={0} wrap="nowrap" align="stretch"
@@ -226,24 +251,41 @@ function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string
 
   return (
     <Paper withBorder radius="lg" style={{ overflow: "hidden" }}>
-      {/* 제목 */}
-      <Box ta="center" px="lg" py="md" style={{ borderBottom: "2px solid var(--mantine-color-kw-6)" }}>
-        <Text fw={800} fz="lg" style={{ letterSpacing: "-0.01em" }}>폭염 안전관리 일일 보고서</Text>
-        <Text fz={10} fw={500} c="dimmed" mt={2} style={{ textTransform: "uppercase", letterSpacing: "0.2em" }}>
-          Heat Stress Daily Management Report
-        </Text>
+      {/* 헤더 밴드 — 네이비 */}
+      <Box px="lg" py="md" style={{ background: "linear-gradient(120deg, var(--mantine-color-kw-8), var(--mantine-color-kw-6))" }}>
+        <Group justify="space-between" align="center" wrap="nowrap">
+          <Box style={{ minWidth: 0 }}>
+            <Text fw={800} fz="lg" c="#fff" style={{ letterSpacing: "-0.01em" }}>폭염 안전관리 일일 보고서</Text>
+            <Text fz={10} fw={500} mt={2} style={{ color: "rgba(255,255,255,0.72)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+              Heat Stress Daily Management Report
+            </Text>
+          </Box>
+          <Box ta="right" style={{ flexShrink: 0 }}>
+            <Text fz={10} style={{ color: "rgba(255,255,255,0.7)" }}>대상 일자</Text>
+            <Text fw={700} c="#fff">{report.date}</Text>
+          </Box>
+        </Group>
       </Box>
+
+      {/* 요약 히어로 스트립 */}
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing={0} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
+        <HeroCell label="최고 체감온도" value={report.max_feels_like != null ? `${report.max_feels_like}` : "–"} unit="℃"
+          sub={report.max_feels_like_time ? `${report.max_feels_like_time} 발생` : "측정 기준"} accent={lv.color} />
+        <HeroCell label="위험단계 노출 (38℃↑)" value={fmtMin(report.minutes_over_38)}
+          sub={report.minutes_over_38 > 0 ? "온열질환 고위험" : "미발생"} accent={report.minutes_over_38 > 0 ? "#dc2626" : "#16a34a"} divider />
+        <HeroCell label="최고 위험단계" node={<HeatBadge level={lv} size="lg" />} sub="기간 내 최고 단계" divider />
+      </SimpleGrid>
 
       {/* 문서 정보 */}
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={0}
-        style={{ borderBottom: "1px solid var(--mantine-color-gray-1)" }}>
-        <Box style={{ borderRight: "1px solid var(--mantine-color-gray-1)" }}>
+        style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
+        <Box style={{ borderRight: "1px solid var(--mantine-color-gray-2)" }}>
           <Info k="사업장" v={report.company_name || "-"} />
           <Info k="설치 위치" v={report.location_name || "-"} />
         </Box>
         <Box>
           <Info k="대상 일자" v={report.date} />
-          <Info k="최고 위험단계" v={<HeatBadge level={lv} size="sm" />} />
+          <Info k="측정기기" v={`SN ${deviceSn}`} />
         </Box>
       </SimpleGrid>
 
