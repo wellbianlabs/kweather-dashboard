@@ -30,10 +30,16 @@ export function renderDailyReportHtml(
   // 히트맵: 캡처 PNG(웹 라운드칩 동일) 우선, 없으면 테이블 폴백
   const heatmapHtml = opts.heatmap ? `<img src="${opts.heatmap}" style="width:100%; display:block;"/>` : hourlyStrip;
 
+  // 페이지 번호: 스튜디오(브라우저)는 정적, 실 PDF(xhtml2pdf)는 @frame + pdf:pagenumber 로 매 페이지.
+  const pageFooter = opts.previewMargins
+    ? `<div class="pagenum">1 / 2</div>`
+    : `<div id="pageFooter" class="pagenum"><pdf:pagenumber> / <pdf:pagecount></div>`;
+
   const workHours = d.hours.filter((h) => h.hour >= 9 && h.hour < 18);
 
   return `<!doctype html><html><head><meta charset="utf-8"/><style>
-@page { size: A4; margin: 60px; }
+/* 실 PDF(xhtml2pdf): 매 페이지 우하단 페이지번호(@frame). 브라우저는 @frame 무시 → 하단 정적 표기로 대체. */
+@page { size: A4; margin: 60px; @frame footer_frame { -pdf-frame-content: pageFooter; bottom: 26px; left: 60px; right: 60px; height: 14px; } }
 body { font-family: ${font}; font-size: 9pt; color:#1f2937; line-height:1.5; ${bodyPad} }
 table { width:100%; border-collapse: collapse; }
 
@@ -55,20 +61,20 @@ table { width:100%; border-collapse: collapse; }
 .hero-sub { font-size:7pt; color:#94a3b8; margin-top:2pt; }
 .hero-badge { display:inline-block; padding:3px 12px; border-radius:9px; color:#fff; font-weight:bold; font-size:12pt; }
 
-/* 문서정보 */
+/* 문서정보 — 심리스(테두리·채움 없음, 행 하단 라인만) */
 .docinfo { margin-top:8pt; }
-.docinfo td { border:1px solid #d7dee7; padding:4px 8px; font-size:8.4pt; }
-.docinfo .k { background:#f4f7fb; color:#475569; width:14%; font-weight:bold; }
+.docinfo td { padding:6px 8px; font-size:8.4pt; border-bottom:1px solid #eef2f6; }
+.docinfo .k { color:#64748b; width:14%; font-weight:bold; }
 
-/* 섹션 */
-h2 { font-size:11pt; color:#0f172a; margin:11pt 0 4pt 0; padding-left:7px; border-left:3px solid #0c3d85; }
-h2 .no { color:#0c3d85; font-weight:bold; }
-h2 .ex { font-size:7.8pt; color:#64748b; font-weight:normal; }
+/* 섹션 — 좌측 라인 제거, 번호+헤드라인 최적화 */
+h2 { font-size:12pt; color:#0f172a; margin:15pt 0 6pt 0; padding:0; font-weight:bold; }
+h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
+h2 .ex { font-size:7.8pt; color:#94a3b8; font-weight:normal; margin-left:2px; }
 
-.tbl th { border:1px solid #b8c4d2; background:#eef2f7; padding:4px 6px; font-size:8.4pt; color:#334155; text-align:center; }
-.tbl td { border:1px solid #d7dee7; padding:3px 5px; font-size:8.6pt; text-align:center; }
-.tbl .k { background:#f4f7fb; color:#475569; font-weight:bold; }
-.tbl .work { background:#fbfdff; }
+/* 데이터 표 — 심리스: 세로선·채움 없음. 헤더 하단 강조선 + 행 하단 얇은 선. 컬러는 하단 라인으로. */
+.tbl th { padding:7px 8px; font-size:8.4pt; color:#64748b; font-weight:bold; text-align:center; border-bottom:1.5px solid #334155; }
+.tbl td { padding:6px 8px; font-size:8.8pt; text-align:center; border-bottom:1px solid #eef2f6; }
+.tbl .k { color:#475569; font-weight:bold; }
 .num { font-weight:bold; font-size:10pt; }
 
 .h24 { table-layout:fixed; margin-top:2pt; }
@@ -86,6 +92,7 @@ h2 .ex { font-size:7.8pt; color:#64748b; font-weight:normal; }
 .list.g div .b { color:#16a34a; }
 .note { font-size:7.6pt; color:#64748b; margin:2pt 0; }
 .footer { margin-top:9pt; border-top:1.5px solid #0c3d85; padding-top:5pt; font-size:7pt; color:#64748b; line-height:1.45; }
+.pagenum { text-align:right; font-size:7.5pt; color:#94a3b8; margin-top:6pt; }
 </style></head><body>
 
 <table class="band"><tr>
@@ -141,7 +148,7 @@ h2 .ex { font-size:7.8pt; color:#64748b; font-weight:normal; }
 
 <h2><span class="no">3</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
-  <tr><th style="width:16%">위험 단계</th>${CODES.map((c) => `<th style="background:${d.levels[c].color}; color:#fff;">${d.levels[c].label}</th>`).join("")}</tr>
+  <tr><th style="width:16%; text-align:left;">위험 단계</th>${CODES.map((c) => `<th style="color:${d.levels[c].color}; border-bottom:2.5px solid ${d.levels[c].color};">${d.levels[c].label}</th>`).join("")}</tr>
   <tr><td class="k">기준(체감)</td><td>31℃ 이상</td><td>33℃ 이상</td><td>35℃ 이상</td><td>38℃ 이상</td></tr>
   <tr class="work"><td class="k">근무시간 노출</td>${CODES.map((c) => `<td><b>${d.work.minutes_label[c]}</b></td>`).join("")}</tr>
   <tr><td class="k">전일 노출</td>${CODES.map((c) => `<td>${d.level_minutes_label[c]}</td>`).join("")}</tr>
@@ -193,5 +200,6 @@ ${d.work.hot_minutes > 0 ? `<table class="tbl">
   적용 기준: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」 · 폭염안전 5대 기본수칙(시원한 물·냉방장치·휴식(33℃↑ 2시간마다 20분)·보냉장구·119) · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보(주의보 33℃ / 경보 35℃ / 중대경보 38℃)<br/>
   측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 모든 데이터 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 자동 생성되었습니다.
 </div>
+${pageFooter}
 </body></html>`;
 }

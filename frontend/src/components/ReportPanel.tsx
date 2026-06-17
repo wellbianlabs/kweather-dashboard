@@ -386,42 +386,50 @@ function fill24(hours: DailyHourPoint[]): (DailyHourPoint | null)[] {
 
 const HEAT_LEGEND: [string, string][] = [["관심", "#84cc16"], ["주의", "#eab308"], ["경고", "#f97316"], ["위험", "#dc2626"]];
 
-/** 시간별 체감온도 히트맵(24시간) — 라운드 칩 + 근무시간 강조 + 범례. */
+/** 시간별 위험단계 타임라인 밴드(24h) — 연속 색 띠 + 피크 마커 + 근무시간 브래킷 + 눈금.
+ *  밀도 높은 24칸 나열 대신 색 띠로 위험 흐름을 한눈에. 상세 수치는 하단 라인 그래프가 담당. */
 export function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
   const cells = fill24(hours);
   if (!hours.length) return <Text size="sm" c="dimmed">시간별 데이터가 없습니다.</Text>;
+  let peakH = -1, peakV = -Infinity;
+  cells.forEach((c, h) => { if (c?.feels != null && c.feels > peakV) { peakV = c.feels; peakH = h; } });
+  const pct = (h: number) => `${(h / 24) * 100}%`;
   return (
-    <Stack gap={8}>
-      <Group gap={3} wrap="nowrap" align="stretch">
-        {cells.map((c, h) => {
-          const has = c?.feels != null;
-          const work = h >= 9 && h < 18;
-          return (
-            <Stack key={h} gap={3} style={{ flex: 1, minWidth: 0 }} align="stretch">
-              <Text fz={9} ta="center" c={work ? "dark.3" : "dimmed"} fw={work ? 700 : 400}>{String(h).padStart(2, "0")}</Text>
-              <Box style={{
-                borderRadius: 5, paddingTop: 6, paddingBottom: 6,
-                background: has ? c!.color : "var(--mantine-color-gray-1)",
-                boxShadow: work ? "inset 0 0 0 1.5px rgba(15,73,158,0.4)" : undefined,
-              }}>
-                <Text fz={9.5} fw={700} ta="center" c={has ? "#fff" : "dimmed"} style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
-                  {has ? c!.feels!.toFixed(1) : "–"}
-                </Text>
-              </Box>
-            </Stack>
-          );
-        })}
+    <Stack gap={4}>
+      {/* 피크 마커 */}
+      <Box style={{ position: "relative", height: 14 }}>
+        {peakH >= 0 && (
+          <Text fz={10} fw={700} c="#dc2626"
+            style={{ position: "absolute", left: pct(peakH + 0.5), transform: "translateX(-50%)", whiteSpace: "nowrap" }}>
+            최고 {peakV.toFixed(1)}℃ ▾
+          </Text>
+        )}
+      </Box>
+      {/* 위험단계 타임라인 밴드 (연속 24구간) */}
+      <Group gap={0} wrap="nowrap" align="stretch" style={{ height: 26, borderRadius: 6, overflow: "hidden" }}>
+        {cells.map((c, h) => (
+          <Box key={h} style={{ flex: 1, background: c?.feels != null ? c.color : "var(--mantine-color-gray-2)" }} />
+        ))}
       </Group>
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Text fz={9} c="dimmed">■ 테두리 = 근무시간(09~18시) · 셀 색 = 시간대별 폭염 위험단계</Text>
-        <Group gap="sm" wrap="nowrap">
-          {HEAT_LEGEND.map(([l, col]) => (
-            <Group key={l} gap={4} wrap="nowrap">
-              <Box w={9} h={9} style={{ borderRadius: 2, background: col }} />
-              <Text fz={9} c="dimmed">{l}</Text>
-            </Group>
-          ))}
-        </Group>
+      {/* 근무시간 브래킷 + 시각 눈금 */}
+      <Box style={{ position: "relative", height: 16 }}>
+        <Box style={{ position: "absolute", left: pct(9), width: pct(9), top: 0, height: 3, background: "rgba(15,73,158,0.4)", borderRadius: 2 }} />
+        <Text fz={8} c="kw.7" fw={600} style={{ position: "absolute", left: pct(13.5), top: 3, transform: "translateX(-50%)", whiteSpace: "nowrap" }}>근무시간</Text>
+        {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => (
+          <Text key={h} fz={8} c="dimmed"
+            style={{ position: "absolute", left: pct(h), top: 4, transform: h === 0 ? "none" : h === 24 ? "translateX(-100%)" : "translateX(-50%)", whiteSpace: "nowrap" }}>
+            {String(h).padStart(2, "0")}시
+          </Text>
+        ))}
+      </Box>
+      {/* 범례 */}
+      <Group justify="flex-end" wrap="wrap" gap="sm" mt={2}>
+        {HEAT_LEGEND.map(([l, col]) => (
+          <Group key={l} gap={4} wrap="nowrap">
+            <Box w={9} h={9} style={{ borderRadius: 2, background: col }} />
+            <Text fz={9} c="dimmed">{l}</Text>
+          </Group>
+        ))}
       </Group>
     </Stack>
   );
