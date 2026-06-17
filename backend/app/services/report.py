@@ -485,7 +485,7 @@ def _pil_hourly(series, th) -> str | None:
     pc = heat.classify(pv).color
     cx, cy = X(px_), Y(pv)
     d.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=pc, outline="white", width=3)
-    lab = f"{pv:.1f}℃"
+    lab = f"{pv:.1f}°C"
     tw = _text_w(d, lab, F(26))
     by = cy - 14
     bx0, bx1 = cx - tw / 2 - 11, cx + tw / 2 + 11
@@ -683,73 +683,147 @@ def _chart_compare(hours) -> str | None:
     return _pil_compare(hours)
 
 
+def _chart_timeline_band(hours) -> str | None:
+    """시간별 위험단계 타임라인 밴드 — 24구간 색 띠 + 피크 마커 + 근무시간 외곽선 + 눈금."""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    if not hours:
+        return None
+    F = _pil_fonts()
+    W, H = 1560, 124
+    L, R = 8, 8
+    band_top, band_h = 36, 40
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+    by_hour = {h["hour"]: h for h in hours}
+    seg_w = (W - L - R) / 24.0
+    peak_h, peak_v = None, -1e9
+    for hh in range(24):
+        slot = by_hour.get(hh)
+        has = slot is not None and slot.get("feels") is not None
+        color = slot["color"] if has else "#e2e8f0"
+        x0 = L + hh * seg_w
+        d.rectangle([x0, band_top, x0 + seg_w, band_top + band_h], fill=color)
+        if has and slot["feels"] > peak_v:
+            peak_v, peak_h = slot["feels"], hh
+    # 근무시간(09~18) 외곽선
+    d.rectangle([L + 9 * seg_w, band_top, L + 18 * seg_w, band_top + band_h], outline=(15, 73, 158), width=3)
+    # 피크 마커
+    if peak_h is not None:
+        cx = L + (peak_h + 0.5) * seg_w
+        d.text((cx, band_top - 7), f"최고 {peak_v:.1f}°C ▼", font=F(22), fill="#dc2626", anchor="mb")
+    # 시각 눈금
+    for hh in range(0, 25, 3):
+        x = L + hh * seg_w
+        anc = "la" if hh == 0 else ("ra" if hh == 24 else "ma")
+        d.text((x, band_top + band_h + 8), f"{hh:02d}시", font=F(20), fill="#94a3b8", anchor=anc)
+    return _png_data_uri(img)
+
+
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page { size: A4; margin: 1.5cm 1.6cm; }
+@page { size: A4; margin: 30px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 22pt; bottom: 14pt; width: 551pt; height: 16pt; } }
 body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
-.title { text-align:center; font-size:16pt; font-weight:bold; color:#0f172a; margin:0 0 3pt 0; }
 table { width:100%; border-collapse: collapse; }
 
-/* 문서정보 */
-.subtitle { text-align:center; font-size:9pt; color:#64748b; margin:0 0 6pt 0; padding-bottom:6pt; border-bottom:1.5px solid #0f499e; }
-.docinfo td { border:1px solid #cbd5e1; padding:4px 8px; font-size:8.5pt; }
-.docinfo .k { background:#f8fafc; color:#475569; width:14%; text-align:center; }
+/* 헤더 — 미니멀(식별번호) */
+.band td { padding: 0 0 9px 0; vertical-align: bottom; border-bottom: 1px solid #cbd5e1; }
+.band-r { text-align:right; width:30%; }
+.band-title { color:#0f172a; font-size:16pt; font-weight:bold; }
+.band-id { color:#64748b; font-size:8pt; margin-top:3pt; }
+.band-meta { color:#94a3b8; font-size:7pt; }
+.band-date { color:#0f172a; font-size:12pt; font-weight:bold; margin-top:1pt; }
+
+/* 요약 히어로 */
+.hero td { border-bottom:1px solid #e2e8f0; padding:8px 12px; vertical-align:top; }
+.hero .mid { border-left:1px solid #e8edf3; border-right:1px solid #e8edf3; }
+.hero-label { font-size:7pt; color:#64748b; font-weight:bold; }
+.hero-val { font-size:21pt; font-weight:bold; margin-top:1pt; }
+.hero-unit { font-size:10pt; color:#94a3b8; font-weight:bold; }
+.hero-sub { font-size:7pt; color:#94a3b8; margin-top:2pt; }
+.hero-badge { display:inline-block; padding:3px 12px; border-radius:9px; color:#fff; font-weight:bold; font-size:12pt; }
+
+/* 문서정보 — 심리스 */
+.docinfo { margin-top:8pt; }
+.docinfo td { padding:6px 8px; font-size:8.4pt; border-bottom:1px solid #eef2f6; }
+.docinfo .k { color:#64748b; width:14%; font-weight:bold; }
 
 /* 섹션 */
-h2 { font-size:11pt; color:#0f172a; margin:8pt 0 3pt 0; }
-h2 .no { color:#0f499e; }
-.tbl th { border:1px solid #94a3b8; background:#eef2f7; padding:4px 6px; font-size:8.5pt; color:#334155; text-align:center; }
-.tbl td { border:1px solid #cbd5e1; padding:3px 5px; font-size:8.8pt; text-align:center; }
-.tbl .k { background:#f8fafc; color:#475569; text-align:center; }
+h2 { font-size:12pt; color:#0f172a; margin:14pt 0 6pt 0; font-weight:bold; }
+h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
+
+/* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만) */
+.tbl th { padding:7px 8px; font-size:8.4pt; color:#64748b; font-weight:bold; text-align:center; border-bottom:1.5px solid #334155; }
+.tbl td { padding:6px 8px; font-size:8.8pt; text-align:center; border-bottom:1px solid #eef2f6; }
+.tbl .k { color:#475569; font-weight:bold; }
 .num { font-weight:bold; font-size:10pt; }
 .badge { display:inline-block; padding:1.5px 8px; border-radius:8px; color:#fff; font-weight:bold; font-size:8.5pt; }
-.strip { table-layout:fixed; }
-.h24 { table-layout:fixed; }
-.h24 td { border:1px solid #fff; padding:2px 0; text-align:center; font-size:5.6pt; line-height:1.25; }
-.h24 .k { background:#f1f5f9; color:#475569; font-size:6.2pt; }
-.strip td { border:1px solid #fff; padding:2.5px 0; text-align:center; color:#fff; font-size:6pt; line-height:1.2; }
-.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:4px 7px; font-size:8.5pt; margin:3px 0; }
+.legend { border:1px solid #e8edf3; }
+.legend td { padding:5px 7px; font-size:8.2pt; color:#475569; }
+.chartimg { width:540pt; }
+.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:5px 8px; font-size:8.4pt; margin:4px 0; border-radius:4px; }
 .gov { margin:2pt 0 0 0; }
-.gov div { margin:1pt 0; font-size:9pt; }
-.gov .b { color:#0f499e; font-weight:bold; }
-.gov2 { margin:2pt 0 0 8pt; }
-.gov2 div { margin:1pt 0; font-size:9pt; }
-.gov2 .b { color:#334155; }
-.note { font-size:7.8pt; color:#64748b; margin:1pt 0; }
-.footer { margin-top:6pt; border-top:1.5px solid #0f499e; padding-top:4pt; font-size:7pt; color:#64748b; line-height:1.45; }
+.gov div { margin:2pt 0; font-size:9pt; }
+.gov .b { color:#0c3d85; font-weight:bold; }
+.gov2 { margin:2pt 0 0 0; }
+.gov2 div { margin:2pt 0; font-size:9pt; }
+.gov2 .b { color:#16a34a; font-weight:bold; }
+.note { font-size:7.6pt; color:#64748b; margin:2pt 0; }
+.footer { margin-top:9pt; border-top:1.5px solid #0c3d85; padding-top:5pt; font-size:7pt; color:#64748b; line-height:1.45; }
+.pagenum { text-align:right; font-size:7.5pt; color:#94a3b8; }
 </style></head><body>
 
-<div class="title">폭염 안전관리 일일 보고서</div>
-<div style="text-align:center; font-size:8pt; color:#94a3b8; letter-spacing:1.5pt; margin-bottom:2pt;">HEAT STRESS DAILY MANAGEMENT REPORT</div>
-<div class="subtitle">근로자 온열질환 예방을 위한 작업장 체감온도 분석 자료 · 측정장비: 케이웨더(주) 체감온도계</div>
+<div id="pageFooter" class="pagenum"><pdf:pagenumber> / <pdf:pagecount></div>
 
+<table class="band"><tr>
+  <td class="band-l">
+    <div class="band-title">폭염 안전관리 일일 보고서</div>
+    <div class="band-id">{{ report_no }}</div>
+  </td>
+  <td class="band-r">
+    <div class="band-meta">대상 일자</div>
+    <div class="band-date">{{ d.date }}</div>
+  </td>
+</tr></table>
+
+{% if d.has_data %}
+<table class="hero"><tr>
+  <td>
+    <div class="hero-label">최고 체감온도</div>
+    <div class="hero-val" style="color:{{ d.peak_color }}">{{ d.max_feels }}<span class="hero-unit"> °C</span></div>
+    <div class="hero-sub">{{ d.max_time }} 발생 · 근무시간 기준</div>
+  </td>
+  <td class="mid">
+    <div class="hero-label">위험단계 노출 (38°C↑)</div>
+    <div class="hero-val" style="color:#dc2626">{{ d.level_minutes_label['danger'] }}</div>
+    <div class="hero-sub">온열질환 고위험 누적</div>
+  </td>
+  <td>
+    <div class="hero-label">최고 위험단계</div>
+    <div style="margin-top:5pt;"><span class="hero-badge" style="background:{{ d.peak_color }}">{{ d.peak_label }}</span></div>
+    <div class="hero-sub">기간 내 최고 단계</div>
+  </td>
+</tr></table>
+{% endif %}
+
+<h2><span class="no">1</span> 측정 대상 개요</h2>
 <table class="docinfo">
-  <tr>
-    <td class="k">보고서 번호</td><td style="width:36%">{{ report_no }}</td>
-    <td class="k">작성 일시</td><td>{{ generated }}</td>
-  </tr>
-  <tr>
-    <td class="k">대상 일자</td><td>{{ d.date }}{% if d.has_data %} ({{ d.range_start }}~{{ d.range_end }}, 총 {{ d.record_count }}건 측정){% endif %}</td>
-    <td class="k">최고 위험단계</td><td><span class="badge" style="background:{{ d.peak_color }}">{{ d.peak_label }}</span></td>
-  </tr>
+  <tr><td class="k">사업장</td><td style="width:36%">{{ d.company_name or '-' }}</td>
+      <td class="k">설치 위치</td><td>{{ d.location_name or '-' }}</td></tr>
+  <tr><td class="k">소재지</td><td>{{ d.address or '-' }}</td>
+      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 (SN: {{ d.device_sn }})</td></tr>
 </table>
-
-<h2><span class="no">1.</span> 측정 대상 개요</h2>
-<table class="tbl">
-  <tr><th style="width:14%">사업장</th><td style="width:36%">{{ d.company_name or '-' }}</td>
-      <th style="width:14%">설치 위치</th><td>{{ d.location_name or '-' }}</td></tr>
-  <tr><th>소재지</th><td>{{ d.address or '-' }}</td>
-      <th>측정기기</th><td>케이웨더(주) 체감온도계 (SN: {{ d.device_sn }})</td></tr>
-</table>
-<p class="note">※ 본 보고서의 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임.</p>
+<p class="note">※ 본 보고서의 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임. · 작성 일시 {{ generated }}</p>
 
 {% if d.has_data %}
 <h2><span class="no">2.</span> 측정 결과 요약 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간: 09:00~18:00)</span></h2>
 <table class="tbl">
   <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>위험단계(38°C↑) 노출</th></tr>
   {% if d.work %}
-  <tr style="background:#fbfdff;">
+  <tr>
     <td class="k"><b>근무시간</b></td>
     <td class="num" style="color:{{ d.work.peak_color }}">{{ d.work.max_feels }}°C</td>
     <td>{{ d.work.max_time }}</td>
@@ -769,24 +843,30 @@ h2 .no { color:#0f499e; }
 
 <h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
-  <tr><th style="width:16%">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="background:{{ d.levels[code].color }}; color:#fff;">{{ d.levels[code].label }}</th>{% endfor %}</tr>
+  <tr><th style="width:16%; text-align:left;">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="color:{{ d.levels[code].color }}; border-bottom:2.5px solid {{ d.levels[code].color }};">{{ d.levels[code].label }}</th>{% endfor %}</tr>
   <tr><td class="k">기준(체감)</td><td>31°C 이상</td><td>33°C 이상</td><td>35°C 이상</td><td>38°C 이상</td></tr>
-  {% if d.work %}<tr style="background:#fbfdff;"><td class="k"><b>근무시간 노출</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_label[code] }}</b></td>{% endfor %}</tr>{% endif %}
+  {% if d.work %}<tr><td class="k"><b>근무시간 노출</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_label[code] }}</b></td>{% endfor %}</tr>{% endif %}
   <tr><td class="k">전일 노출</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_label[code] }}</td>{% endfor %}</tr>
 </table>
 <p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 노출시간(측정 간격 반영) · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
-<h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 음영구간 = 근무시간 09~18시)</span></h2>
-{% if d.hours %}
-<table class="h24">
-  <tr><td class="k" style="width:34pt;">시각</td>{% for h in d.hours %}<td class="k">{{ '%02d'|format(h.hour) }}</td>{% endfor %}</tr>
-  <tr><td class="k">체감(°C)</td>{% for h in d.hours %}<td style="background:{{ h.color }}; color:#fff; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+<pdf:keeptogether>
+<h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 근무시간 09~18시 강조)</span></h2>
+{% if band %}<div style="margin-top:5pt;"><img src="{{ band }}" style="width:540pt;"/></div>{% endif %}
+<table class="legend" style="margin-top:7pt; width:auto;">
+{% for pair in [('attention','31'),('caution','33'),('warning','35'),('danger','38')]|batch(2) %}
+  <tr>
+  {% for code, thr in pair %}
+    <td style="width:13px; background:{{ d.levels[code].color }};">&nbsp;</td>
+    <td style="padding-right:18px;"><b style="color:{{ d.levels[code].color }};">{{ d.levels[code].label }}</b> 체감 {{ thr }}°C 이상</td>
+  {% endfor %}
+  </tr>
+{% endfor %}
 </table>
-{% endif %}
-{% if chart %}<div style="margin-top:6pt;"><img src="{{ chart }}" style="width:480pt;"/></div>{% endif %}
-<p class="note">※ 표 색상은 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 음영 구간은 근무시간(09:00~18:00)</p>
+{% if chart %}<div style="margin-top:7pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
+<p class="note">※ 상단 띠는 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 강조 구간은 근무시간(09:00~18:00)</p>
+</pdf:keeptogether>
 
-<pdf:nextpage/>
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
@@ -811,7 +891,8 @@ h2 .no { color:#0f499e; }
   {% if d.weather.enclosed_alert %}
   <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 {{ '공식 체감온도' if d.weather.feels_based else '기온' }} 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
-  {% if chart2 %}<div style="margin:2pt 0 6pt 0;"><img src="{{ chart2 }}" style="width:480pt;"/></div>{% endif %}
+  <pdf:keeptogether>
+  {% if chart2 %}<div style="margin:2pt 0 6pt 0;"><img src="{{ chart2 }}" class="chartimg"/></div>{% endif %}
   <table class="tbl">
     <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
@@ -819,6 +900,7 @@ h2 .no { color:#0f499e; }
     <tr><td class="k">체감차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
   <p class="note">※ 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }} · 외부 체감온도 = 기상청 공식 산식(측정 당시 시각 매칭, 측정기 미기록 보완값)</p>
+  </pdf:keeptogether>
 {% elif not d.external_daily %}
   <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
@@ -826,10 +908,14 @@ h2 .no { color:#0f499e; }
 <pdf:keeptogether>
 <h2><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
+</pdf:keeptogether>
 
+<pdf:keeptogether>
 <h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
 <div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
+</pdf:keeptogether>
 
+<pdf:keeptogether>
 <h2><span class="no">8.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
 {% if d.work and d.work.hot_minutes > 0 %}
 <table class="tbl">
@@ -842,6 +928,7 @@ h2 .no { color:#0f499e; }
 {% else %}
 <p class="note">근무시간 중 체감온도 33°C 이상 작업이 없어 추가 의무 휴식 대상이 아님(통상 안전보건 관리 유지).</p>
 {% endif %}
+</pdf:keeptogether>
 {% else %}
 <h2><span class="no">2.</span> 측정 결과</h2>
 <p class="note">해당 일자에 수집된 측정 데이터가 없습니다.</p>
@@ -851,7 +938,6 @@ h2 .no { color:#0f499e; }
   적용 기준: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」(2026.5.13.) · 폭염안전 5대 기본수칙(시원한 물·냉방장치·휴식(33°C↑ 2시간마다 20분)·보냉장구·119) · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보(주의보 33°C / 경보 35°C / 중대경보 38°C)<br/>
   측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성되었습니다.
 </div>
-</pdf:keeptogether>
 </body></html>
 """
 )
@@ -868,82 +954,247 @@ def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, ge
     report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
     chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
     chart2 = _chart_compare(d.get("hours") or []) if d.get("has_data") else None
+    band = _chart_timeline_band(d.get("hours") or []) if d.get("has_data") else None
     html = _DAILY_TEMPLATE.render(
-        d=d, chart=chart1, chart2=chart2, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+        d=d, chart=chart1, chart2=chart2, band=band, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
     )
     return _html_to_pdf(html)
+
+
+def _pil_periodic_bars(daily, th) -> str | None:
+    """[PIL] 일자별 최고 체감온도 막대 차트 — 단계색 막대 + 임계 점선 + 값 라벨 (웹 recharts 룩)."""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    if not daily:
+        return None
+    F = _pil_fonts()
+    n = len(daily)
+    W, H = 1560, 360
+    L, R, T, B = 96, 150, 44, 74
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+
+    vals = [r["max_feels"] for r in daily]
+    ymin = max(20, int((min(vals) - 3) // 5 * 5))
+    ymax = max(40, int(-(-(max(vals) + 3) // 5) * 5))
+
+    def Y(y):
+        return T + (1 - (y - ymin) / (ymax - ymin)) * (H - T - B)
+
+    for gy in range(ymin, ymax + 1, 5):
+        d.line([(L, Y(gy)), (W - R, Y(gy))], fill="#eef2f6", width=2)
+        d.text((L - 14, Y(gy)), str(gy), font=F(24), fill="#94a3b8", anchor="rm")
+    d.line([(L, H - B), (W - R, H - B)], fill="#cbd5e1", width=3)
+
+    slot = (W - R - L) / n
+    bar_w = min(slot * 0.6, 72)
+    show_val = n <= 16
+    step = 1 if n <= 16 else (2 if n <= 31 else 3)
+    for i, r in enumerate(daily):
+        cx = L + slot * (i + 0.5)
+        v = r["max_feels"]
+        color = heat.LEVELS.get(r.get("peak_level", "safe"), heat.LEVELS["safe"]).color
+        y0 = Y(v)
+        d.rounded_rectangle([cx - bar_w / 2, y0, cx + bar_w / 2, H - B], radius=6, fill=color)
+        if show_val:
+            d.text((cx, y0 - 8), f"{v:.0f}", font=F(22), fill="#475569", anchor="mb")
+        if i % step == 0:
+            d.text((cx, H - B + 12), r["date"][5:], font=F(20), fill="#94a3b8", anchor="ma")
+
+    # 임계선(점선) + 우측 라벨
+    for code in ("caution", "warning", "danger"):
+        yv = th[code]
+        if ymin < yv < ymax:
+            color = heat.LEVELS[code].color
+            x = L
+            while x < W - R:
+                d.line([(x, Y(yv)), (min(x + 16, W - R), Y(yv))], fill=color, width=2)
+                x += 28
+            d.text((W - R + 8, Y(yv)), f"{heat.LEVELS[code].label} {int(yv)}", font=F(20), fill=color, anchor="lm")
+
+    return _png_data_uri(img)
+
+
+def _periodic_chart(stats: dict) -> str | None:
+    """기간 트렌드 차트 — PIL 단계색 막대(웹 recharts 룩, Vercel 안전)."""
+    return _pil_periodic_bars(stats.get("daily") or [], heat.thresholds())
+
+
+def _periodic_analysis(stats: dict, peak, days: int, danger_days: int) -> list[str]:
+    a: list[str] = []
+    if stats.get("overall_max_feels") is not None:
+        a.append(f"분석 기간({days}일) 중 일 최고 체감온도의 최댓값은 {stats['overall_max_feels']}°C(단계: {peak.label})로 관측됨.")
+    if danger_days > 0:
+        a.append(f"위험단계(체감 38°C↑) 도달 일수가 {danger_days}일로, 해당 일자에는 긴급조치 작업을 제외한 옥외작업 원칙적 중지 등 긴급대응 검토가 필요함.")
+    warn_days = stats["level_counts"]["warning"] + stats["level_counts"]["danger"]
+    if warn_days > 0:
+        a.append(f"경고 단계(체감 35°C↑) 이상 도달 일수가 누적 {warn_days}일로, 작업·휴식 시간 관리 강화 및 보냉장구 지급이 요구됨.")
+    over_days = sum(1 for r in stats["daily"] if r["minutes_over_33"] > 0)
+    if over_days:
+        a.append(f"주의 단계(체감 33°C↑) 노출이 발생한 일수는 {over_days}일이며, 해당 일자에는 2시간마다 20분 이상 법정 휴식 준수 여부 점검이 필요함.")
+    if not a:
+        a.append("분석 기간 중 위험단계 도달 일자가 없어 통상적인 안전보건 관리 수준을 유지하면 됨.")
+    return a
 
 
 _PERIODIC_TEMPLATE = Template(
     """
 <html><head><style>
-body { font-family: "{{ pdf_font }}"; font-size: 10pt; color:#111; }
-h1 { font-size: 16pt; text-align:center; border-bottom: 2px solid #0f499e; padding-bottom:6px; color:#0f172a; }
-.sub { color:#475569; font-size:9pt; margin-bottom:10px; }
-table { width:100%; border-collapse: collapse; margin: 8px 0; }
-th, td { border:1px solid #cbd5e1; padding:4px 6px; text-align:center; }
-th { background:#f1f5f9; }
-.footer { color:#94a3b8; font-size:8pt; margin-top:16px; }
+@page { size: A4; margin: 30px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 22pt; bottom: 14pt; width: 551pt; height: 16pt; } }
+body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
+table { width:100%; border-collapse: collapse; }
+
+/* 헤더 — 미니멀(식별번호) */
+.band td { padding: 0 0 9px 0; vertical-align: bottom; border-bottom: 1px solid #cbd5e1; }
+.band-r { text-align:right; width:34%; }
+.band-title { color:#0f172a; font-size:16pt; font-weight:bold; }
+.band-id { color:#64748b; font-size:8pt; margin-top:3pt; }
+.band-meta { color:#94a3b8; font-size:7pt; }
+.band-date { color:#0f172a; font-size:11pt; font-weight:bold; margin-top:1pt; }
+
+/* 요약 히어로 */
+.hero td { border-bottom:1px solid #e2e8f0; padding:8px 12px; vertical-align:top; }
+.hero .mid { border-left:1px solid #e8edf3; border-right:1px solid #e8edf3; }
+.hero-label { font-size:7pt; color:#64748b; font-weight:bold; }
+.hero-val { font-size:21pt; font-weight:bold; margin-top:1pt; }
+.hero-unit { font-size:10pt; color:#94a3b8; font-weight:bold; }
+.hero-sub { font-size:7pt; color:#94a3b8; margin-top:2pt; }
+.hero-badge { display:inline-block; padding:3px 12px; border-radius:9px; color:#fff; font-weight:bold; font-size:12pt; }
+
+/* 문서정보 — 심리스 */
+.docinfo { margin-top:8pt; }
+.docinfo td { padding:6px 8px; font-size:8.4pt; border-bottom:1px solid #eef2f6; }
+.docinfo .k { color:#64748b; width:14%; font-weight:bold; }
+
+/* 섹션 */
+h2 { font-size:12pt; color:#0f172a; margin:14pt 0 6pt 0; font-weight:bold; }
+h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
+
+/* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만) */
+.tbl th { padding:7px 8px; font-size:8.4pt; color:#64748b; font-weight:bold; text-align:center; border-bottom:1.5px solid #334155; }
+.tbl td { padding:6px 8px; font-size:8.8pt; text-align:center; border-bottom:1px solid #eef2f6; }
+.tbl .k { color:#475569; font-weight:bold; text-align:left; }
+.num { font-weight:bold; font-size:10pt; }
+.chartimg { width:540pt; }
+.list { margin:2pt 0 0 0; }
+.list div { margin:2pt 0; font-size:9pt; }
+.list .b { color:#16a34a; font-weight:bold; }
+.note { font-size:7.6pt; color:#64748b; margin:2pt 0; }
+.footer { margin-top:9pt; border-top:1.5px solid #0c3d85; padding-top:5pt; font-size:7pt; color:#64748b; line-height:1.45; }
+.pagenum { text-align:right; font-size:7.5pt; color:#94a3b8; }
 </style></head><body>
-<h1>폭염 안전관리 기간 분석 보고서</h1>
-<div class="sub">대상: {{ scope }} &nbsp;|&nbsp; 기간: {{ s.start }} ~ {{ s.end }}</div>
 
-<table>
-  <tr><th>기간 최고 체감온도</th><td>{{ s.overall_max_feels if s.overall_max_feels is not none else '-' }} °C</td>
-      <th>분석 일수</th><td>{{ s.daily|length }} 일</td></tr>
-</table>
+<div id="pageFooter" class="pagenum"><pdf:pagenumber> / <pdf:pagecount></div>
 
-<h3>위험 단계 도달 일수</h3>
-<table><tr>
-  {% for code, lvl in levels.items() %}<th style="background:{{ lvl.color }}; color:#fff">{{ lvl.label }}</th>{% endfor %}
-</tr><tr>
-  {% for code in levels %}<td>{{ s.level_counts[code] }} 일</td>{% endfor %}
+<table class="band"><tr>
+  <td class="band-l">
+    <div class="band-title">폭염 안전관리 기간 분석 보고서</div>
+    <div class="band-id">{{ report_no }}</div>
+  </td>
+  <td class="band-r">
+    <div class="band-meta">분석 기간</div>
+    <div class="band-date">{{ s.start }} ~ {{ s.end }}</div>
+  </td>
 </tr></table>
 
-{% if chart %}<img src="{{ chart }}" style="width:480pt;"/>{% endif %}
+{% if s.daily %}
+<table class="hero"><tr>
+  <td>
+    <div class="hero-label">기간 최고 체감온도</div>
+    <div class="hero-val" style="color:{{ peak_color }}">{{ s.overall_max_feels }}<span class="hero-unit"> °C</span></div>
+    <div class="hero-sub">기간 내 일 최고값</div>
+  </td>
+  <td class="mid">
+    <div class="hero-label">위험단계 도달 일수 (38°C↑)</div>
+    <div class="hero-val" style="color:{{ '#dc2626' if danger_days > 0 else '#16a34a' }}">{{ danger_days }}<span class="hero-unit"> 일</span></div>
+    <div class="hero-sub">총 {{ days }}일 중</div>
+  </td>
+  <td>
+    <div class="hero-label">최고 위험단계</div>
+    <div style="margin-top:5pt;"><span class="hero-badge" style="background:{{ peak_color }}">{{ peak_label }}</span></div>
+    <div class="hero-sub">기간 내 최고 단계</div>
+  </td>
+</tr></table>
+{% endif %}
 
-<h3>일자별 트렌드</h3>
-<table repeat="1">
-<tr><th>일자</th><th>최고 체감(°C)</th><th>최고온도(°C)</th><th>주의(33°C↑) 노출</th><th>최고단계</th></tr>
-{% for row in s.daily %}
-<tr><td>{{ row.date }}</td><td>{{ row.max_feels }}</td>
-<td>{{ row.max_temp }}</td>
-<td>{{ row.minutes_over_33 }}분</td><td>{{ row.peak_label }}</td></tr>
-{% endfor %}
+<h2><span class="no">1</span> 측정 대상 개요</h2>
+<table class="docinfo">
+  <tr><td class="k">사업장</td><td style="width:36%">{{ company or '-' }}</td>
+      <td class="k">설치 위치</td><td>{{ location or '-' }}</td></tr>
+  <tr><td class="k">분석 기간</td><td>{{ s.start }} ~ {{ s.end }} ({{ days }}일)</td>
+      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 (SN: {{ sn }})</td></tr>
 </table>
-<div class="footer">자동 생성 {{ generated }}</div>
+<p class="note">※ 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임. · 작성 일시 {{ generated }}</p>
+
+{% if s.daily %}
+<pdf:keeptogether>
+<h2><span class="no">2</span> 위험 단계별 도달 일수</h2>
+<table class="tbl">
+  <tr><th style="width:16%; text-align:left;">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="color:{{ levels[code].color }}; border-bottom:2.5px solid {{ levels[code].color }};">{{ levels[code].label }} ({{ thresh[code]|int }}°C↑)</th>{% endfor %}</tr>
+  <tr><td class="k">도달 일수</td>{% for code in ['attention','caution','warning','danger'] %}<td class="num" style="color:{{ levels[code].color }}">{{ s.level_counts[code] }}일</td>{% endfor %}</tr>
+</table>
+<p class="note">※ 각 단계 기준 체감온도 이상에 일 최고 체감온도가 도달한 일수 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2><span class="no">3</span> 일자별 최고 체감온도 트렌드</h2>
+{% if chart %}<div style="margin-top:5pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
+</pdf:keeptogether>
+<table class="tbl" repeat="1">
+  <thead><tr><th style="text-align:left;">일자</th><th>최고 체감</th><th>최고 기온</th><th>주의(33°C↑) 노출</th><th>최고단계</th></tr></thead>
+  <tbody>
+  {% for row in s.daily %}
+  <tr>
+    <td class="k">{{ row.date }}</td>
+    <td class="num" style="color:{{ levels[row.peak_level].color }}">{{ row.max_feels }}°C</td>
+    <td>{{ row.max_temp }}°C</td>
+    <td>{{ (row.minutes_over_33 // 60)|string + '시간 ' + (row.minutes_over_33 % 60)|string + '분' if row.minutes_over_33 >= 60 else (row.minutes_over_33|string + '분') }}</td>
+    <td style="color:{{ levels[row.peak_level].color }}; font-weight:bold;">{{ row.peak_label }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<pdf:keeptogether>
+<h2><span class="no">4</span> 종합 분석 및 권고</h2>
+<div class="list">{% for a in analysis %}<div><span class="b">○</span> {{ a }}</div>{% endfor %}</div>
+</pdf:keeptogether>
+{% else %}
+<h2><span class="no">2</span> 분석 결과</h2>
+<p class="note">해당 기간에 수집된 측정 데이터가 없습니다.</p>
+{% endif %}
+
+<div class="footer">
+  적용 기준: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」 · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보(주의보 33°C / 경보 35°C / 중대경보 38°C)<br/>
+  측정장비·데이터: 현장 측정값은 <b>케이웨더(주) 체감온도계 장비</b>로 측정되었으며, 외부 기상자료를 포함한 모든 데이터의 출처는 <b>케이웨더(주)</b>입니다. · 본 보고서는 케이웨더(주) 체감온도계 안전보건 대시보드에서 자동 생성되었습니다.
+</div>
 </body></html>
 """
 )
-
-
-def _periodic_chart(stats: dict) -> str | None:
-    if not HAS_MPL or not stats["daily"]:
-        return None
-    days = [r["date"] for r in stats["daily"]]
-    maxf = [r["max_feels"] for r in stats["daily"]]
-    fig, ax = plt.subplots(figsize=(9, 3.4))
-    ax.plot(days, maxf, "o-", color="#dc2626", label="일 최고 체감온도")
-    for y, c in [(31, "#84cc16"), (33, "#eab308"), (35, "#f97316"), (38, "#dc2626")]:
-        ax.axhline(y, color=c, ls="--", lw=0.8)
-    ax.set_ylabel("체감온도 (°C)")
-    ax.tick_params(axis="x", rotation=45, labelsize=7)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.25)
-    return _fig_to_data_uri(fig)
 
 
 def periodic_pdf(
     db: Session, tenant: Tenant, device_sn: str | None, start: date_cls, end: date_cls, generated: str
 ) -> bytes:
     stats = analytics.periodic_stats(db, tenant, device_sn, start, end)
-    scope = device_sn or "전체 기기"
+    days = len(stats["daily"])
+    danger_days = stats["level_counts"]["danger"]
+    peak = heat.classify(stats.get("overall_max_feels"))
+    report_no = f"KW-HP-{start.strftime('%Y%m%d')}-{(str(device_sn) if device_sn else 'ALL')[-4:]}"
+    company = location = None
     if device_sn:
         dev = db.get(Device, device_sn)
-        if dev and dev.company_name:
-            scope = f"{dev.company_name} ({device_sn})"
+        if dev:
+            company = dev.company_name
+            location = dev.location_name
     html = _PERIODIC_TEMPLATE.render(
-        s=stats, scope=scope, levels=heat.LEVELS, chart=_periodic_chart(stats),
+        s=stats, levels=heat.LEVELS, thresh=heat.thresholds(), chart=_periodic_chart(stats),
+        report_no=report_no, days=days, danger_days=danger_days,
+        peak_color=peak.color, peak_label=peak.label,
+        company=company, location=location, sn=device_sn or "전체 기기",
+        analysis=_periodic_analysis(stats, peak, days, danger_days),
         pdf_font=_PDF_FONT, generated=generated,
     )
     return _html_to_pdf(html)
