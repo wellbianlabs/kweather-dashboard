@@ -1,7 +1,7 @@
 // 리뉴얼 실 진입점 — 부팅/인증 게이트 + react-router 셸(AppShell) + 컨텍스트 바.
 // 운영 모드: 상시 네비(사이드바/모바일 탭) + 라우팅(/, /map, /report, /devices, /settings, /admin).
 import {
-  ActionIcon, AppShell, Box, Center, Container, Group, Loader, Select, Stack, Text,
+  ActionIcon, AppShell, Box, Button, Center, Container, Group, Loader, Select, Stack, Text,
   useComputedColorScheme, useMantineColorScheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
@@ -126,8 +126,9 @@ function Shell() {
 function ContextBar() {
   const {
     devices, deviceSn, setDeviceSn, loadRange, date, setDate, availableDates,
-    interval, setIntervalMin, rangeStart, setRangeStart, rangeEnd, setRangeEnd, selected,
+    interval, setIntervalMin, selected,
   } = useDashboard();
+  const navigate = useNavigate();
 
   return (
     <Box
@@ -139,7 +140,7 @@ function ContextBar() {
     >
       <Group align="flex-end" gap="sm" wrap="wrap">
         <Select
-          label="기기 선택" size="sm" w={240} allowDeselect={false}
+          label="측정기" size="sm" w={240} allowDeselect={false}
           value={deviceSn ?? ""}
           onChange={(v) => { const nv = v || null; setDeviceSn(nv); loadRange(nv); }}
           data={[
@@ -152,20 +153,21 @@ function ContextBar() {
         />
         {availableDates.length > 0 ? (
           <Select
-            label="기준 일자 (데이터 보유일)" size="sm" w={180} allowDeselect={false}
+            label="분석 일자" size="sm" w={180} allowDeselect={false}
             value={date} onChange={(v) => v && setDate(v)} data={availableDates}
           />
         ) : (
-          <DatePickerInput label="기준 일자" size="sm" w={180} valueFormat="YYYY-MM-DD" value={date} onChange={(v) => v && setDate(v)} />
+          <DatePickerInput label="분석 일자" size="sm" w={180} valueFormat="YYYY-MM-DD" value={date} onChange={(v) => v && setDate(v)} />
         )}
         <Select
-          label="다운샘플링" size="sm" w={140} allowDeselect={false}
+          label="시간 간격" size="sm" w={140} allowDeselect={false}
           value={String(interval)} onChange={(v) => v && setIntervalMin(Number(v))}
           data={[{ value: "10", label: "10분 평균" }, { value: "30", label: "30분 평균" }]}
         />
         <Box w={1} h={36} mx={4} style={{ alignSelf: "center", background: "var(--mantine-color-default-border)" }} />
-        <DatePickerInput label="리포트 기간(시작)" size="sm" w={160} valueFormat="YYYY-MM-DD" value={rangeStart} onChange={(v) => v && setRangeStart(v)} />
-        <DatePickerInput label="리포트 기간(종료)" size="sm" w={160} valueFormat="YYYY-MM-DD" value={rangeEnd} onChange={(v) => v && setRangeEnd(v)} />
+        <Button size="sm" variant="light" leftSection={<IconFileText size={16} />} onClick={() => navigate("/report")}>
+          기간 통계 보고서
+        </Button>
         {selected && (
           <Box ml="auto" ta="right">
             <Text size="xs" fw={600} c="gray.7">{selected.device_sn}</Text>

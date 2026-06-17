@@ -55,6 +55,7 @@ export const mockCmp: WeatherCompare = (() => {
         indoor_feels_like: p.feels_like,
         outdoor_temperature: Math.round(outdoor * 10) / 10,
         outdoor_feels: Math.round(outFeels * 10) / 10,
+        outdoor_humidity: Math.round(((p.humidity ?? 60) + 8)),
         delta: Math.round(delta * 10) / 10,
       };
     });

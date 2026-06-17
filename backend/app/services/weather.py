@@ -515,11 +515,13 @@ def compare(
     for p in indoor.points:
         ot = None
         of = None
+        oh = None
         if ext_hourly is not None:
             slot = ext_hourly.get(pd.Timestamp(p.t).hour)
             if slot:
                 ot = slot.get("ta")
                 of = slot.get("feels")
+                oh = slot.get("hm")
         elif not outdoor.empty:
             nearest = outdoor.index.get_indexer([pd.Timestamp(p.t)], method="nearest")
             if nearest[0] != -1:
@@ -534,7 +536,7 @@ def compare(
         points.append(
             WeatherComparePoint(
                 t=p.t, indoor_feels_like=p.feels_like, outdoor_temperature=ot,
-                outdoor_feels=of, delta=delta
+                outdoor_feels=of, outdoor_humidity=(round(float(oh), 1) if oh is not None else None), delta=delta
             )
         )
 

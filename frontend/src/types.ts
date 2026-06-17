@@ -100,6 +100,7 @@ export interface WeatherComparePoint {
   indoor_feels_like: number | null;
   outdoor_temperature: number | null;
   outdoor_feels: number | null;
+  outdoor_humidity: number | null;
   delta: number | null;
 }
 

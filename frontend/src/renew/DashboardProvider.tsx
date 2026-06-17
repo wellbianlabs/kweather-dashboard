@@ -80,9 +80,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
   const dayEnd = useMemo(() => `${date}T23:59:59`, [date]);
-  // 시계열 = 리포트 기간(rangeStart~rangeEnd) N일 추이 · 외부비교 = 기준일자(단일일)
-  const periodStart = useMemo(() => `${rangeStart}T00:00:00`, [rangeStart]);
-  const periodEnd = useMemo(() => `${rangeEnd}T23:59:59`, [rangeEnd]);
+  // 데이터 분석(시계열)·외부비교 모두 분석 일자(단일일) 기준. 기간 분석은 별도 '기간 통계 보고서'.
 
   // 부팅: 저장된 토큰이 있으면 검증
   useEffect(() => {
@@ -157,12 +155,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setLoadErr(null);
     api.kpi(deviceSn, dayStart, dayEnd).then(setKpi).catch((e) => setLoadErr(String(e)));
     if (deviceSn) {
-      api.timeseries(deviceSn, periodStart, periodEnd, interval).then(setTs).catch(() => setTs(null));
-      api.weatherCompare(deviceSn, dayStart, dayEnd, 30).then(setCmp).catch(() => setCmp(null));
+      api.timeseries(deviceSn, dayStart, dayEnd, interval).then(setTs).catch(() => setTs(null));
+      api.weatherCompare(deviceSn, dayStart, dayEnd, interval).then(setCmp).catch(() => setCmp(null));
     } else {
       setTs(null); setCmp(null);
     }
-  }, [auth, deviceSn, dayStart, dayEnd, periodStart, periodEnd, interval]);
+  }, [auth, deviceSn, dayStart, dayEnd, interval]);
 
   // 사업장(기기)별 현재 위험 — 기준일 기준 per-device kpi 병렬 조회(DataTable·위험지도 공용)
   useEffect(() => {

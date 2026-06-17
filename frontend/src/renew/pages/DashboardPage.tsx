@@ -5,7 +5,6 @@ import {
 import { IconAlertTriangle, IconFlame } from "@tabler/icons-react";
 import { KpiCards } from "../../components/KpiCards";
 import { TimeSeriesChart } from "../../components/TimeSeriesChart";
-import { WeatherCompareChart } from "../../components/WeatherCompareChart";
 import { HeatGuidelines } from "../../components/HeatGuidelines";
 import { RiskMapSkeleton } from "../../components/RiskMapSkeleton";
 import { DataTable } from "../../components/ui/DataTable";
@@ -42,12 +41,9 @@ export function DashboardPage() {
 
       <KpiCards kpi={kpi} />
 
-      <TimeSeriesChart ts={ts} kpi={kpi} date={date} />
+      <TimeSeriesChart ts={ts} cmp={cmp} kpi={kpi} date={date} />
 
-      <Grid gap="md">
-        <Grid.Col span={{ base: 12, md: 7 }}><WeatherCompareChart cmp={cmp} /></Grid.Col>
-        <Grid.Col span={{ base: 12, md: 5 }}><RiskMapSkeleton sites={toRiskSites(sites)} compact height={208} /></Grid.Col>
-      </Grid>
+      <RiskMapSkeleton sites={toRiskSites(sites)} compact height={240} />
 
       <Paper withBorder radius="lg" p="lg" shadow="xs">
         <Title order={3} fz="md" mb="sm">사업장별 현재 위험 현황</Title>
