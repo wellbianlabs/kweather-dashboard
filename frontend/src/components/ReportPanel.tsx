@@ -418,8 +418,8 @@ function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
   );
 }
 
-/** 시간별 체감온도 변화 그래프(단계 임계선 포함). */
-export function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
+/** 시간별 체감온도 변화 그래프(단계 임계선 포함). animate=false: PNG 캡처용(애니메이션 중간 캡처 방지). */
+export function HourlyChart({ hours, animate = true }: { hours: DailyHourPoint[]; animate?: boolean }) {
   if (!hours.length) return null;
   const data = fill24(hours).map((c, h) => ({ time: `${String(h).padStart(2, "0")}시`, 체감온도: c?.feels ?? null }));
   const valid = data.filter((d): d is { time: string; 체감온도: number } => d.체감온도 != null);
@@ -440,7 +440,7 @@ export function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
           {tline(33, "주의 33", "#eab308", "#a16207")}
           {tline(35, "경고 35", "#f97316", "#c2410c")}
           {tline(38, "위험 38", "#dc2626", "#b91c1c")}
-          <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.4} dot={false} connectNulls />
+          <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.4} dot={false} connectNulls isAnimationActive={animate} />
           {peak && (
             <ReferenceDot x={peak.time} y={peak.체감온도} r={4.5} fill="#dc2626" stroke="#fff" strokeWidth={2}
               label={{ value: `${peak.체감온도}℃`, position: "top", fontSize: 12, fontWeight: 700, fill: "#dc2626", dy: -2 }} />

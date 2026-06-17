@@ -29,8 +29,8 @@ function ReportCompareChart() {
         <YAxis unit="℃" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
         <Tooltip content={<ChartTooltip units={{ 현장: "℃", 야외: "℃" }} />} />
         <Legend verticalAlign="top" align="right" height={26} iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
-        <Line type="monotone" dataKey="야외" stroke="#1790cd" strokeWidth={2.4} dot={{ r: 2.5, fill: "#fff", stroke: "#1790cd", strokeWidth: 1.5 }} />
-        <Line type="monotone" dataKey="현장" stroke="#dc2626" strokeWidth={2.4} dot={{ r: 2.5, fill: "#fff", stroke: "#dc2626", strokeWidth: 1.5 }} />
+        <Line type="monotone" dataKey="야외" stroke="#1790cd" strokeWidth={2.4} dot={{ r: 2.5, fill: "#fff", stroke: "#1790cd", strokeWidth: 1.5 }} isAnimationActive={false} />
+        <Line type="monotone" dataKey="현장" stroke="#dc2626" strokeWidth={2.4} dot={{ r: 2.5, fill: "#fff", stroke: "#dc2626", strokeWidth: 1.5 }} isAnimationActive={false} />
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -83,7 +83,7 @@ export function ReportStudio() {
     <>
       {/* 오프스크린 캡처 소스 — recharts 차트(PDF 임베드용 PNG 생성) */}
       <Box style={{ position: "absolute", left: -99999, top: 0, width: CAP_W, pointerEvents: "none" }} aria-hidden>
-        <div ref={hourlyRef} style={{ width: CAP_W, background: "#fff" }}><HourlyChart hours={SAMPLE_DAILY.hours} /></div>
+        <div ref={hourlyRef} style={{ width: CAP_W, background: "#fff" }}><HourlyChart hours={SAMPLE_DAILY.hours} animate={false} /></div>
         <div ref={cmpRef} style={{ width: CAP_W, background: "#fff" }}><ReportCompareChart /></div>
       </Box>
 
