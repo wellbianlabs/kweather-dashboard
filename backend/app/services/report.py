@@ -853,16 +853,11 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 <pdf:keeptogether>
 <h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 근무시간 09~18시 강조)</span></h2>
 {% if band %}<div style="margin-top:5pt;"><img src="{{ band }}" style="width:540pt;"/></div>{% endif %}
-<table class="legend" style="margin-top:7pt; width:auto;">
-{% for pair in [('attention','31'),('caution','33'),('warning','35'),('danger','38')]|batch(2) %}
-  <tr>
-  {% for code, thr in pair %}
-    <td style="width:13px; background:{{ d.levels[code].color }};">&nbsp;</td>
-    <td style="padding-right:18px;"><b style="color:{{ d.levels[code].color }};">{{ d.levels[code].label }}</b> 체감 {{ thr }}°C 이상</td>
-  {% endfor %}
-  </tr>
-{% endfor %}
-</table>
+<p class="note" style="margin-top:7pt;">단계 기준 —
+  <b style="color:{{ d.levels['attention'].color }};">관심</b> 체감 31°C↑ ·
+  <b style="color:{{ d.levels['caution'].color }};">주의</b> 33°C↑ ·
+  <b style="color:{{ d.levels['warning'].color }};">경고</b> 35°C↑ ·
+  <b style="color:{{ d.levels['danger'].color }};">위험</b> 38°C↑</p>
 {% if chart %}<div style="margin-top:7pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
 <p class="note">※ 상단 띠는 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 강조 구간은 근무시간(09:00~18:00)</p>
 </pdf:keeptogether>
@@ -879,12 +874,10 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
         <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
         <td>{{ d.external_daily.in_max }}°C</td>
         <td>{{ d.external_daily.in_avg }}°C</td></tr>
-    {% if d.external_daily.diff_feels is not none %}
-    <tr><td class="k">최고 체감온도 차(내-외)</td>
-        <td class="num" style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</td>
-        <td colspan="2" style="text-align:left; font-size:8pt; color:#64748b;">작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</td></tr>
-    {% endif %}
   </table>
+  {% if d.external_daily.diff_feels is not none %}
+  <p class="note">최고 체감온도 차(내-외): <b style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</b> — 작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</p>
+  {% endif %}
   <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
 {% endif %}
 {% if d.weather %}
