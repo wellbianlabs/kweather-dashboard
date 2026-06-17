@@ -7,6 +7,7 @@ import type {
   DailyReport,
   AuthData,
   AdminOverview,
+  AdminSettings,
 } from "./types";
 
 // 배포 시 백엔드 URL(VITE_API_BASE). 로컬/단일오리진은 빈 값(개발 시 Vite 프록시가 8000으로 전달).
@@ -59,6 +60,20 @@ async function patchJSON<T>(url: string, body: unknown): Promise<T> {
   return r.json();
 }
 
+async function putJSON<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(u(url), {
+    method: "PUT",
+    headers: headers({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = await r.text();
+    try { detail = JSON.parse(detail).detail ?? detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(u(url), { headers: headers() });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -82,6 +97,10 @@ export const api = {
   health: () => getJSON<any>("/api/health"),
 
   adminOverview: (days = 14) => getJSON<AdminOverview>(`/api/admin/overview?days=${days}`),
+
+  adminSettings: () => getJSON<AdminSettings>("/api/admin/settings"),
+  saveAdminSettings: (updates: Record<string, string>) =>
+    putJSON<{ ok: boolean; status: AdminSettings["status"] }>("/api/admin/settings", { updates }),
 
   listDevices: () => getJSON<Device[]>("/api/devices"),
 

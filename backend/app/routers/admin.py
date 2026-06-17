@@ -10,14 +10,35 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from ..database import get_db
 from ..deps import get_admin
 from ..models import AccessLog, Device, SensorLog, Tenant
+from ..services import appsettings
 from ..utils import kst_now
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 DEMO_API_KEY = "demo-key"
+
+
+@router.get("/settings")
+def get_settings(_admin: Tenant = Depends(get_admin), db: Session = Depends(get_db)) -> dict:
+    """외부 연동 키 등 런타임 설정 현황(비밀키는 마스킹)."""
+    return {"keys": appsettings.MANAGED_KEYS, "status": appsettings.masked_status(db)}
+
+
+class SettingsUpdate(BaseModel):
+    updates: dict[str, str]   # {name: value} — 빈 문자열은 해당 키 삭제(.env 폴백)
+
+
+@router.put("/settings")
+def put_settings(
+    payload: SettingsUpdate, _admin: Tenant = Depends(get_admin), db: Session = Depends(get_db)
+) -> dict:
+    appsettings.save(db, payload.updates)
+    return {"ok": True, "status": appsettings.masked_status(db)}
 
 
 @router.get("/overview")

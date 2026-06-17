@@ -1,4 +1,4 @@
-"""외부 날씨(기상청) 연동 어댑터 (PRD 3.3).
+﻿"""외부 날씨(기상청) 연동 어댑터 (PRD 3.3).
 
 `WeatherProvider` 인터페이스 뒤에 Mock / KMA 구현을 두어 교체 가능하게 함.
 - mock: API 키 없이 동작하는 결정론적 시뮬레이션 (지역/날짜 기반 일주기 곡선)
@@ -23,6 +23,7 @@ from ..config import settings
 from ..models import Device, SensorLog, Tenant
 from ..schemas import CurrentWeatherOut, HeatLevelOut, WeatherCompareOut, WeatherComparePoint
 from . import analytics
+from . import appsettings
 
 
 class WeatherProvider(ABC):
@@ -71,11 +72,11 @@ class KmaWeatherProvider(WeatherProvider):
     BASE = "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
 
     def hourly_temps(self, lat, lon, region_code, start, end):
-        if not settings.KMA_API_KEY:
+        if not appsettings.get("KMA_API_KEY"):
             raise RuntimeError("KMA_API_KEY 미설정")
         stn = region_code or "159"  # 기본: 부산(159)
         params = {
-            "serviceKey": settings.KMA_API_KEY,
+            "serviceKey": appsettings.get("KMA_API_KEY"),
             "dataType": "JSON",
             "dataCd": "ASOS",
             "dateCd": "HR",
@@ -244,7 +245,7 @@ def _kma_asos_hourly_stn(stn: str | None, ds: str) -> dict[int, dict] | None:
 
     반환: {hour: {"ta": float, "hm": float|None, "feels": float|None}}
     """
-    if not settings.KMA_API_KEY or not stn:
+    if not appsettings.get("KMA_API_KEY") or not stn:
         return None
     try:
         import re as _re
@@ -253,7 +254,7 @@ def _kma_asos_hourly_stn(stn: str | None, ds: str) -> dict[int, dict] | None:
             r = client.get(
                 "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php",
                 params={"tm1": ds + "0000", "tm2": ds + "2359", "stn": stn, "help": "1",
-                        "authKey": settings.KMA_API_KEY},
+                        "authKey": appsettings.get("KMA_API_KEY")},
             )
             text = r.text
             if r.status_code != 200 or "활용신청" in text or "용량" in text:
@@ -296,7 +297,7 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
     KMA_API_KEY(=API허브 authKey) 필요. 응답은 고정폭 텍스트(헤더 주석 + 데이터 라인).
     헤더의 컬럼명(TA_AVG/TA_MAX/TA_MIN/HM_AVG)을 찾아 인덱스로 파싱한다.
     """
-    if not settings.KMA_API_KEY or not code:
+    if not appsettings.get("KMA_API_KEY") or not code:
         return None
     stn = _SIDO_ASOS.get(str(code)[:2])
     if not stn:
@@ -305,7 +306,7 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
         with httpx.Client(timeout=12.0) as client:
             r = client.get(
                 "https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php",
-                params={"tm1": ds, "tm2": ds, "stn": stn, "disp": "0", "help": "1", "authKey": settings.KMA_API_KEY},
+                params={"tm1": ds, "tm2": ds, "stn": stn, "disp": "0", "help": "1", "authKey": appsettings.get("KMA_API_KEY")},
             )
             text = r.text
             if r.status_code != 200 or "활용신청" in text or "용량" in text:
@@ -360,8 +361,8 @@ class KWeatherProvider(WeatherProvider):
     name = "kweather"
 
     def _get(self, client, sensor: str, code: str | None = None):
-        url = f"{settings.KW_BASE_URL}/{sensor}" + (f"/{code}" if code else "")
-        r = client.get(url, params={"api_key": settings.KW_API_KEY})
+        url = f"{appsettings.get('KW_BASE_URL')}/{sensor}" + (f"/{code}" if code else "")
+        r = client.get(url, params={"api_key": appsettings.get("KW_API_KEY")})
         r.raise_for_status()
         j = r.json()
         if str(j.get("error")) != "0":
@@ -381,7 +382,7 @@ class KWeatherProvider(WeatherProvider):
 
     def current(self, lat, lon, region_code) -> dict | None:
         """현재 외부 실황: {temp, feels, humidity, ts, region}."""
-        if not settings.KW_API_KEY:
+        if not appsettings.get("KW_API_KEY"):
             raise RuntimeError("KW_API_KEY 미설정")
         with httpx.Client(timeout=12.0) as client:
             code = self._dong_code(client, lat, lon, region_code)
@@ -406,7 +407,7 @@ class KWeatherProvider(WeatherProvider):
         1년자료(w4/v2/cbko)를 우선 조회하고, 비어 있으면 전일날씨(kw-cbko1, w3)로 폴백한다.
         day: datetime.date
         """
-        if not settings.KW_API_KEY:
+        if not appsettings.get("KW_API_KEY"):
             return None
         ds = day.strftime("%Y%m%d")
         with httpx.Client(timeout=12.0) as client:
@@ -416,8 +417,8 @@ class KWeatherProvider(WeatherProvider):
             # 1) 과거 1년자료 (별도 상품 권한 필요)
             try:
                 r = client.get(
-                    f"{settings.KW_PAST_BASE_URL}/cbko/{code}",
-                    params={"startdate": ds, "enddate": ds, "api_key": settings.KW_API_KEY},
+                    f"{appsettings.get('KW_PAST_BASE_URL')}/cbko/{code}",
+                    params={"startdate": ds, "enddate": ds, "api_key": appsettings.get("KW_API_KEY")},
                 )
                 if r.status_code == 200 and str(r.json().get("error")) == "0":
                     d = r.json().get("data") or {}
@@ -461,7 +462,7 @@ class KWeatherProvider(WeatherProvider):
 
 
 def get_provider() -> WeatherProvider:
-    p = settings.WEATHER_PROVIDER.lower()
+    p = appsettings.get("WEATHER_PROVIDER").lower()
     if p == "kma":
         return KmaWeatherProvider()
     if p in ("kweather", "wellbian"):
@@ -492,7 +493,7 @@ def compare(
     # 단일 일자: 기상청 시간자료(체감온도 포함) 최우선 — 측정 당시의 외부값 시간 매칭.
     # (실황 1점이 잡혀도 시간 매칭을 건너뛰지 않도록 KMA 경로를 먼저 시도)
     ext_hourly = None
-    if settings.KMA_API_KEY and t0.date() == t1.date():
+    if appsettings.get("KMA_API_KEY") and t0.date() == t1.date():
         ext_hourly = kma_hourly_cached(db, dev, t0.strftime("%Y%m%d"))
 
     hourly: dict = {}

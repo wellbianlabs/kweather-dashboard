@@ -4,13 +4,21 @@ import {
 } from "recharts";
 import {
   Container, Stack, Group, Title, Text, Button, SegmentedControl, Alert, Paper,
-  SimpleGrid, Table, Badge, Divider, ThemeIcon,
+  SimpleGrid, Table, Badge, Divider, ThemeIcon, Select, PasswordInput, TextInput,
 } from "@mantine/core";
 import {
-  IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport,
+  IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport, IconKey, IconDeviceFloppy,
 } from "@tabler/icons-react";
 import { api } from "../api";
-import type { AdminOverview } from "../types";
+import type { AdminOverview, AdminSettings } from "../types";
+
+const KEY_META: { name: string; label: string; secret: boolean; hint: string }[] = [
+  { name: "KW_API_KEY", label: "케이웨더 Open API 키", secret: true, hint: "WEATHER_PROVIDER=kweather 일 때 사용" },
+  { name: "KMA_API_KEY", label: "기상청 API허브 인증키", secret: true, hint: "야외 체감온도 시간 매칭(ASOS)" },
+  { name: "KAKAO_REST_KEY", label: "카카오 REST 키", secret: true, hint: "주소→좌표·행정동 변환(없으면 OSM 폴백)" },
+  { name: "KW_BASE_URL", label: "케이웨더 API BASE URL", secret: false, hint: "" },
+  { name: "KW_PAST_BASE_URL", label: "케이웨더 과거자료 BASE URL", secret: false, hint: "" },
+];
 
 // 접근 로그 구분(kind) 라벨/색 — recent 이벤트 배지에 사용.
 const KIND_LABEL: Record<string, string> = {
@@ -248,7 +256,113 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
             </Paper>
           </>
         )}
+
+        {/* 외부 연동 키 설정 — 저장 시 재시작 없이 반영(런타임 설정) */}
+        <ApiKeysCard />
       </Stack>
     </Container>
+  );
+}
+
+function ApiKeysCard() {
+  const [st, setSt] = useState<AdminSettings | null>(null);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const load = useCallback(() => {
+    api.adminSettings().then((s) => {
+      setSt(s);
+      setVals({
+        WEATHER_PROVIDER: s.status.WEATHER_PROVIDER?.value || "mock",
+        KW_BASE_URL: s.status.KW_BASE_URL?.value || "",
+        KW_PAST_BASE_URL: s.status.KW_PAST_BASE_URL?.value || "",
+      });
+    }).catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    setSaving(true); setMsg(null);
+    try {
+      const updates: Record<string, string> = {
+        WEATHER_PROVIDER: vals.WEATHER_PROVIDER ?? "mock",
+        KW_BASE_URL: vals.KW_BASE_URL ?? "",
+        KW_PAST_BASE_URL: vals.KW_PAST_BASE_URL ?? "",
+      };
+      // 비밀키는 새로 입력한 경우에만 전송(빈칸이면 기존 유지)
+      for (const k of ["KW_API_KEY", "KMA_API_KEY", "KAKAO_REST_KEY"]) {
+        if (vals[k]) updates[k] = vals[k];
+      }
+      const r = await api.saveAdminSettings(updates);
+      setSt((prev) => (prev ? { ...prev, status: r.status } : prev));
+      setVals((v) => ({ ...v, KW_API_KEY: "", KMA_API_KEY: "", KAKAO_REST_KEY: "" }));
+      setMsg({ ok: true, text: "저장되었습니다. 최대 15초 내 전체 워커에 반영됩니다." });
+    } catch (e: any) {
+      setMsg({ ok: false, text: "저장 실패: " + String(e.message || e) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const srcLabel = (s?: { source?: string }) =>
+    s?.source === "db" ? "저장됨" : s?.source === "env" ? "환경변수" : "미설정";
+
+  return (
+    <Paper radius="lg" p="lg" withBorder shadow="xs">
+      <SectionHead
+        icon={<IconKey size={19} />}
+        title="외부 연동 키 설정"
+        desc="기상청·케이웨더·카카오 키를 입력하면 서버 재시작 없이 적용됩니다"
+      />
+
+      <Stack gap="md">
+        <Select
+          label="날씨 데이터 제공자 (WEATHER_PROVIDER)"
+          description="mock=데모 시뮬레이션 · kweather=케이웨더 Open API · kma=기상청"
+          data={[
+            { value: "mock", label: "mock (데모/시뮬레이션)" },
+            { value: "kweather", label: "kweather (케이웨더 Open API)" },
+            { value: "kma", label: "kma (기상청)" },
+          ]}
+          value={vals.WEATHER_PROVIDER || "mock"}
+          onChange={(v) => setVals((p) => ({ ...p, WEATHER_PROVIDER: v || "mock" }))}
+          allowDeselect={false}
+          maw={420}
+        />
+
+        {KEY_META.map((k) => {
+          const cur = st?.status?.[k.name];
+          const status = `현재: ${srcLabel(cur)}${cur?.set && k.secret && cur.masked ? ` (${cur.masked})` : ""}`;
+          return k.secret ? (
+            <PasswordInput
+              key={k.name}
+              label={`${k.label} (${k.name})`}
+              description={`${k.hint}${k.hint ? " · " : ""}${status}`}
+              placeholder={cur?.set ? "변경 시에만 입력 (비우면 기존 유지)" : "키 입력"}
+              value={vals[k.name] ?? ""}
+              onChange={(e) => setVals((p) => ({ ...p, [k.name]: e.currentTarget.value }))}
+            />
+          ) : (
+            <TextInput
+              key={k.name}
+              label={`${k.label} (${k.name})`}
+              description={status}
+              value={vals[k.name] ?? ""}
+              onChange={(e) => setVals((p) => ({ ...p, [k.name]: e.currentTarget.value }))}
+            />
+          );
+        })}
+
+        {msg && <Alert color={msg.ok ? "teal" : "red"} variant="light">{msg.text}</Alert>}
+
+        <Group>
+          <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={saving}>
+            키 저장
+          </Button>
+          <Button variant="default" onClick={load} disabled={saving}>되돌리기</Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }

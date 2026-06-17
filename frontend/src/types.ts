@@ -47,6 +47,17 @@ export interface AdminOverview {
   recent: AdminEvent[];
 }
 
+export interface AdminSettingStatus {
+  set: boolean;
+  source: "db" | "env" | "none";
+  masked?: string;  // 비밀키
+  value?: string;   // 비밀 아님(provider/url)
+}
+export interface AdminSettings {
+  keys: string[];
+  status: Record<string, AdminSettingStatus>;
+}
+
 export interface Device {
   device_sn: string;
   company_name: string | null;

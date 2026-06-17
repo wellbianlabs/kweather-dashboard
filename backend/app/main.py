@@ -18,6 +18,7 @@ from .access import access_log_middleware
 from .config import settings
 from .database import SessionLocal, init_db
 from .models import Tenant
+from .services import appsettings
 from .routers import admin, auth, dashboard, data, devices, geocode, reports, upload, weather
 
 DEMO_API_KEY = "demo-key"
@@ -71,10 +72,10 @@ def health() -> dict:
     return {
         "status": "ok",
         "database": "postgresql" if settings.DATABASE_URL.startswith("postgres") else "sqlite",
-        "weather_provider": settings.WEATHER_PROVIDER,
-        "kweather_key_set": bool(settings.KW_API_KEY),
-        "kma_asos_key_set": bool(settings.KMA_API_KEY),
-        "geocoder": "kakao" if settings.KAKAO_REST_KEY else "nominatim",
+        "weather_provider": appsettings.get("WEATHER_PROVIDER"),
+        "kweather_key_set": bool(appsettings.get("KW_API_KEY")),
+        "kma_asos_key_set": bool(appsettings.get("KMA_API_KEY")),
+        "geocoder": "kakao" if appsettings.get("KAKAO_REST_KEY") else "nominatim",
         "thresholds": {
             "attention": settings.HEAT_ATTENTION,
             "caution": settings.HEAT_CAUTION,
