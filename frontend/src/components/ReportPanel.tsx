@@ -384,7 +384,12 @@ function fill24(hours: DailyHourPoint[]): (DailyHourPoint | null)[] {
   return Array.from({ length: 24 }, (_, h) => map.get(h) ?? null);
 }
 
-const HEAT_LEGEND: [string, string][] = [["관심", "#84cc16"], ["주의", "#eab308"], ["경고", "#f97316"], ["위험", "#dc2626"]];
+const HEAT_LEGEND: [string, string, string][] = [
+  ["관심", "#84cc16", "체감 31℃ 이상"],
+  ["주의", "#eab308", "체감 33℃ 이상"],
+  ["경고", "#f97316", "체감 35℃ 이상"],
+  ["위험", "#dc2626", "체감 38℃ 이상"],
+];
 
 /** 시간별 위험단계 타임라인 밴드(24h) — 연속 색 띠 + 피크 마커 + 근무시간 브래킷 + 눈금.
  *  밀도 높은 24칸 나열 대신 색 띠로 위험 흐름을 한눈에. 상세 수치는 하단 라인 그래프가 담당. */
@@ -422,15 +427,20 @@ export function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
           </Text>
         ))}
       </Box>
-      {/* 범례 */}
-      <Group justify="flex-end" wrap="wrap" gap="sm" mt={2}>
-        {HEAT_LEGEND.map(([l, col]) => (
-          <Group key={l} gap={4} wrap="nowrap">
-            <Box w={9} h={9} style={{ borderRadius: 2, background: col }} />
-            <Text fz={9} c="dimmed">{l}</Text>
-          </Group>
-        ))}
-      </Group>
+      {/* 범례 — 가로 나열 대신 2열 그리드 키 박스(기준값 포함, 가시성↑) */}
+      <Paper withBorder radius="md" p="xs" mt={4} bg="var(--mantine-color-gray-0)">
+        <SimpleGrid cols={2} spacing="xs" verticalSpacing={6}>
+          {HEAT_LEGEND.map(([l, col, th]) => (
+            <Group key={l} gap={8} wrap="nowrap" align="center">
+              <Box w={16} h={16} style={{ borderRadius: 4, background: col, flexShrink: 0 }} />
+              <Group gap={6} wrap="nowrap" align="baseline" style={{ minWidth: 0 }}>
+                <Text fz={11} fw={700} style={{ color: col }}>{l}</Text>
+                <Text fz={10} c="dimmed">{th}</Text>
+              </Group>
+            </Group>
+          ))}
+        </SimpleGrid>
+      </Paper>
     </Stack>
   );
 }
