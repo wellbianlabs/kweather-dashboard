@@ -418,8 +418,8 @@ def _fill_gradient_area(img, pts, base_y, rgb, top_alpha):
     img.paste(Image.new("RGB", (W, H), rgb), (0, 0), alpha)
 
 
-def _chart_hourly_feels(series, th) -> str | None:
-    """시간별 체감온도 라인 차트 — 위험단계 색상 구간선 + 임계선 + 피크 주석."""
+def _pil_hourly(series, th) -> str | None:
+    """[PIL 폴백] 시간별 체감온도 라인 차트 — 위험단계 색상 구간선 + 임계선 + 피크 배지."""
     try:
         from PIL import Image, ImageDraw
     except Exception:  # noqa: BLE001
@@ -499,8 +499,8 @@ def _chart_hourly_feels(series, th) -> str | None:
     return _png_data_uri(img)
 
 
-def _chart_compare(hours) -> str | None:
-    """내부 체감온도 vs 야외 기온 비교 라인 차트 (시간 단위)."""
+def _pil_compare(hours) -> str | None:
+    """[PIL 폴백] 내부 체감온도 vs 야외 기온 비교 라인 차트 (시간 단위)."""
     try:
         from PIL import Image, ImageDraw
     except Exception:  # noqa: BLE001
@@ -557,6 +557,131 @@ def _chart_compare(hours) -> str | None:
     d.text((lx + 174, 28), out_label, font=F(24), fill="#334155", anchor="lm")
 
     return _png_data_uri(img)
+
+
+# ---------------- matplotlib 차트 (우선; 없으면 위 PIL 폴백) — 웹 recharts 룩 ----------------
+def _mpl_style_axes(ax, ymin, ymax):
+    import numpy as np
+
+    ax.set_xlim(0, 24)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xticks(range(0, 25, 3))
+    ax.set_xticklabels([f"{h:02d}시" for h in range(0, 25, 3)], fontsize=9, color="#94a3b8")
+    ax.set_yticks(np.arange(ymin, ymax + 1, 5))
+    ax.tick_params(axis="y", labelsize=9, colors="#94a3b8", length=0)
+    ax.tick_params(axis="x", length=0)
+    ax.grid(axis="y", color="#eef2f6", linewidth=1.1)
+    ax.set_axisbelow(True)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    for s in ("left", "bottom"):
+        ax.spines[s].set_color("#cbd5e1")
+    ax.margins(x=0)
+
+
+def _mpl_hourly(series, th) -> str | None:
+    """[matplotlib] 시간별 체감온도 — 단계색 라인 + 영역 그라데이션 + 임계선 + 피크 배지."""
+    import numpy as np
+    from matplotlib.collections import LineCollection
+
+    xs = np.array([x for x, _ in series], dtype=float)
+    ys = np.array([v for _, v in series], dtype=float)
+    ymin = min(float(ys.min()) - 2, 20.0)
+    ymax = max(float(ys.max()) + 3, 41.0)
+    ymin = float(np.floor(ymin / 5) * 5)
+    ymax = float(np.ceil(ymax / 5) * 5)
+
+    fig, ax = plt.subplots(figsize=(11, 2.7), dpi=150)
+    ax.axvspan(9, 18, color="#0f499e", alpha=0.05, lw=0)  # 근무시간 음영
+
+    # 영역 그라데이션(라인 아래) — imshow + 폴리곤 클립
+    fillc = ax.fill_between(xs, ys, ymin, color="none")
+    grad = np.linspace(0.30, 0.0, 256).reshape(-1, 1)
+    rgba = np.zeros((256, 1, 4))
+    rgba[..., 0] = 0.86  # dc2626
+    rgba[..., 1] = 0.15
+    rgba[..., 2] = 0.15
+    rgba[..., 3] = grad[..., 0]
+    im = ax.imshow(rgba, aspect="auto", extent=[0, 24, ymin, ymax], origin="upper", zorder=1)
+    im.set_clip_path(fillc.get_paths()[0], transform=ax.transData)
+
+    # 임계선 + 라벨
+    for code in ("attention", "caution", "warning", "danger"):
+        yv = th[code]
+        if ymin < yv < ymax:
+            c = heat.LEVELS[code].color
+            ax.axhline(yv, color=c, ls=(0, (6, 4)), lw=1.2, alpha=0.85, zorder=2)
+            ax.text(23.85, yv + 0.1, f"{heat.LEVELS[code].label} {int(yv)}", color=c,
+                    fontsize=8.5, va="bottom", ha="right", zorder=3)
+
+    # 단계색 구간 라인
+    pts = np.array([xs, ys]).T.reshape(-1, 1, 2)
+    segs = np.concatenate([pts[:-1], pts[1:]], axis=1)
+    cols = [heat.classify((ys[i] + ys[i + 1]) / 2).color for i in range(len(ys) - 1)]
+    lc = LineCollection(segs, colors=cols, linewidths=3.2, capstyle="round", joinstyle="round", zorder=4)
+    ax.add_collection(lc)
+
+    # 피크 — 점 + 값 배지
+    pi = int(np.argmax(ys))
+    pc = heat.classify(float(ys[pi])).color
+    ax.plot(xs[pi], ys[pi], "o", color=pc, mec="white", mew=1.8, ms=8, zorder=6)
+    ax.annotate(f"{ys[pi]:.1f}℃", (xs[pi], ys[pi]), xytext=(0, 13), textcoords="offset points",
+                ha="center", va="bottom", fontsize=10, fontweight="bold", color="white",
+                bbox=dict(boxstyle="round,pad=0.34", fc=pc, ec="none"), zorder=7)
+
+    _mpl_style_axes(ax, ymin, ymax)
+    return _fig_to_data_uri(fig)
+
+
+def _mpl_compare(hours) -> str | None:
+    """[matplotlib] 내부 체감 vs 외부 비교 — 두 라인 + 영역 + 흰 점 마커 + 범례."""
+    import numpy as np
+
+    pin = [(h["hour"], h["feels"]) for h in hours if h.get("feels") is not None]
+    use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
+    key = "out_feels" if use_feels else "outdoor"
+    pout = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
+    out_label = "야외 체감온도(기상청 공식)" if use_feels else "야외 기온"
+    if len(pin) < 2 or len(pout) < 2:
+        return None
+    xi = np.array([x for x, _ in pin], dtype=float); yi = np.array([v for _, v in pin], dtype=float)
+    xo = np.array([x for x, _ in pout], dtype=float); yo = np.array([v for _, v in pout], dtype=float)
+    allv = np.concatenate([yi, yo])
+    ymin = float(np.floor((allv.min() - 2) / 5) * 5)
+    ymax = float(np.ceil((allv.max() + 3) / 5) * 5)
+
+    fig, ax = plt.subplots(figsize=(11, 2.5), dpi=150)
+    ax.fill_between(xo, yo, ymin, color="#1790cd", alpha=0.08, lw=0, zorder=1)
+    ax.fill_between(xi, yi, ymin, color="#dc2626", alpha=0.08, lw=0, zorder=1)
+    ax.plot(xo, yo, color="#1790cd", lw=2.4, label=out_label, marker="o", ms=4.5,
+            mfc="white", mec="#1790cd", mew=1.5, zorder=3)
+    ax.plot(xi, yi, color="#dc2626", lw=2.4, label="현장 체감온도", marker="o", ms=4.5,
+            mfc="white", mec="#dc2626", mew=1.5, zorder=4)
+    ax.legend(loc="upper right", fontsize=9, frameon=False, ncol=2)
+    _mpl_style_axes(ax, ymin, ymax)
+    return _fig_to_data_uri(fig)
+
+
+def _chart_hourly_feels(series, th) -> str | None:
+    """시간별 체감온도 차트 — matplotlib 우선, 실패/미설치 시 PIL 폴백."""
+    if not series or len(series) < 2:
+        return None
+    if HAS_MPL:
+        try:
+            return _mpl_hourly(series, th)
+        except Exception:  # noqa: BLE001
+            pass
+    return _pil_hourly(series, th)
+
+
+def _chart_compare(hours) -> str | None:
+    """내외부 비교 차트 — matplotlib 우선, 실패/미설치 시 PIL 폴백."""
+    if HAS_MPL:
+        try:
+            return _mpl_compare(hours)
+        except Exception:  # noqa: BLE001
+            pass
+    return _pil_compare(hours)
 
 
 _DAILY_TEMPLATE = Template(
