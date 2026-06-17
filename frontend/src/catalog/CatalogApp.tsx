@@ -137,7 +137,7 @@ export function CatalogApp() {
 
             {/* 라이브 프리뷰 캔버스 (프리셋/라운드/스킴 적용된 프리뷰 테마) */}
             <Box style={{ border: "1px solid var(--mantine-color-default-border)", borderRadius: 12, overflow: "hidden" }}>
-              <MantineProvider theme={previewTheme} forceColorScheme={scheme} cssVariablesSelector=".catalog-canvas">
+              <MantineProvider theme={previewTheme} forceColorScheme={scheme} cssVariablesSelector=".catalog-canvas" classNamesPrefix="kw-dash">
                 <Box className="catalog-canvas" p="lg"
                   style={{ background: "var(--mantine-color-body)", minHeight: 200 }}>
                   {story.render(k)}

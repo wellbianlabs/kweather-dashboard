@@ -12,7 +12,7 @@ import { DashboardMockup } from "./mockup/DashboardMockup";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider theme={theme} defaultColorScheme="light" classNamesPrefix="kw-dash">
       <DashboardMockup />
     </MantineProvider>
   </React.StrictMode>

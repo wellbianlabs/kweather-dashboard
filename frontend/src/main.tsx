@@ -22,7 +22,7 @@ import { RenewRoot } from "./renew/RenewRoot";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider theme={theme} defaultColorScheme="light" classNamesPrefix="kw-dash">
       <DatesProvider settings={{ locale: "ko", firstDayOfWeek: 0 }}>
         <ModalsProvider>
           <Notifications position="top-right" />
