@@ -284,7 +284,7 @@ export function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn:
         </Box>
         <Box>
           <Info k="대상 일자" v={report.date} />
-          <Info k="측정기기" v={`SN ${deviceSn}`} />
+          <Info k="측정기기" v={`케이웨더(주) 체감온도계 · ${deviceSn}`} />
         </Box>
       </SimpleGrid>
 

@@ -509,7 +509,7 @@ def _pil_compare(hours) -> str | None:
     use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
     key = "out_feels" if use_feels else "outdoor"
     pts_out = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
-    out_label = "야외 체감온도(기상청 공식)" if use_feels else "야외 기온"
+    out_label = "기상청 공식 체감온도" if use_feels else "기상청 기온"
     if len(pts_in) < 2 or len(pts_out) < 2:
         return None
     F = _pil_fonts()
@@ -640,7 +640,7 @@ def _mpl_compare(hours) -> str | None:
     use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
     key = "out_feels" if use_feels else "outdoor"
     pout = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
-    out_label = "야외 체감온도(기상청 공식)" if use_feels else "야외 기온"
+    out_label = "기상청 공식 체감온도" if use_feels else "기상청 기온"
     if len(pin) < 2 or len(pout) < 2:
         return None
     xi = np.array([x for x, _ in pin], dtype=float); yi = np.array([v for _, v in pin], dtype=float)
@@ -814,7 +814,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <tr><td class="k">사업장</td><td style="width:36%">{{ d.company_name or '-' }}</td>
       <td class="k">설치 위치</td><td>{{ d.location_name or '-' }}</td></tr>
   <tr><td class="k">소재지</td><td>{{ d.address or '-' }}</td>
-      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 (SN: {{ d.device_sn }})</td></tr>
+      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 · {{ d.device_sn }}</td></tr>
 </table>
 <p class="note">※ 본 보고서의 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임. · 작성 일시 {{ generated }}</p>
 
@@ -896,7 +896,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <table class="tbl">
     <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
-    <tr><td class="k">외부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:#1790cd; font-weight:bold;">{{ h.out_feels if h.out_feels is not none else (h.outdoor if h.outdoor is not none else '-') }}</td>{% endfor %}</tr>
+    <tr><td class="k">기상청 공식 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:#1790cd; font-weight:bold;">{{ h.out_feels if h.out_feels is not none else (h.outdoor if h.outdoor is not none else '-') }}</td>{% endfor %}</tr>
     <tr><td class="k">체감차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
   <p class="note">※ 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }} · 외부 체감온도 = 기상청 공식 산식(측정 당시 시각 매칭, 측정기 미기록 보완값)</p>
@@ -1124,7 +1124,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <tr><td class="k">사업장</td><td style="width:36%">{{ company or '-' }}</td>
       <td class="k">설치 위치</td><td>{{ location or '-' }}</td></tr>
   <tr><td class="k">분석 기간</td><td>{{ s.start }} ~ {{ s.end }} ({{ days }}일)</td>
-      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 (SN: {{ sn }})</td></tr>
+      <td class="k">측정기</td><td>케이웨더(주) 체감온도계 · {{ sn }}</td></tr>
 </table>
 <p class="note">※ 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임. · 작성 일시 {{ generated }}</p>
 
