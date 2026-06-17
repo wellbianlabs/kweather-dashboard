@@ -12,7 +12,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { Stepper, type Step } from "./components/Stepper";
 import { SiteFooter } from "./components/SiteFooter";
 import { AdminPage } from "./components/AdminPage";
-import { Alert, Button, Group, Paper, Select, Text } from "@mantine/core";
+import { Alert, Box, Button, Center, Group, Paper, Select, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 
@@ -139,7 +139,7 @@ export default function App() {
   }, [auth, step, deviceSn, dayStart, dayEnd, periodStart, periodEnd, interval, date]);
 
   if (booting) {
-    return <div className="flex min-h-screen items-center justify-center text-slate-400">불러오는 중...</div>;
+    return <Center mih="100vh"><Text c="dimmed">불러오는 중...</Text></Center>;
   }
   if (!auth) return <AuthScreen onAuthed={onAuthed} />;
 
@@ -147,45 +147,56 @@ export default function App() {
   const canDashboard = devices.length > 0;
 
   return (
-    <div className="min-h-screen text-slate-800">
+    <Box mih="100vh">
       {/* 헤더 — 화이트톤 */}
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-5 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3.5">
-              <img src="/kweather-logo.png" alt="KWEATHER" className="h-6 shrink-0 sm:h-7" />
-              <div className="hidden h-8 w-px bg-slate-200 sm:block" />
-              <div className="min-w-0">
-                <h1 className="truncate text-[15px] font-bold tracking-tight text-slate-900">체감온도계 데이터 분석 프로그램</h1>
-                <p className="truncate text-xs text-slate-400">{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
+      <Box
+        component="header"
+        pos="sticky"
+        top={0}
+        style={{
+          zIndex: 20,
+          borderBottom: "1px solid var(--mantine-color-gray-2)",
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}
+      >
+        <Box maw={1280} mx="auto" px="lg" py="md">
+          <Group justify="space-between" gap="md" wrap="nowrap">
+            <Group gap={14} wrap="nowrap" style={{ minWidth: 0 }}>
+              <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 28, flexShrink: 0 }} />
+              <Box visibleFrom="sm" w={1} style={{ alignSelf: "center", height: 32, background: "var(--mantine-color-gray-3)" }} />
+              <Box style={{ minWidth: 0 }}>
+                <Text fw={700} fz={15} truncate style={{ letterSpacing: "-0.01em" }}>체감온도계 데이터 분석 프로그램</Text>
+                <Text size="xs" c="dimmed" truncate>{auth.company_name}{auth.email ? ` · ${auth.email}` : ""}</Text>
+              </Box>
+            </Group>
+            <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
               {auth.is_admin && (
                 <Button size="xs" variant={adminOpen ? "filled" : "default"} onClick={() => setAdminOpen((v) => !v)}>
                   {adminOpen ? "← 일반 화면" : "관리자"}
                 </Button>
               )}
               <Button size="xs" variant="default" onClick={logout}>로그아웃</Button>
-            </div>
-          </div>
-        </div>
+            </Group>
+          </Group>
+        </Box>
         {/* 단계 표시 */}
         {!adminOpen && (
-          <div className="border-t border-slate-100 bg-white/60">
-            <div className="mx-auto max-w-7xl px-5 py-2">
+          <Box style={{ borderTop: "1px solid var(--mantine-color-gray-2)", background: "rgba(255,255,255,0.6)" }}>
+            <Box maw={1280} mx="auto" px="lg" py="xs">
               <Stepper current={step} onJump={setStep} canDashboard={canDashboard} />
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
-      </header>
+      </Box>
 
       {adminOpen && <AdminPage onClose={() => setAdminOpen(false)} />}
 
       {/* 대시보드 컨트롤 바 (대시보드 단계에서만) */}
       {!adminOpen && step === 4 && (
-        <div className="border-b border-slate-200/60 bg-white">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-end gap-3 px-4 py-3">
+        <Box style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-white)" }}>
+          <Group maw={1280} mx="auto" align="flex-end" gap="sm" px="md" py="sm" wrap="wrap">
             <Select
               label="기기 선택"
               size="sm"
@@ -233,7 +244,7 @@ export default function App() {
                 { value: "30", label: "30분 평균" },
               ]}
             />
-            <div className="mx-1 h-9 w-px self-center bg-slate-200" />
+            <Box w={1} h={36} mx={4} style={{ alignSelf: "center", background: "var(--mantine-color-gray-3)" }} />
             <DatePickerInput
               label="리포트 기간(시작)"
               size="sm"
@@ -251,17 +262,18 @@ export default function App() {
               onChange={(v) => v && setRangeEnd(v)}
             />
             {selected && (
-              <div className="ml-auto text-right text-xs text-slate-400">
-                <div className="font-semibold text-slate-600">{selected.device_sn}</div>
-                <div>{selected.address}</div>
-              </div>
+              <Box ml="auto" ta="right">
+                <Text size="xs" fw={600} c="gray.7">{selected.device_sn}</Text>
+                <Text size="xs" c="dimmed">{selected.address}</Text>
+              </Box>
             )}
-          </div>
-        </div>
+          </Group>
+        </Box>
       )}
 
       {!adminOpen && (
-      <main className="mx-auto max-w-7xl space-y-5 px-5 py-7">
+      <Box component="main" maw={1280} mx="auto" px="lg" py={28}>
+        <Stack gap="lg">
         {loadErr && (
           <Alert color="red" variant="light" title="불러오기 오류">{loadErr}</Alert>
         )}
@@ -308,10 +320,11 @@ export default function App() {
             <ReportPanel deviceSn={deviceSn} date={date} rangeStart={rangeStart} rangeEnd={rangeEnd} />
           </>
         )}
-      </main>
+        </Stack>
+      </Box>
       )}
 
       <SiteFooter withBanner />
-    </div>
+    </Box>
   );
 }

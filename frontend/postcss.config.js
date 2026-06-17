@@ -1,5 +1,4 @@
-// Mantine(postcss-preset-mantine) + Tailwind 공존.
-// 전환기 동안 두 시스템을 함께 쓰되, 최종적으로는 Mantine 단일화 예정.
+// Mantine 단일 스타일 시스템(postcss-preset-mantine). Tailwind 제거 완료.
 export default {
   plugins: {
     "postcss-preset-mantine": {},
@@ -12,7 +11,6 @@ export default {
         "mantine-breakpoint-xl": "88em",
       },
     },
-    tailwindcss: {},
     autoprefixer: {},
   },
 };

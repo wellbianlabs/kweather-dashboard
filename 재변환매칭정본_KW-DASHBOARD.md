@@ -1,8 +1,17 @@
 # Mantine 재변환 — 작업 대상 분석 & 매칭 정본
 
-> 기준일: 2026-06-16 · 브랜치 `feature/mantine-migration` (origin/main 병합 후)
+> 기준일: 2026-06-16 · 갱신: 2026-06-17 · 브랜치 `Dev`(= feature/mantine-migration, origin/Dev 추적)
 > "재변환" = **병합으로 되돌아온 Tailwind(원작자 ReportPanel) + 잔존 구조 Tailwind**를 Mantine으로 전환.
 > 최종 목표: **Phase 4 — Tailwind 완전 제거**(컴포넌트는 이미 Mantine화 완료, 잔여만 정리).
+
+## ✅ 완료 상태 (2026-06-17)
+**Phase 4 종료 — Tailwind 완전 제거·Mantine 단일화 달성.**
+- **§1 ReportPanel** 17섹션 전체 Mantine 변환 완료(로직·recharts·단계색 불변, PdfViewer 유지, chartkit 툴팁 적용). 레거시 `.card` 소멸.
+- **§3 index.css** 레거시 5종(.card/.btn-*/.input/.select)+미사용 `@keyframes loading` 제거.
+- **§2 App.tsx** 구조 20 className → Mantine(Box/Group/Stack/Center) in-place 치환(옵션 A). 헤더 AppShell 승격(옵션 B)은 #5 본배선 트랙으로 이관.
+- **§4 Tailwind 제거**: `tailwind.config.js` 삭제 · postcss tailwind 플러그인 제거 · index.css `@tailwind`/레이어 제거(→`@layer mantine;` 단일) · package `tailwindcss` 의존 제거 · main.tsx 주석 갱신.
+- **검증**: `tsc -b` 0 · `vite build` 성공(CSS 40.09→37.52 gz, JS 317 gz 불변) · 데모 로그인→대시보드 실렌더 콘솔에러 **0**(스크린샷 `design_screenshots/phase4_*.png`).
+- **잔여 className**: `catalog/CatalogApp.tsx`(`.catalog-canvas` CSS변수 스코프=Tailwind 아님) · `ui/*`(CSS모듈) — Tailwind 유틸리티 **0**.
 
 ---
 

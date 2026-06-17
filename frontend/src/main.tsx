@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-// index.css 가 먼저 와야 @layer 순서(tailwind-base < mantine < tailwind-utilities)가 확정됨.
+// index.css 가 먼저 와야 @layer mantine 선언이 확정됨(비레이어드 전역 규칙이 Mantine 위 우선).
 import "./index.css";
-// Mantine 스타일은 레이어 버전으로 임포트 → @layer mantine 에 적재(전환기 Tailwind 공존).
+// Mantine 스타일은 레이어 버전으로 임포트 → @layer mantine 에 적재.
 import "@mantine/core/styles.layer.css";
 import "@mantine/notifications/styles.layer.css";
 import "@mantine/dropzone/styles.layer.css";

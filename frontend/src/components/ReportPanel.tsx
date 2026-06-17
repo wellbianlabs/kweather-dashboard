@@ -1,17 +1,18 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import {
+  Alert, Box, Button, Center, Group, List, Loader, Modal, Paper, Progress,
+  SimpleGrid, Stack, Table, Text, Title,
+} from "@mantine/core";
+import { IconDownload, IconFileText } from "@tabler/icons-react";
 import { api } from "../api";
-import { IconDownload, IconFileText, IconLoader2 } from "@tabler/icons-react";
 import type { DailyReport, DailyHourPoint } from "../types";
 import { HeatBadge } from "./HeatBadge";
+import { ChartTooltip } from "./chartkit";
 // 지연 로드: react-pdf/pdf.js(~150KB gz)를 PDF 미리보기 클릭 시에만 별도 청크로 로드(초기 번들 보호)
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
-
-// 삭제된 ./Icons 대체(병합) — 원작자 보고서 UI(Tailwind) 유지, 아이콘만 tabler 로 매핑. (Mantine 재변환은 후속)
-const IconFile = ({ className }: { className?: string }) => <IconFileText className={className} />;
-const IconSpinner = ({ className }: { className?: string }) => <IconLoader2 className={`animate-spin ${className ?? ""}`} />;
 
 function fmtMin(min: number): string {
   if (!min || min <= 0) return "0분";
@@ -89,83 +90,87 @@ export function ReportPanel({
     setPreview((prev) => { if (prev?.url) URL.revokeObjectURL(prev.url); return null; });
   }
 
-  const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition";
-
   return (
-    <div className="card">
-      {/* 생성 중 로딩 오버레이 */}
-      {busy && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-[2px]">
-          <div className="mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-white px-8 py-9 shadow-lift">
-            <IconSpinner className="h-11 w-11 text-kw" />
-            <div className="text-center">
-              <div className="text-base font-bold tracking-tight text-slate-900">
-                {KIND_LABEL[busy] ?? "파일"} 생성 중
-              </div>
-              <div className="mt-1.5 text-sm leading-relaxed text-slate-500">
-                데이터 양에 따라 최대 1분 정도 소요될 수 있습니다.<br />잠시만 기다려 주세요.
-              </div>
-            </div>
-            <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full w-1/3 animate-[loading_1.2s_ease-in-out_infinite] rounded-full bg-kw" />
-            </div>
-          </div>
-        </div>
-      )}
+    <Paper radius="lg" p="lg" withBorder shadow="xs" pos="relative">
+      {/* 생성 중 로딩 오버레이 — Modal */}
+      <Modal
+        opened={busy !== null}
+        onClose={() => {}}
+        withCloseButton={false}
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+        centered
+        radius="lg"
+        overlayProps={{ backgroundOpacity: 0.35, blur: 2 }}
+      >
+        <Stack align="center" gap="md" py="sm">
+          <Loader color="kw" size="lg" />
+          <Box ta="center">
+            <Text fw={700} fz="md">{(busy && KIND_LABEL[busy]) ?? "파일"} 생성 중</Text>
+            <Text size="sm" c="dimmed" mt={6}>
+              데이터 양에 따라 최대 1분 정도 소요될 수 있습니다.<br />잠시만 기다려 주세요.
+            </Text>
+          </Box>
+          <Progress value={100} striped animated w={180} size="sm" radius="xl" color="kw" />
+        </Stack>
+      </Modal>
 
-      <h3 className="mb-1 font-semibold text-slate-900">안전관리 리포트</h3>
-      <p className="mb-3 text-xs text-slate-400">웹 보고서로 먼저 확인한 뒤, PDF로 변환해 보거나 내려받을 수 있습니다.</p>
+      <Title order={3} fz="md" mb={4}>안전관리 리포트</Title>
+      <Text size="xs" c="dimmed" mb="sm">웹 보고서로 먼저 확인한 뒤, PDF로 변환해 보거나 내려받을 수 있습니다.</Text>
 
       {/* 1) 웹 보고서 — 화면에 먼저 표출 (하단 요약을 통합) */}
       {loading ? (
-        <p className="text-sm text-slate-400">불러오는 중...</p>
+        <Text size="sm" c="dimmed">불러오는 중...</Text>
       ) : !deviceSn ? (
-        <p className="text-sm text-slate-400">기기를 선택하면 웹 보고서가 표시됩니다.</p>
+        <Text size="sm" c="dimmed">기기를 선택하면 웹 보고서가 표시됩니다.</Text>
       ) : report ? (
         <WebReport report={report} deviceSn={deviceSn} />
       ) : (
-        <p className="text-sm text-slate-400">해당 일자 데이터가 없습니다.</p>
+        <Text size="sm" c="dimmed">해당 일자 데이터가 없습니다.</Text>
       )}
 
       {/* 변환/내보내기 버튼 */}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
+      <Group gap="sm" mt="md">
+        <Button
+          color="kw"
+          leftSection={<IconFileText size={16} />}
+          loading={busy === "daily"}
           disabled={!deviceSn || busy !== null}
           onClick={() => deviceSn && showPreview("daily", api.dailyPdfUrl(deviceSn, date), `daily_${deviceSn}_${date}.pdf`)}
-          className={`${btn} bg-kw text-white hover:bg-kw-dark disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "daily" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "daily" ? "변환 중…" : "일일 보고서 PDF로 보기"}</span></button>
-        <button
+        >일일 보고서 PDF로 보기</Button>
+        <Button
+          variant="default"
+          leftSection={<IconFileText size={16} />}
+          loading={busy === "periodic"}
           disabled={busy !== null}
           onClick={() => showPreview("periodic", api.periodicPdfUrl(deviceSn, rangeStart, rangeEnd), `periodic_${rangeStart}_${rangeEnd}.pdf`)}
-          className={`${btn} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "periodic" ? <IconSpinner className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}{busy === "periodic" ? "변환 중…" : "기간 통계 보고서 PDF로 보기"}</span></button>
-        <button
+        >기간 통계 보고서 PDF로 보기</Button>
+        <Button
+          color="teal"
+          variant="light"
+          leftSection={<IconDownload size={16} />}
+          loading={busy === "excel"}
           disabled={!deviceSn || busy !== null}
           onClick={() => deviceSn && downloadOnly("excel", api.excelUrl(deviceSn, date, date), `data_${deviceSn}_${date}.xlsx`)}
-          className={`${btn} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40`}
-        ><span className="inline-flex items-center gap-2">{busy === "excel" ? <IconSpinner className="h-4 w-4" /> : <IconDownload className="h-4 w-4" />}{busy === "excel" ? "생성 중…" : "당일 측정데이터 내보내기 (10분·Excel)"}</span></button>
-      </div>
+        >당일 측정데이터 내보내기 (10분·Excel)</Button>
+      </Group>
       {dlError && (
-        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{dlError}</p>
+        <Alert color="red" variant="light" mt="sm">{dlError}</Alert>
       )}
 
       {/* 2) PDF 변환 미리보기 — 웹 보고서 다음에 표출 */}
       {preview && (
-        <div ref={previewRef} className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="text-sm font-semibold text-slate-700">{KIND_LABEL[preview.kind] ?? "보고서"} — PDF 변환 미리보기</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => api.saveBlob(preview.blob, preview.filename)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-kw px-3 py-1.5 text-xs font-semibold text-white hover:bg-kw-dark"
-              ><IconDownload className="h-3.5 w-3.5" />다운로드</button>
-              <button
-                onClick={closePreview}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
-              >닫기</button>
-            </div>
-          </div>
-          <Suspense fallback={<div className="flex h-40 items-center justify-center text-sm text-slate-400">뷰어 로딩…</div>}>
+        <Paper ref={previewRef} withBorder radius="md" mt="md" style={{ overflow: "hidden" }}>
+          <Group justify="space-between" wrap="wrap" gap="xs" px="sm" py={8}
+            style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-gray-0)" }}>
+            <Text size="sm" fw={600}>{KIND_LABEL[preview.kind] ?? "보고서"} — PDF 변환 미리보기</Text>
+            <Group gap="xs" wrap="nowrap">
+              <Button size="xs" color="kw" leftSection={<IconDownload size={14} />}
+                onClick={() => api.saveBlob(preview.blob, preview.filename)}>다운로드</Button>
+              <Button size="xs" variant="default" onClick={closePreview}>닫기</Button>
+            </Group>
+          </Group>
+          <Suspense fallback={<Center h={160}><Loader /></Center>}>
             <PdfViewer
               file={preview.blob}
               url={preview.url}
@@ -173,147 +178,162 @@ export function ReportPanel({
               onDownload={() => api.saveBlob(preview.blob, preview.filename)}
             />
           </Suspense>
-          <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-center text-[11px] text-slate-400">
+          <Text size="xs" c="dimmed" ta="center" px="sm" py={6}
+            style={{ borderTop: "1px solid var(--mantine-color-gray-1)", background: "var(--mantine-color-gray-0)" }}>
             미리보기가 보이지 않으면 상단의 “다운로드”로 파일을 내려받아 확인하세요.
-          </div>
-        </div>
+          </Text>
+        </Paper>
       )}
-    </div>
+    </Paper>
+  );
+}
+
+/** 섹션 제목(번호 강조). */
+function SectionTitle({ n, children, extra }: { n: number; children: ReactNode; extra?: ReactNode }) {
+  return (
+    <Text fw={700} size="sm" mb="xs">
+      <Text span c="kw" inherit fw={700}>{n}.</Text> {children}
+      {extra && <Text span size="xs" fw={400} c="dimmed"> {extra}</Text>}
+    </Text>
   );
 }
 
 /** 웹 보고서 — 일일 보고서를 PDF 변환 전 HTML 레이아웃으로 표출. */
 function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn: string }) {
   const lv = report.peak_level;
-  const Info = ({ k, v }: { k: string; v: string }) => (
-    <div className="flex">
-      <div className="w-24 shrink-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">{k}</div>
-      <div className="flex-1 px-3 py-2 text-sm text-slate-800">{v}</div>
-    </div>
+  const Info = ({ k, v }: { k: string; v: ReactNode }) => (
+    <Group gap={0} wrap="nowrap" align="stretch"
+      style={{ borderBottom: "1px solid var(--mantine-color-gray-1)" }}>
+      <Box w={96} px="sm" py={8} style={{ flexShrink: 0, background: "var(--mantine-color-gray-0)" }}>
+        <Text size="xs" fw={500} c="dimmed">{k}</Text>
+      </Box>
+      <Box px="sm" py={8} style={{ flex: 1, display: "flex", alignItems: "center" }}>
+        {typeof v === "string" ? <Text size="sm">{v}</Text> : v}
+      </Box>
+    </Group>
   );
   const Metric = ({ label, value, unit, sub, accent }:
     { label: string; value: string; unit?: string; sub?: string; accent?: string }) => (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 text-center">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 flex items-baseline justify-center gap-1">
-        <span className="text-xl font-bold tracking-tight" style={{ color: accent || "#0f172a" }}>{value}</span>
-        {unit && <span className="text-xs text-slate-400">{unit}</span>}
-      </div>
-      <div className="mt-0.5 h-4 text-[11px] text-slate-400">{sub || ""}</div>
-    </div>
+    <Paper withBorder radius="md" p="md" ta="center">
+      <Text size="xs" c="dimmed">{label}</Text>
+      <Group justify="center" align="baseline" gap={4} mt={4}>
+        <Text fw={700} fz="xl" style={{ color: accent || "#0f172a", letterSpacing: "-0.01em" }}>{value}</Text>
+        {unit && <Text size="xs" c="dimmed">{unit}</Text>}
+      </Group>
+      <Text size="xs" c="dimmed" mt={2} h={16}>{sub || ""}</Text>
+    </Paper>
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <Paper withBorder radius="lg" style={{ overflow: "hidden" }}>
       {/* 제목 */}
-      <div className="border-b-2 border-kw px-5 py-4 text-center">
-        <div className="text-lg font-extrabold tracking-tight text-slate-900">폭염 안전관리 일일 보고서</div>
-        <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+      <Box ta="center" px="lg" py="md" style={{ borderBottom: "2px solid var(--mantine-color-kw-6)" }}>
+        <Text fw={800} fz="lg" style={{ letterSpacing: "-0.01em" }}>폭염 안전관리 일일 보고서</Text>
+        <Text fz={10} fw={500} c="dimmed" mt={2} style={{ textTransform: "uppercase", letterSpacing: "0.2em" }}>
           Heat Stress Daily Management Report
-        </div>
-      </div>
+        </Text>
+      </Box>
 
       {/* 문서 정보 */}
-      <div className="grid grid-cols-1 divide-y divide-slate-100 border-b border-slate-100 sm:grid-cols-2 sm:divide-y-0">
-        <div className="divide-y divide-slate-100 sm:border-r sm:border-slate-100">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={0}
+        style={{ borderBottom: "1px solid var(--mantine-color-gray-1)" }}>
+        <Box style={{ borderRight: "1px solid var(--mantine-color-gray-1)" }}>
           <Info k="사업장" v={report.company_name || "-"} />
           <Info k="설치 위치" v={report.location_name || "-"} />
-        </div>
-        <div className="divide-y divide-slate-100">
+        </Box>
+        <Box>
           <Info k="대상 일자" v={report.date} />
-          <div className="flex items-center">
-            <div className="w-24 shrink-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">최고 위험단계</div>
-            <div className="flex-1 px-3 py-1.5"><HeatBadge level={lv} size="sm" /></div>
-          </div>
-        </div>
-      </div>
+          <Info k="최고 위험단계" v={<HeatBadge level={lv} size="sm" />} />
+        </Box>
+      </SimpleGrid>
 
-      <div className="space-y-4 p-5">
+      <Stack gap="md" p="lg">
         {/* 측정 결과 요약 */}
-        <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">1.</span> 측정 결과 요약</h4>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Box>
+          <SectionTitle n={1}>측정 결과 요약</SectionTitle>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
             <Metric label="최고 체감온도" value={`${report.max_feels_like ?? "-"}`} unit="℃"
-                    accent={lv.color} sub={report.max_feels_like_time ? `${report.max_feels_like_time} 발생` : ""} />
+              accent={lv.color} sub={report.max_feels_like_time ? `${report.max_feels_like_time} 발생` : ""} />
             <Metric label="최고 온도" value={`${report.max_temperature ?? "-"}`} unit="℃" />
             <Metric label="위험단계 노출 (38℃↑)" value={fmtMin(report.minutes_over_38)}
-                    accent={report.minutes_over_38 > 0 ? "#dc2626" : undefined}
-                    sub={report.minutes_over_38 > 0 ? "온열질환 고위험" : "미발생"} />
-          </div>
-        </section>
+              accent={report.minutes_over_38 > 0 ? "#dc2626" : undefined}
+              sub={report.minutes_over_38 > 0 ? "온열질환 고위험" : "미발생"} />
+          </SimpleGrid>
+        </Box>
 
         {/* 위험단계별 노출시간 — 관심/주의/경고/위험 4단계 */}
-        <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">2.</span> 폭염 위험단계별 노출시간</h4>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-center text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="py-1.5 font-medium">관심 (31℃↑)</th>
-                  <th className="py-1.5 font-medium">주의 (33℃↑)</th>
-                  <th className="py-1.5 font-medium">경고 (35℃↑)</th>
-                  <th className="py-1.5 font-medium">위험 (38℃↑)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="font-bold text-slate-800">
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#84cc16" }}>{fmtMin(report.minutes_over_31)}</td>
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#eab308" }}>{fmtMin(report.minutes_over_33)}</td>
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#f97316" }}>{fmtMin(report.minutes_over_35)}</td>
-                  <td className="border-t border-slate-100 py-2" style={{ color: "#dc2626" }}>{fmtMin(report.minutes_over_38)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <Box>
+          <SectionTitle n={2}>폭염 위험단계별 노출시간</SectionTitle>
+          <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+            <Table ta="center" verticalSpacing={6}>
+              <Table.Thead>
+                <Table.Tr style={{ background: "var(--mantine-color-gray-0)" }}>
+                  <Table.Th ta="center" fz="xs" fw={500} c="dimmed">관심 (31℃↑)</Table.Th>
+                  <Table.Th ta="center" fz="xs" fw={500} c="dimmed">주의 (33℃↑)</Table.Th>
+                  <Table.Th ta="center" fz="xs" fw={500} c="dimmed">경고 (35℃↑)</Table.Th>
+                  <Table.Th ta="center" fz="xs" fw={500} c="dimmed">위험 (38℃↑)</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                <Table.Tr>
+                  <Table.Td ta="center" fw={700} style={{ color: "#84cc16" }}>{fmtMin(report.minutes_over_31)}</Table.Td>
+                  <Table.Td ta="center" fw={700} style={{ color: "#eab308" }}>{fmtMin(report.minutes_over_33)}</Table.Td>
+                  <Table.Td ta="center" fw={700} style={{ color: "#f97316" }}>{fmtMin(report.minutes_over_35)}</Table.Td>
+                  <Table.Td ta="center" fw={700} style={{ color: "#dc2626" }}>{fmtMin(report.minutes_over_38)}</Table.Td>
+                </Table.Tr>
+              </Table.Tbody>
+            </Table>
+          </Paper>
+        </Box>
 
         {/* 시간별 체감온도 변화 — 표 + 그래프 */}
-        <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">3.</span> 시간별 체감온도 변화</h4>
+        <Box>
+          <SectionTitle n={3}>시간별 체감온도 변화</SectionTitle>
           <HourlyTable hours={report.hours} />
           <HourlyChart hours={report.hours} />
-        </section>
+        </Box>
 
         {/* 법정 휴식 의무 (산업안전보건규칙) */}
-        <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">4.</span> 법정 휴식 의무 <span className="text-xs font-normal text-slate-400">(산업안전보건규칙 — 체감 33℃↑ 작업 시 2시간마다 20분 이상)</span></h4>
+        <Box>
+          <SectionTitle n={4} extra="(산업안전보건규칙 — 체감 33℃↑ 작업 시 2시간마다 20분 이상)">법정 휴식 의무</SectionTitle>
           {report.work_hot_minutes > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-              <div className="text-slate-700">
+            <Alert color="yellow" variant="light" radius="md">
+              <Text size="sm">
                 근무시간(09:00~18:00) 중 체감온도 <b>33℃ 이상 작업</b>이
-                <b className="text-amber-700"> {fmtMin(report.work_hot_minutes)}</b> 발생 →
-                <b className="text-amber-700"> 최소 {report.legal_rest_count}회 · 총 {fmtMin(report.legal_rest_minutes)}</b>의
+                <Text span c="yellow.8" fw={700}> {fmtMin(report.work_hot_minutes)}</Text> 발생 →
+                <Text span c="yellow.8" fw={700}> 최소 {report.legal_rest_count}회 · 총 {fmtMin(report.legal_rest_minutes)}</Text>의
                 휴식을 부여해야 합니다.
-              </div>
-              <p className="mt-1.5 text-xs text-slate-500">
+              </Text>
+              <Text size="xs" c="dimmed" mt={6}>
                 ※ 본 수치는 측정 체감온도 기반 <b>법정 최소 의무량</b>입니다. 실제 부여한 휴식 기록과 대조하여 준수 여부를 확인하세요.
-              </p>
-            </div>
+              </Text>
+            </Alert>
           ) : (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-              근무시간 중 체감온도 33℃ 이상 작업이 없어 추가 의무 휴식 대상이 아닙니다(통상 안전보건 관리 유지).
-            </div>
+            <Paper withBorder radius="md" p="md" bg="gray.0">
+              <Text size="sm" c="dimmed">
+                근무시간 중 체감온도 33℃ 이상 작업이 없어 추가 의무 휴식 대상이 아닙니다(통상 안전보건 관리 유지).
+              </Text>
+            </Paper>
           )}
-        </section>
+        </Box>
 
         {/* 안전조치 가이드 */}
-        <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-800"><span className="text-kw">5.</span> 안전조치 이행 가이드</h4>
-          <ul className="space-y-1.5">
+        <Box>
+          <SectionTitle n={5}>안전조치 이행 가이드</SectionTitle>
+          <List spacing={6} size="sm" center
+            icon={<Text span c="kw" fz={10} lh={1}>○</Text>}>
             {report.guidance.map((g, i) => (
-              <li key={i} className="flex gap-2 text-sm leading-snug text-slate-700">
-                <span className="mt-0.5 text-kw">○</span>{g}
-              </li>
+              <List.Item key={i}>{g}</List.Item>
             ))}
-          </ul>
-        </section>
+          </List>
+        </Box>
 
-        <p className="border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-400">
+        <Text size="xs" c="dimmed" pt="sm" style={{ borderTop: "1px solid var(--mantine-color-gray-1)", lineHeight: 1.6 }}>
           측정기기: 케이웨더(주) 체감온도계 (기기: {deviceSn}) · 모든 측정 데이터는 케이웨더(주) 체감온도계 장비로
           측정·수집되었으며, 외부 기상자료를 포함한 출처는 케이웨더(주)입니다.
-        </p>
-      </div>
-    </div>
+        </Text>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -326,31 +346,33 @@ function fill24(hours: DailyHourPoint[]): (DailyHourPoint | null)[] {
 /** 시간별 체감온도 색상 표(24시간). */
 function HourlyTable({ hours }: { hours: DailyHourPoint[] }) {
   const cells = fill24(hours);
-  if (!hours.length) return <p className="text-sm text-slate-400">시간별 데이터가 없습니다.</p>;
+  if (!hours.length) return <Text size="sm" c="dimmed">시간별 데이터가 없습니다.</Text>;
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <table className="w-full table-fixed text-center" style={{ minWidth: 720 }}>
-        <tbody>
-          <tr>
-            <td className="w-12 bg-slate-50 px-1 py-1 text-[10px] font-medium text-slate-500">시각</td>
-            {cells.map((_, h) => (
-              <td key={h} className="bg-slate-50 px-0.5 py-1 text-[10px] font-medium text-slate-500">
-                {String(h).padStart(2, "0")}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td className="w-12 bg-slate-50 px-1 py-1 text-[10px] font-medium text-slate-500">체감</td>
-            {cells.map((c, h) => (
-              <td key={h} className="px-0.5 py-1.5 text-[10px] font-bold text-white"
+    <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+      <Table.ScrollContainer minWidth={720}>
+        <Table layout="fixed" ta="center" withRowBorders={false} horizontalSpacing={2} verticalSpacing={4}>
+          <Table.Tbody>
+            <Table.Tr>
+              <Table.Td w={48} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>시각</Table.Td>
+              {cells.map((_, h) => (
+                <Table.Td key={h} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>
+                  {String(h).padStart(2, "0")}
+                </Table.Td>
+              ))}
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td w={48} fz={10} fw={500} c="dimmed" style={{ background: "var(--mantine-color-gray-0)" }}>체감</Table.Td>
+              {cells.map((c, h) => (
+                <Table.Td key={h} fz={10} fw={700}
                   style={{ background: c?.feels != null ? c.color : "#f1f5f9", color: c?.feels != null ? "#fff" : "#cbd5e1" }}>
-                {c?.feels != null ? c.feels.toFixed(1) : "-"}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    </div>
+                  {c?.feels != null ? c.feels.toFixed(1) : "-"}
+                </Table.Td>
+              ))}
+            </Table.Tr>
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Paper>
   );
 }
 
@@ -359,13 +381,13 @@ function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
   if (!hours.length) return null;
   const data = fill24(hours).map((c, h) => ({ time: `${String(h).padStart(2, "0")}시`, 체감온도: c?.feels ?? null }));
   return (
-    <div className="mt-3">
+    <Box mt="sm">
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
           <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={20} />
           <YAxis tick={{ fontSize: 10 }} unit="℃" domain={["auto", "auto"]} />
-          <Tooltip />
+          <Tooltip content={<ChartTooltip units={{ 체감온도: "℃" }} />} />
           <ReferenceLine y={31} stroke="#84cc16" strokeDasharray="4 4" label={{ value: "관심 31", fontSize: 9, fill: "#65a30d", position: "right" }} />
           <ReferenceLine y={33} stroke="#eab308" strokeDasharray="4 4" label={{ value: "주의 33", fontSize: 9, fill: "#a16207", position: "right" }} />
           <ReferenceLine y={35} stroke="#f97316" strokeDasharray="4 4" label={{ value: "경고 35", fontSize: 9, fill: "#c2410c", position: "right" }} />
@@ -373,6 +395,6 @@ function HourlyChart({ hours }: { hours: DailyHourPoint[] }) {
           <Line type="monotone" dataKey="체감온도" stroke="#dc2626" strokeWidth={2.2} dot={false} connectNulls />
         </ComposedChart>
       </ResponsiveContainer>
-    </div>
+    </Box>
   );
 }
