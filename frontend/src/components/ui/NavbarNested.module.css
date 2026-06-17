@@ -1,37 +1,44 @@
-/* 이식: Mantine UI NavbarNested.module.css — AppShell 내장용(height/width 100%) */
+/* Mantine UI "NavbarSimple" 정합 + 상/하 구역 분리(상=측정기 목록, 하=보조 메뉴). */
 .navbar {
   background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-6));
   height: 100%;
   width: 100%;
   padding: var(--mantine-spacing-md);
-  padding-bottom: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
 }
 
 .header {
-  padding: var(--mantine-spacing-md);
-  padding-top: 0;
-  margin-left: calc(var(--mantine-spacing-md) * -1);
-  margin-right: calc(var(--mantine-spacing-md) * -1);
-  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
+  padding-bottom: var(--mantine-spacing-md);
+  margin-bottom: var(--mantine-spacing-md);
   border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
 }
 
-.links {
+/* 상단: 측정기 목록 — 남는 공간 차지(즉시 노출) */
+.navbarMain {
   flex: 1;
-  margin-left: calc(var(--mantine-spacing-md) * -1);
-  margin-right: calc(var(--mantine-spacing-md) * -1);
 }
 
-.linksInner {
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-2));
+  padding: 0 var(--mantine-spacing-sm);
+  margin-bottom: 6px;
+}
+
+/* 하단: 보조 메뉴(리포트/기기관리/관리자) */
+.bottomNav {
   padding-top: var(--mantine-spacing-md);
-  padding-bottom: var(--mantine-spacing-md);
+  margin-top: var(--mantine-spacing-md);
+  border-top: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
 }
 
 .footer {
-  margin-left: calc(var(--mantine-spacing-md) * -1);
-  margin-right: calc(var(--mantine-spacing-md) * -1);
+  padding-top: var(--mantine-spacing-md);
+  margin-top: var(--mantine-spacing-md);
   border-top: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
 }

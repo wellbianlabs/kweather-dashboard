@@ -78,7 +78,7 @@ export function DashboardMockup() {
             <NavLink label="관리자" leftSection={<IconShieldHalf size={18} />} color="gray" />
           </Stack>
           <Box style={{ marginTop: "auto" }} pt="md">
-            <Text size="xs" c="dimmed">케이웨더 안전보건 대시보드</Text>
+            <Text size="xs" c="dimmed">체감온도 데이터 분석 프로그램</Text>
           </Box>
         </AppShell.Navbar>
 

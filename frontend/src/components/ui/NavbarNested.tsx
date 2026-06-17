@@ -1,80 +1,101 @@
-// 이식: Mantine UI "NavbarNested" (ui.mantine.dev, MIT) — 접히는 그룹 사이드바.
-// IA=우리 메뉴(리포트/설정/관리자 하위), 로고=케이웨더, 푸터=AccountButton(이식)+로그아웃.
-// 라우터 인지: currentPath/onNavigate props(프레젠테이셔널 유지 — 라우터 의존 없음).
-import { ActionIcon, Group, ScrollArea, Tooltip } from "@mantine/core";
+// 사이드바 nav — 상/하 구역 분리.
+//  상단(메인) = 등록 측정기 목록(즉시 노출, 클릭=대시보드+해당 기기, [+]=업로드).
+//  하단 = 보조 메뉴(리포트 · 기기 관리 · 관리자). 그 아래 계정/테마/로그아웃.
 import {
-  IconAdjustments, IconDeviceDesktopAnalytics, IconFileText, IconLayoutDashboard,
-  IconLogout, IconMap2, IconShieldHalf,
+  ActionIcon, Box, Button, Group, NavLink, ScrollArea, Text, Tooltip,
+} from "@mantine/core";
+import {
+  IconDeviceDesktopAnalytics, IconFileText, IconLogout, IconMoon, IconPlus, IconShieldHalf, IconSun,
 } from "@tabler/icons-react";
-import { LinksGroup } from "./NavbarLinksGroup";
+import type { Device } from "../../types";
 import { AccountButton } from "./AccountButton";
 import classes from "./NavbarNested.module.css";
 
-const NAV = [
-  { label: "대시보드", icon: IconLayoutDashboard, to: "/" },
-  { label: "위험 지도", icon: IconMap2, to: "/map" },
-  {
-    label: "리포트", icon: IconFileText, initiallyOpened: true,
-    links: [
-      { label: "일일 안전 보고서", to: "/report" },
-      { label: "기간 통계 보고서", to: "/report" },
-      { label: "Excel 내보내기", to: "/report" },
-    ],
-  },
-  { label: "기기 · 사업장", icon: IconDeviceDesktopAnalytics, to: "/devices" },
-  {
-    label: "설정", icon: IconAdjustments,
-    links: [
-      { label: "폭염 임계값", to: "/settings" },
-      { label: "표시 설정", to: "/settings" },
-      { label: "테마(라이트/다크)", to: "/settings" },
-    ],
-  },
-  {
-    label: "관리자", icon: IconShieldHalf,
-    links: [
-      { label: "트래픽 추이", to: "/admin" },
-      { label: "사업장(회원) 현황", to: "/admin" },
-      { label: "접근 로그", to: "/admin" },
-    ],
-  },
-];
+// 보조 메뉴 공통 스타일
+const ITEM_STYLES = {
+  root: { borderRadius: "var(--mantine-radius-md)", padding: "11px 12px" },
+  label: { fontSize: 15, fontWeight: 600 },
+} as const;
 
 interface NavbarNestedProps {
   currentPath?: string;
   onNavigate?: (to: string) => void;
   account?: { company?: string; email?: string; onLogout?: () => void };
+  devices?: Device[];
+  currentDevice?: string | null;
+  onSelectDevice?: (sn: string | null) => void;
+  onUpload?: (sn: string) => void;
+  colorScheme?: "light" | "dark";
+  onToggleTheme?: () => void;
 }
 
-export function NavbarNested({ currentPath, onNavigate, account }: NavbarNestedProps) {
+export function NavbarNested({
+  currentPath, onNavigate, account, devices = [], currentDevice, onSelectDevice, onUpload,
+  colorScheme = "light", onToggleTheme,
+}: NavbarNestedProps) {
+  const onDash = currentPath === "/";
+
   return (
     <nav className={classes.navbar}>
       <div className={classes.header}>
         <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 22 }} />
       </div>
 
-      <ScrollArea className={classes.links}>
-        <div className={classes.linksInner}>
-          {NAV.map((item) => (
-            <LinksGroup
-              {...item}
-              key={item.label}
-              active={item.to ? currentPath === item.to : undefined}
-              onNavigate={onNavigate}
+      {/* 상단: 등록 측정기 목록 */}
+      <ScrollArea className={classes.navbarMain}>
+        <Text className={classes.sectionLabel}>측정기</Text>
+        {devices.length === 0 && <Text size="sm" c="dimmed" px="sm" py={8}>등록된 측정기가 없습니다</Text>}
+        {devices.map((d) => {
+          const cur = currentDevice === d.device_sn && onDash;
+          return (
+            <NavLink
+              key={d.device_sn} mb={4}
+              label={d.device_sn}
+              description={d.location_name || d.company_name || undefined}
+              active={cur} variant="light" color="kw"
+              onClick={() => { onSelectDevice?.(d.device_sn); onNavigate?.("/"); }}
+              leftSection={<Box w={8} h={8} style={{ borderRadius: 4, background: cur ? "var(--mantine-color-kw-6)" : "var(--mantine-color-gray-4)" }} />}
+              rightSection={
+                <Tooltip label="측정 데이터 업로드" withArrow position="right">
+                  <ActionIcon component="div" variant="light" color="kw" size="md" radius="sm" aria-label="upload"
+                    onClick={(e) => { e.stopPropagation(); onUpload?.(d.device_sn); }}>
+                    <IconPlus size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              }
+              styles={{
+                root: { borderRadius: "var(--mantine-radius-md)", padding: "9px 10px" },
+                label: { fontSize: 14.5, fontWeight: cur ? 700 : 600 },
+                description: { fontSize: 12.5, marginTop: 3 },
+              }}
             />
-          ))}
-        </div>
+          );
+        })}
       </ScrollArea>
 
+      {/* 하단: 보조 메뉴 */}
+      <div className={classes.bottomNav}>
+        <NavLink label="리포트" active={currentPath === "/report"} variant="light" color="kw" mb={4} styles={ITEM_STYLES}
+          leftSection={<IconFileText size={20} stroke={1.6} />} onClick={() => onNavigate?.("/report")} />
+        <NavLink label="기기 관리" active={currentPath === "/devices"} variant="light" color="kw" mb={4} styles={ITEM_STYLES}
+          leftSection={<IconDeviceDesktopAnalytics size={20} stroke={1.6} />} onClick={() => onNavigate?.("/devices")} />
+        <NavLink label="관리자" active={currentPath === "/admin"} variant="light" color="kw" styles={ITEM_STYLES}
+          leftSection={<IconShieldHalf size={20} stroke={1.6} />} onClick={() => onNavigate?.("/admin")} />
+      </div>
+
       <div className={classes.footer}>
-        <Group justify="space-between" wrap="nowrap" gap="xs">
+        <Group wrap="nowrap" gap={0}>
           <AccountButton company={account?.company} email={account?.email} onClick={() => onNavigate?.("/settings")} />
+        </Group>
+        <Group mt="sm" gap="xs" grow>
+          {onToggleTheme && (
+            <Button variant="default" size="xs" color="gray"
+              leftSection={colorScheme === "dark" ? <IconSun size={15} /> : <IconMoon size={15} />}
+              onClick={onToggleTheme}>{colorScheme === "dark" ? "라이트" : "다크"}</Button>
+          )}
           {account?.onLogout && (
-            <Tooltip label="로그아웃">
-              <ActionIcon variant="subtle" color="gray" onClick={account.onLogout} aria-label="logout">
-                <IconLogout size={18} />
-              </ActionIcon>
-            </Tooltip>
+            <Button variant="default" size="xs" color="gray"
+              leftSection={<IconLogout size={15} />} onClick={account.onLogout}>로그아웃</Button>
           )}
         </Group>
       </div>
