@@ -1204,107 +1204,93 @@ EXPORT_RAW_MAX = 100_000
 def export_excel(
     db: Session, tenant: Tenant, device_sn: str | None, start: datetime, end: datetime
 ) -> bytes:
-    """Excel 내보내기 — 일일 보고서 양식.
+    """Excel 내보내기 — 일일 '측정 기록부'(순수 기록 보고용).
 
-    하나의 '일일 보고서' 시트에 요약 항목 리스트 + 안전조치 가이드 + 측정 데이터 표
-    (조치사항·비고 기입란 포함)를 담는다. 기상청 공식 체감온도는 저장 캐시만 사용.
+    분석 요약·가이드 없이, 선택한 하루의 기기 측정값(시각·온도·습도·체감온도·위험단계)을
+    그대로 나열하고, 안전관리자가 온도 상황에 따른 조치사항·비고를 수기로 기록할 수 있게
+    빈 칸을 제공한다.
     """
-    import json as _json
+    from openpyxl.styles import Alignment as _Align, Border, Side
 
-    from ..models import ExternalDailyCache, SensorLog
+    from ..models import SensorLog
 
     on_date = start.date()
     sns = analytics._resolve_scope(db, tenant, device_sn)
+    dev = db.get(Device, device_sn) if device_sn else None
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "일일 보고서"
-    for i, w in enumerate([22, 12, 10, 14, 22, 28, 22], start=1):
+    ws.title = "측정 기록부"
+    for i, w in enumerate([20, 9, 9, 11, 11, 34, 22], start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
     title_font = Font(bold=True, size=14, color="0F172A")
-    sec_font = Font(bold=True, size=11, color="0F499E")
     k_fill = PatternFill("solid", fgColor="F1F5F9")
     k_font = Font(bold=True, color="334155")
+    thin = Side(style="thin", color="D1D5DB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     r = 1
-    ws.cell(r, 1, "폭염 안전관리 일일 보고서").font = title_font
+    ws.cell(r, 1, "폭염 체감온도 측정 기록부").font = title_font
     r += 2
 
-    # --- 요약 항목 리스트 (항목 | 내용) ---
-    def kv(label: str, value) -> None:
-        nonlocal r
-        a = ws.cell(r, 1, label); a.fill = k_fill; a.font = k_font
-        ws.cell(r, 2, value if value is not None else "-")
-        r += 1
+    # --- 기록 식별 헤더(간략) ---
+    def lab(row, col, label, value):
+        a = ws.cell(row, col, label); a.fill = k_fill; a.font = k_font
+        a.border = border; a.alignment = _Align(horizontal="center")
+        v = ws.cell(row, col + 1, value if value is not None else "-"); v.border = border
+        return v
 
-    if device_sn:
-        d = _daily_detail(db, tenant, device_sn, on_date)
-        kv("사업장", d.get("company_name") or "-")
-        kv("주소", d.get("address") or "-")
-        kv("설치 위치", d.get("location_name") or "-")
-        kv("측정기기", f"케이웨더(주) 체감온도계 · {device_sn}")
-        kv("대상 일자", on_date.isoformat())
-        if d.get("has_data"):
-            kv("최고 체감온도", f"{d['max_feels']}°C ({d['max_time']})")
-            kv("최고 온도", f"{d['max_temp']}°C")
-            kv("위험단계 노출(38°C↑)", d["level_minutes_label"].get("danger", "0분"))
-            if d.get("work"):
-                kv("법정 휴식 의무", f"{d['work']['legal_rest_count']}회 · {d['work'].get('legal_rest_label', '0분')}")
-            kv("최고 위험단계", d.get("peak_label", "-"))
-        r += 1
+    lab(r, 1, "사업장", dev.company_name if dev else "-")
+    lab(r, 4, "대상 일자", on_date.isoformat())
+    r += 1
+    lab(r, 1, "설치 위치", dev.location_name if dev else "-")
+    lab(r, 4, "측정기기", f"케이웨더(주) 체감온도계 · {device_sn}" if device_sn else "-")
+    r += 1
+    lab(r, 1, "작성자", "")
+    lab(r, 4, "확인(관리자)", "")
+    r += 2
 
-        # --- 안전조치 가이드 ---
-        ws.cell(r, 1, "안전조치 이행 가이드").font = sec_font
-        r += 1
-        for g in d.get("guidance", []):
-            ws.cell(r, 1, f"○ {g}")
-            r += 1
-        r += 1
-
-    # --- 측정 데이터 표 (조치사항·비고 기입란 포함) ---
-    headers = ["측정일시", "온도(°C)", "습도(%)", "체감온도(°C)", "기상청 공식 체감온도(°C)", "조치사항", "비고"]
+    # --- 측정 표(위험단계 + 수기 조치사항·비고) ---
+    headers = ["측정시각", "온도(℃)", "습도(%)", "체감온도(℃)", "위험단계", "조치사항(수기)", "비고(수기)"]
     for ci, h in enumerate(headers, start=1):
         cell = ws.cell(r, ci, h)
         cell.fill = _HEADER_FILL
         cell.font = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = _Align(horizontal="center")
+        cell.border = border
     r += 1
 
-    # 기상청 공식 체감(저장 캐시만)
-    ext_map: dict[tuple, dict] = {}
     if sns:
-        for csn, ymd, hj in db.execute(
-            select(ExternalDailyCache.device_sn, ExternalDailyCache.ymd, ExternalDailyCache.hourly_json).where(
-                ExternalDailyCache.device_sn.in_(sns),
-                ExternalDailyCache.hourly_json.isnot(None),
-                ExternalDailyCache.ymd == on_date.strftime("%Y%m%d"),
-            )
-        ).all():
-            try:
-                ext_map[(csn, ymd)] = {int(k): v.get("feels") for k, v in _json.loads(hj).items()}
-            except Exception:  # noqa: BLE001
-                pass
-
         cond = [SensorLog.device_sn.in_(sns), SensorLog.measured_at >= start, SensorLog.measured_at <= end]
         q = (
             select(
-                SensorLog.measured_at, SensorLog.device_sn,
-                SensorLog.temperature, SensorLog.humidity, SensorLog.feels_like_temperature,
+                SensorLog.measured_at, SensorLog.temperature,
+                SensorLog.humidity, SensorLog.feels_like_temperature,
             )
             .where(*cond)
             .order_by(SensorLog.measured_at)
             .limit(EXPORT_RAW_MAX)
         )
-        for mt, sn, temp, humi, feels in db.execute(q):
+        center = _Align(horizontal="center")
+        for mt, temp, humi, feels in db.execute(q):
             ts = pd.Timestamp(mt)
-            of = ext_map.get((sn, ts.strftime("%Y%m%d")), {}).get(ts.hour)
-            ws.cell(r, 1, ts.strftime("%Y-%m-%d %H:%M:%S"))
-            ws.cell(r, 2, round(float(temp), 1) if temp is not None else None)
-            ws.cell(r, 3, int(humi) if humi is not None else None)
-            ws.cell(r, 4, round(float(feels), 1) if feels is not None else None)
-            ws.cell(r, 5, round(float(of), 1) if of is not None else None)
-            # 6=조치사항 · 7=비고 : 현장 기입용 빈칸
+            fv = float(feels) if feels is not None else None
+            lvl = heat.classify(fv)
+            c1 = ws.cell(r, 1, ts.strftime("%H:%M"))
+            c2 = ws.cell(r, 2, round(float(temp), 1) if temp is not None else None)
+            c3 = ws.cell(r, 3, int(humi) if humi is not None else None)
+            c4 = ws.cell(r, 4, round(fv, 1) if fv is not None else None)
+            c5 = ws.cell(r, 5, lvl.label if fv is not None else "")
+            if fv is not None:
+                c5.fill = PatternFill("solid", fgColor=lvl.color.lstrip("#").upper())
+                c5.font = Font(bold=True, color="FFFFFF")
+            c6 = ws.cell(r, 6, "")  # 조치사항 — 수기
+            c7 = ws.cell(r, 7, "")  # 비고 — 수기
+            for cc in (c1, c2, c3, c4, c5, c6, c7):
+                cc.border = border
+                if cc not in (c6, c7):
+                    cc.alignment = center
             r += 1
 
     buf = io.BytesIO()
