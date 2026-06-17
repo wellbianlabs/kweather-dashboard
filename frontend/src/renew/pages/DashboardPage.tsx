@@ -103,7 +103,7 @@ function HeatGauge({ temp, th }: { temp: number | null; th: Record<string, numbe
         ))}
         <text x={cx} y={cy - 20} textAnchor="middle" style={{ fontSize: 30, fontWeight: 800, fill: lvl.color }}>{lvl.label}</text>
         <text x={cx} y={cy + 2} textAnchor="middle" style={{ fontSize: 12, fill: "#64748b" }}>
-          {temp != null ? `실시간 ${temp.toFixed(1)}℃` : "측정 없음"}
+          {temp != null ? `최고 ${temp.toFixed(1)}℃` : "측정 없음"}
         </text>
       </svg>
     </Box>
@@ -149,7 +149,6 @@ export function DashboardPage() {
   // 파생값(실데이터)
   const cautionMin = (ts?.points ?? []).filter((p) => p.feels_like != null && (p.feels_like as number) >= (th.caution ?? 33)).length * interval;
   const spark = (ts?.points ?? []).map((p) => ({ t: p.t, feels: p.feels_like }));
-  const cur = lastFeels(ts);
   const devLabel = selected ? `${selected.device_sn}${selected.location_name ? ` · ${selected.location_name}` : ""}` : (deviceSn ?? "전체 사업장");
 
   const feelStage: Stage = kpi?.current_level ?? LV.safe;
@@ -228,15 +227,12 @@ export function DashboardPage() {
             <ForecastBar weekly={weekly} th={th} />
           </Card>
 
-          {/* 폭염 단계 관심 지수 게이지 — 현재 디바이스 실시간(최근 측정) */}
+          {/* 폭염 위험단계 게이지 — 분석일 '최고 체감' 기준(과거 기록 분석, 실시간 아님) */}
           <Card radius="lg" withBorder shadow="xs" p="lg">
-            <CardHead title="폭염 단계 관심 지수"
-              sub={`${devLabel} — 현재 디바이스${cur ? ` · ${cur.t.slice(11, 16)}` : ""}`}
-              right={<Group gap={5} wrap="nowrap" align="center">
-                <Box style={{ width: 7, height: 7, borderRadius: "50%", background: "#16a34a" }} />
-                <Text fz={10} c="dimmed">실시간</Text>
-              </Group>} />
-            <HeatGauge temp={cur?.v ?? kpi?.avg_feels_like ?? null} th={th} />
+            <CardHead title="폭염 위험단계"
+              sub={`${devLabel} · 분석일 ${date} 최고 체감 기준`}
+              right={<Text fz={10} c="dimmed">분석일 최고</Text>} />
+            <HeatGauge temp={kpi?.max_feels_like ?? null} th={th} />
           </Card>
         </Stack>
       </Grid.Col>

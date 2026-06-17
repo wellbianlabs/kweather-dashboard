@@ -11,11 +11,12 @@ import { notifications } from "@mantine/notifications";
 import { useDashboard } from "../DashboardProvider";
 import { api } from "../../api";
 
+// 백엔드 thresholds 키(attention/caution/warning/danger)와 1:1 일치 — 관심31/주의33/경고35/위험38.
 const THRESHOLD_LABEL: Record<string, { label: string; color: string }> = {
-  caution: { label: "관심", color: "#84cc16" },
-  warning: { label: "주의", color: "#eab308" },
-  danger: { label: "경고", color: "#f97316" },
-  emergency: { label: "위험", color: "#dc2626" },
+  attention: { label: "관심", color: "#84cc16" },
+  caution: { label: "주의", color: "#eab308" },
+  warning: { label: "경고", color: "#f97316" },
+  danger: { label: "위험", color: "#dc2626" },
 };
 
 export function SettingsPage() {
