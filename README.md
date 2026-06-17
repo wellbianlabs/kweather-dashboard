@@ -1,4 +1,65 @@
-# 케이웨더 체감온도계 연동 대시보드 및 리포트 자동화 시스템
+# 케이웨더 체감온도 데이터 분석 프로그램
+
+케이웨더 체감온도계 단말기의 TXT 로우데이터를 업로드해 사업장·측정기별 체감온도/온도/습도를
+분석하고, 폭염 위험단계·법정휴식을 진단하며, 안전관리 리포트(PDF/Excel)를 자동 출력하는 시스템.
+
+---
+
+# 🔧 핸드오프 (2026-06-17) — 후임 작업자 필독
+
+> 본 README 상단 = **현재 상태·재개점**. 하단 「(레거시)」 = PRD 초기 README(React18/Tailwind/Vercel 기준, **구식**).
+> 상세 정본은 **[`Doc/`](Doc/README.md)** 폴더 — 특히 **[작업정본 §현행 정본](Doc/작업정본_KW-DASHBOARD.md)** · **[세션앵커 §0](Doc/세션앵커_KW-DASHBOARD.md)** · **[서버구축정본](Doc/서버구축정본.md)**.
+
+## 현재 상태
+- **브랜치 `Dev`**(=feature/mantine-migration, origin/Dev). 스택: **React 19 + Mantine 9.3.1 + recharts 3 + react-router 7 + Vite 5** / FastAPI + Jinja2 + xhtml2pdf + PIL.
+- **진입점 `/` = `frontend/src/renew/RenewRoot.tsx`**(실앱: 라우팅+인증+실데이터). 페이지=`renew/pages/*`.
+- 검증: `cd frontend && npx tsc -b` 0. 데모 로그인="데모 계정으로 둘러보기"(`demo-key`).
+
+## 로컬 실행
+```bash
+# 백엔드 (포트 4343 — 로컬 vite proxy 기준; 커밋본은 8000)
+cd backend && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 4343 --reload
+# 프론트
+cd frontend && npx vite --port 9999 --strictPort --host 0.0.0.0
+# → http://localhost:9999/  (백엔드 미기동 시 데이터 비고)
+```
+> `frontend/vite.config.ts`의 proxy `target`은 **로컬 4343**(미커밋, 세션용). 커밋본은 **8000** 유지.
+
+## 운영 배포 (자체호스팅)
+- **https://sts.kweather.co.kr** (Ubuntu20.04·PostgreSQL12·nginx+Let's Encrypt). 접속 `ssh kweather-sts`. 런북=**서버구축정본**.
+- ⚠️ **현재 점검상 로그인 차단**: nginx `location ^~ /api/auth/`→503(로그인/가입/데모 진입 불가). 해제=해당 블록 제거+`systemctl reload nginx`(`.bak` 백업 있음).
+- ⚠️ **로컬 최신 변경 미배포**: 서버엔 본 세션 프론트/백엔드 변경이 아직 반영 안 됨. 재배포 절차=서버구축정본 §5.2(프론트 `npm run build`→dist **tar+scp**, 백엔드 rsync, `systemctl restart kweather`).
+
+## 🚧 진행 중 — **리포트 디자인 정합(미완)**: 후임 재개 지점
+리포트 렌더러 **3종의 섹션 구조가 불일치**(웹만 어긋남) → 사용자 결정 **「풀 8섹션(PDF 기준)으로 통일」**.
+
+| 렌더러 | 파일 | 현재 |
+|---|---|---|
+| 웹 `WebReport` | `frontend/src/components/ReportPanel.tsx` | **5섹션**(측정결과·위험단계·시간별·법정휴식·안전조치가이드) ← **이걸 8섹션으로 확장해야 함** |
+| PDF-전 HTML(일일) | `frontend/src/catalog/dailyReportHtml.ts` | **8섹션**(정합 기준 디자인) |
+| 백엔드 PDF | `backend/app/services/report.py` `_DAILY_TEMPLATE` | **8섹션**(= PDF-전 HTML) |
+
+**8섹션 표준**: 1.측정대상개요 2.측정결과요약(표) 3.위험단계별노출(3행표) 4.시간별 5.**내·외부 비교** 6.**종합 분석** 7.조치권고 8.법정휴식.
+
+**재개 절차**:
+1. **백엔드 노출**: `analytics.daily_report_data`(→ `_daily_detail` 호출)에는 `external_daily`·`analysis`·`weather`·`hours[].out_feels/outdoor/delta`가 **이미 계산되어 있음**. `schemas.py DailyReportData`에 이 필드들을 추가하고 `daily_report_data` 반환에 포함만 하면 됨(로직 신규 없음).
+2. **프론트 타입**: `frontend/src/types.ts DailyReport`에 동일 필드 추가.
+3. **WebReport 재작성**: `ReportPanel.tsx WebReport`를 8섹션으로 — **디자인 기준=`catalog/dailyReportHtml.ts`**. 5번(내외부 비교: 표+`HourlyChart` 비교) · 6번(종합분석: `analysis` 리스트) 추가, 섹션 번호 1~8 정렬, 측정결과/위험단계도 PDF의 표 형식으로 맞춤.
+4. **기간 보고서도 동일 점검**: `catalog/PeriodicReport.tsx WebPeriodicReport` ↔ `periodicReportHtml.ts` ↔ 백엔드 `_PERIODIC_TEMPLATE` 일치 확인.
+5. 검증: 리포트 스튜디오(`/report-studio.html`·`/periodic-report-studio.html`) 2칼럼(웹↔PDF-전 HTML) 좌우 동일 + 실 `/report` 웹↔PDF 미리보기 동일.
+
+> 백엔드 PDF·PDF-전 HTML은 이미 8섹션 정합 상태. **웹 WebReport만 5→8 확장**하면 끝. 데이터는 백엔드에 다 있으니 schema 노출 + WebReport 렌더만 추가.
+
+## 핵심 함정 (재현 주의)
+- 리포트 PDF(xhtml2pdf): 페이지번호 `@frame`은 `left/width`+`pt`必(`right`/`px` 실패) · NanumGothic `℃`/`▾` 글리프 없음→`°C`/`▼` · `<img>` width `%`불가→pt · matplotlib 미설치(PIL 경로).
+- Mantine 9.3.1: `Grid`는 `gap`(not `gutter`) · `Collapse`는 `expanded`(not `in`).
+- 배포: deadsnakes PPA 서버 차단→python-build-standalone · macOS openrsync dist 깨짐→tar+scp.
+
+---
+
+## (레거시) PRD 초기 README
+
+> ⚠️ 아래는 초기(React18/Tailwind/Vercel/Leaflet) 기준 — 현행과 다름. 현재 상태는 위 핸드오프 참조.
 
 케이웨더 폭염온도계(체감온도계)의 탭 구분 CSV 로우데이터를 업로드하여 사업장별 온·습도·체감온도를
 시각화하고, 외부 기상 데이터와 비교 분석하며, 안전관리용 리포트(PDF/Excel)를 자동 출력하는

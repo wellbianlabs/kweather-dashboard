@@ -13,6 +13,20 @@
 - **클래스 네임스페이스 kw-dash 재정립**(커밋 `fea144d`) — `classNamesPrefix="kw-dash"`×5 + Vite css.modules. mantine-* 잔존 2(전역 focus/active)만.
 - **#5 후속 완료**(커밋 `a05e2a7`): DataTable·RiskMap **실데이터 배선**(per-device kpi `sites` 레이어+`siteAdapters`) · **다크모드 수정**(index.css body light-dark — 하드코딩 #1e293b가 다크 텍스트 묻히던 핵심버그) · **고아 4종 삭제**(App.tsx·renew.*) · **백엔드 SPA fallback**(`SPAStaticFiles`, /api 가드).
   - **남은 폴리시**: DataTable/RiskMap 정렬·`현재 외부 날씨` 위젯 정식 엔드포인트(`/api/weather/current` 고아) · Leaflet 정식지도(현 스켈레톤) · 로그인 배경이미지 교체 · #6 리브랜딩 · origin push.
+- **폭염 보고서 리디자인 — 백엔드 PDF 반영 완료**(메모리 `kw-dashboard-report-redesign`): `backend/app/services/report.py` `_DAILY_TEMPLATE`·`_PERIODIC_TEMPLATE` Jinja2 전면 교체(프론트 디자인 미러: 미니멀 헤더+식별번호·심리스 테이블·히어로·타임라인 밴드+2열 범례). PIL 차트 `_chart_timeline_band`·`_pil_periodic_bars`(recharts 룩). 검증 일일 3p·기간 2p.
+  - **xhtml2pdf 함정 4종(재현 주의)**: ①페이지번호 `@frame`은 `left/width`+`pt` 必(`right`/`px` 실패) ②강제 `<pdf:nextpage/>` 빈페이지 유발→블록 `keeptogether`로 ③PIL폰트(NanumGothic) `℃`·`▾` 글리프 없음→`°C`/`▼` ④차트 `<img>` width `%` 불가→`540pt` 고정. matplotlib는 Vercel 250MB 초과→PIL이 프로덕션.
+  - **리포트 남은 대기열**: A4 프론트 `WebPeriodicReport`→실 `/report` 배선 · B1 리포트에 6계열 데이터분석 차트 넣을지 확인 · B2 PDF 1–2p 고정섹션(인터럽트) · B3 기상청 습도 프로덕션 캐시.
+- **자체호스팅 배포 완료 → https://sts.kweather.co.kr 라이브**(메모리 `kw-dashboard-server-deploy`): Vercel 탈피, Ubuntu 20.04 서버(`ssh kweather-sts`)에 단일오리진(nginx+LE TLS → uvicorn systemd `kweather` 4workers → FastAPI API+SPA → PostgreSQL12). `/opt/kweather`{backend(.venv=/opt/python311 PBS Py3.11),frontend/dist}. PDF 차트=PIL(no mpl) 검증.
+  - **현재 mock+데모시드**. 날씨 실데이터=`.env` `WEATHER_PROVIDER`/`KW_API_KEY` 채우고 `sudo systemctl restart kweather`(사용자 ENV 수립 예정).
+  - **업데이트 절차**: 로컬 `npm run build`→dist는 **tar+scp**(openrsync 깨짐), backend는 rsync, `systemctl restart kweather`. 함정: deadsnakes PPA 차단→python-build-standalone 사용.
+  - **⚠️ 운영 점검상 로그인 차단 중**: nginx `location ^~ /api/auth/` → 503(로그인/가입/데모 진입 불가, 로그인 화면만 노출). 해제=해당 블록 제거+reload(`.bak` 백업 있음).
+- **대시보드·IA 리뉴얼 + nav/ContextBar 완전 리팩토링(06-17 후반, 로컬)** (메모리 `kw-dashboard-report-redesign` 연계):
+  - **대시보드**(`renew/pages/DashboardPage.tsx`): 협업팀 목업 정합 → KPI 3종 + 좌(일일 리포트 요약·데이터 분석[TimeSeriesChart]) + 우(최근 7일 일최고체감[실측 per-day kpi]·폭염 관심 지수 4단계 게이지). 위험지도/외부비교/사업장표 제외.
+  - **nav/셸**: 데스크톱 AppShell **header 제거**·테마토글 nav 하단 이전·Mantine **"Simple navbar" 정합**(NavLink active=light kw)·**측정기 목록 상단 / 리포트·기기관리·관리자 하단**(상하 분리)·위험지도·설정 메뉴 제거·inner 1200·푸터 간이화·브랜딩 "체감온도 데이터 분석 프로그램".
+  - **공통 업로더**(`components/UploadModal.tsx`): nav 측정기 [+] · 대시보드 **ContextBar [업로드] 병합**. 기기관리 페이지 업로더 제거. provider `openUpload/lastUpload/weekly` 추가.
+  - **ContextBar**: 아이콘 셀렉트·시간간격 SegmentedControl·라벨 정렬. **리포트=측정기→분석일자→보고서유형→[보고서 생성] submit**(`ReportPage.tsx` 단일 통합) · **관리자 접속기록 통합**(AdminPage) · **회원정보 수정**(`PATCH /api/auth/me`+`ProfileUpdateIn`·`api.updateProfile`·SettingsPage).
+  - **검증**: `tsc -b` 0 · 콘솔 0. **로컬 변경 미배포**(서버 재배포 시 일괄 반영 예정).
+  - 정본 문서는 **`Doc/`** 폴더로 이동(2026-06-17).
 
 ## 1. 현재 상태
 - **스택**: React 19.2.7 + Mantine 9.3.1 + recharts 3.8.1 + Vite 5 + d3-geo + react-pdf 10.4.1
@@ -58,8 +72,8 @@ ea817de Merge origin/main  ← 원작자 13커밋 통합
 6. **D1 리브랜딩 컨셉 택1** → theme.ts v2 / **D3 위험지도 Leaflet 정식화**(현 스켈레톤 v1.5) / **현재날씨 위젯 배선**(백엔드 준비됨).
 7. **origin 푸시/PR** — 지시 시(프로덕션 자동배포 트리거).
 
-## 6. 정본 문서 (리포 루트, 7종)
-`분석정본` · `디자인개편_기획서` · `레이아웃설계` · `컴포넌트카탈로그_워크플로우` · `작업정본` · `히스토리정본` · `재변환매칭정본` · (+본 `세션앵커`)
+## 6. 정본 문서 (리포 루트, 8종)
+`분석정본` · `디자인개편_기획서` · `레이아웃설계` · `컴포넌트카탈로그_워크플로우` · `작업정본` · `히스토리정본` · `재변환매칭정본` · **`서버구축정본`**(자체호스팅 배포 런북) · (+본 `세션앵커`)
 
 ## 7. 재개 명령
 ```

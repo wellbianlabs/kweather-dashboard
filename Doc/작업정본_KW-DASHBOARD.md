@@ -3,10 +3,42 @@
 > 기준일: 2026-06-16 · 리포지터리: `wellbianlabs/kweather-dashboard`
 > 범위: 이번 세션에서 수행한 **분석 → Mantine 전환/업그레이드 → 디자인 개편 산출물 → 컴포넌트 카탈로그 → Mantine UI 이식 → 프론트 리뉴얼 → 차트 개선 → 위험지도 스켈레톤** 전체.
 > 작업 브랜치: `feature/mantine-migration` (프로덕션 `/` 무변경, origin 미푸시)
+> **⚡ 2026-06-17 갱신 — 아래 「현행 정본」이 최신. 이하 §0~§7은 06-16 베이스라인 기록(이력 보존).**
 
 ---
 
-## 0. 현재 상태 한눈에
+## ⚡ 현행 정본 (2026-06-17)
+
+> 06-16 이후 본 세션에서 진행한 전부. 브랜치 **`Dev`**(=feature/mantine-migration, origin/Dev push) · 최근 변경은 **로컬 보유**(서버 재배포 전).
+
+### 현재 상태
+| 항목 | 상태 |
+| --- | --- |
+| 스택 | React 19 + Mantine 9.3.1 + recharts 3 + **react-router 7** + Vite 5 / 백엔드 FastAPI + Jinja2 + xhtml2pdf + PIL |
+| 빌드/검증 | ✅ `tsc -b` 0 · 런타임 콘솔 0 (renew 실앱·리포트·관리자·설정 검증) |
+| 진입점 | **`/` = RenewRoot(실앱)** 승격 — react-router + 인증게이트 + 실데이터. (구 catalog/mockup/report-studio 등 dev 엔트리 유지) |
+| 운영 배포 | **자체호스팅 `https://sts.kweather.co.kr`** 라이브(Ubuntu20.04·PG12·nginx+LE) — `서버구축정본` 참조. **현재 점검상 로그인 차단**(`/api/auth/*` 503). 로컬 최신 변경은 미반영. |
+| 데이터 | DB=PostgreSQL(서버)/SQLite(로컬). 날씨=mock(실키 대기). 데모 시드 06-09~16. |
+
+### 본 세션 주요 워크스트림
+1. **Tailwind 완전 제거·Mantine 단일화**(Phase 4) + **renew 실 진입점 승격**(라우팅·인증·실데이터) + **kw-dash 클래스 네임스페이스** + 로그인 "Authentication image" 이식.
+2. **폭염 보고서(일일/기간) 리디자인 → 백엔드 반영**: `report.py` `_DAILY_/_PERIODIC_TEMPLATE` Jinja2 전면 교체(미니멀 헤더+식별번호·심리스 테이블·타임라인 밴드+2열 범례·페이지번호 `@frame`), PIL 차트 recharts 룩(`_chart_timeline_band`·`_pil_periodic_bars`). **함정**: xhtml2pdf 페이지번호=`left/width`+`pt`必, NanumGothic `℃`/`▾` 글리프 부재→`°C`/`▼`, `<img>` width `%`불가→pt. → `kw-dashboard-report-redesign` 메모리.
+3. **자체호스팅 배포**(Vercel 탈피) — `서버구축정본`. 함정: deadsnakes PPA 차단→python-build-standalone, openrsync 깨짐→tar+scp.
+4. **대시보드 리뉴얼**(협업팀 목업 정합): `renew/pages/DashboardPage.tsx` = KPI 3종 + 좌(일일 리포트 요약·데이터 분석[TimeSeriesChart]) + 우(최근 7일 일최고체감[실측]·폭염 관심 지수 4단계 게이지). 위험지도·외부비교·사업장표 제외.
+5. **nav/셸 완전 리팩토링**: 데스크톱 AppShell **header 제거**(상단 낭비)·테마토글 nav 하단 이전·**Mantine "Simple navbar" 정합**(NavLink, active=light kw)·**측정기 목록 상단 / 리포트·기기관리·관리자 하단**(상하 구역 분리, 위험지도·설정 메뉴 제거). inner 최대폭 1200.
+6. **공통 업로더**: `components/UploadModal.tsx`(드롭존·프로그레스·결과·기기 사전선택) 전역 1개 — nav 측정기 [+] · **대시보드 ContextBar [업로드] 병합**. 기기 관리 페이지 업로더 제거. provider `openUpload/lastUpload`.
+7. **ContextBar 개선**: 아이콘 셀렉트·시간간격 SegmentedControl·라벨 정렬. 대시보드=측정기/업로드/분석일자/시간간격/[기간보고서]. **리포트=측정기→분석일자→보고서유형→[보고서 생성] submit 흐름**(`ReportPage.tsx` 단일 통합).
+8. **관리자 접속기록 통합**(AdminPage: 트래픽+접근로그+적재 한 화면) · **회원정보 수정**(`PATCH /api/auth/me`+`ProfileUpdateIn`·`api.updateProfile`·SettingsPage 폼).
+9. **실데이터 배선**: 주간 위젯=최근 7일 per-day `kpi`(예보 API 부재 — provider는 current/past만), 게이지=최근 측정 체감. 푸터 간이화, 브랜딩 문구 **"체감온도 데이터 분석 프로그램"**.
+
+### 남은 작업
+- 🚧 **리포트 디자인 정합(미완 — 후임 재개 1순위)**: 웹 `WebReport`(ReportPanel.tsx, **5섹션**) vs PDF-전 HTML(`catalog/dailyReportHtml.ts`)·백엔드 PDF(`report.py`)(**8섹션**) 불일치. 사용자 결정 **풀 8섹션 통일** → 웹 WebReport를 8섹션으로 확장. **데이터는 백엔드 `_daily_detail`에 이미 있음**(external_daily·analysis·weather·hours.out_feels) → `schemas.py DailyReportData` + `types.ts DailyReport` 필드 추가 + WebReport 재작성(기준=dailyReportHtml.ts). 기간 보고서도 동일 점검. **상세 = `README.md` 핸드오프 §리포트 디자인 정합**.
+- **서버 재배포**: 위 로컬 변경(프론트 빌드+백엔드)을 sts 서버에 반영 + 로그인 차단(`/api/auth/*` 503) 해제 시점 결정.
+- 주간 **예보 실데이터**(forecast API/provider 메서드 신설 필요) · 일일 24h curve 튜닝 · 회원정보 수정 외 관리자 확장(권한/회원관리).
+
+---
+
+## 0. 현재 상태 한눈에 *(06-16 베이스라인)*
 
 | 항목 | 상태 |
 | --- | --- |

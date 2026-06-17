@@ -30,3 +30,9 @@ sample_data/
 
 # TS build info
 frontend/tsconfig.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# 작업 스크린샷(세션 산출물, 커밋 제외)
+design_screenshots/

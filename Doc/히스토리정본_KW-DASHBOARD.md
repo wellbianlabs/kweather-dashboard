@@ -83,4 +83,21 @@
 2. 병합 후 우리 작업도 §2 표처럼 **테마별 분리 커밋**으로 남겨 동일한 추적성 유지.
 3. README의 구식 항목(지도·mock/kma·SQLite)은 P1/P2 피벗을 반영해 갱신(분석정본 §5 참조).
 
-*— 본 문서는 origin/main 75커밋의 작업 이력을 정본화한 사료이며, §2의 13커밋 병합 후 갱신한다.*
+---
+
+## 5. 06-16~17 · 본 클론(Dev) 작업 연대기
+
+> 우리 브랜치 `Dev`(=feature/mantine-migration)에서 진행. 상세는 `작업정본 §현행 정본`·메모리 참조.
+
+### 06-16 (이어서) — Mantine 전환·리뉴얼·차트·지도 스켈레톤·origin 13커밋 병합(`ea817de`).
+
+### 06-17 — Phase 4·리포트 리디자인·자체호스팅·대시보드 리뉴얼·IA 리팩토링
+- **Tailwind 완전 제거·Mantine 단일화**(Phase 4, `7afa002`) · **renew `/` 실 진입점 승격**(react-router+인증+실데이터) · 로그인 "Auth image" 이식 · **kw-dash 네임스페이스** · DataTable/RiskMap 실데이터·다크 버그fix·SPA fallback.
+- **폭염 보고서 리디자인 → 백엔드 Jinja2/PIL 반영**(일일 3p·기간 2p). 함정: `@frame` 페이지번호(left/width+pt)·`℃`→`°C` 글리프·`<img>` width pt.
+- **자체호스팅 배포** `sts.kweather.co.kr`(Vercel 탈피) — 서버구축정본. 이후 **점검상 로그인 차단**(`/api/auth/*` 503).
+- **대시보드 리뉴얼**(목업 정합) → 실 `DashboardPage`(KPI3·일일요약·데이터분석·최근7일 실측·관심지수 게이지).
+- **nav/셸 완전 리팩토링**: 데스크톱 header 제거·테마토글 nav 이전·**Simple navbar 정합**·측정기 목록 상단/보조메뉴 하단·위험지도·설정 제거·inner 1200.
+- **공통 UploadModal**(nav [+]·대시보드 ContextBar 병합) · 기기관리 업로더 제거 · ContextBar 개선(아이콘·SegmentedControl) · **리포트 단일 통합**(측정기→분석일자→유형→생성) · **관리자 접속기록 통합** · **회원정보 수정**(`PATCH /api/auth/me`).
+- 실데이터 배선(주간=최근7일 kpi)·푸터 간이화·브랜딩 "체감온도 데이터 분석 프로그램".
+
+*— 본 문서는 origin/main 75커밋 + 본 클론(Dev) 작업 이력을 정본화한 사료이다. §2 13커밋 병합 완료(`ea817de`).*
