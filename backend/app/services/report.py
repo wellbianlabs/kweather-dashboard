@@ -1211,6 +1211,8 @@ def export_excel(
     빈 칸을 제공한다.
     """
     from openpyxl.styles import Alignment as _Align, Border, Side
+    from openpyxl.worksheet.page import PageMargins
+    from openpyxl.worksheet.properties import PageSetupProperties
 
     from ..models import SensorLog
 
@@ -1218,47 +1220,84 @@ def export_excel(
     sns = analytics._resolve_scope(db, tenant, device_sn)
     dev = db.get(Device, device_sn) if device_sn else None
 
+    NCOL = 7  # 측정시각·습도·온도·체감온도·위험단계·조치사항·비고
     wb = Workbook()
     ws = wb.active
     ws.title = "측정 기록부"
-    for i, w in enumerate([20, 9, 9, 11, 11, 34, 22], start=1):
+
+    # --- A4 세로 인쇄 설정(폭에 맞춰 1페이지 너비로 축소, 가로 중앙) ---
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.paperSize = 9  # A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_margins = PageMargins(left=0.4, right=0.4, top=0.6, bottom=0.5, header=0.3, footer=0.3)
+    ws.print_options.horizontalCentered = True
+    ws.sheet_view.showGridLines = False  # 직접 그린 구분선만 표시
+
+    # 열 너비(합 ≈ A4 세로 가용폭) — fitToWidth로 한 페이지 폭에 자동 정렬
+    for i, w in enumerate([10, 9, 9, 12, 11, 26, 18], start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
-    title_font = Font(bold=True, size=14, color="0F172A")
+    last = chr(64 + NCOL)  # 'G'
+    title_font = Font(bold=True, size=16, color="0F172A")
     k_fill = PatternFill("solid", fgColor="F1F5F9")
     k_font = Font(bold=True, color="334155")
-    thin = Side(style="thin", color="D1D5DB")
+    thin = Side(style="thin", color="94A3B8")
+    medium = Side(style="medium", color="334155")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    box = Border(left=medium, right=medium, top=medium, bottom=medium)
 
+    def outline(row, c1, c2, b):
+        """병합 셀 영역 전체에 외곽선을 적용(병합 시 모서리 셀만 그려지는 문제 보정)."""
+        for cc in range(c1, c2 + 1):
+            cell = ws.cell(row, cc)
+            left = b.left if cc == c1 else thin
+            right = b.right if cc == c2 else thin
+            cell.border = Border(left=left, right=right, top=b.top, bottom=b.bottom)
+
+    # --- 제목: 전 열 병합 + 가운데 정렬 ---
     r = 1
-    ws.cell(r, 1, "폭염 체감온도 측정 기록부").font = title_font
+    ws.merge_cells(f"A{r}:{last}{r}")
+    tc = ws.cell(r, 1, "폭염 체감온도 측정 기록부")
+    tc.font = title_font
+    tc.alignment = _Align(horizontal="center", vertical="center")
+    ws.row_dimensions[r].height = 30
     r += 2
 
-    # --- 기록 식별 헤더(간략) ---
-    def lab(row, col, label, value):
-        a = ws.cell(row, col, label); a.fill = k_fill; a.font = k_font
-        a.border = border; a.alignment = _Align(horizontal="center")
-        v = ws.cell(row, col + 1, value if value is not None else "-"); v.border = border
-        return v
+    # --- 기록 식별 헤더(라벨 + 병합 값칸, 외곽선) ---
+    def lab(row, lcol, vend, label, value):
+        a = ws.cell(row, lcol, label); a.fill = k_fill; a.font = k_font
+        a.border = box; a.alignment = _Align(horizontal="center", vertical="center")
+        ws.merge_cells(start_row=row, start_column=lcol + 1, end_row=row, end_column=vend)
+        v = ws.cell(row, lcol + 1, value if value is not None else "-")
+        v.alignment = _Align(horizontal="left", vertical="center", indent=1)
+        outline(row, lcol + 1, vend, box)
 
-    lab(r, 1, "사업장", dev.company_name if dev else "-")
-    lab(r, 4, "대상 일자", on_date.isoformat())
+    lab(r, 1, 3, "사업장", dev.company_name if dev else "-")
+    lab(r, 4, 7, "대상 일자", on_date.isoformat())
+    ws.row_dimensions[r].height = 22
     r += 1
-    lab(r, 1, "설치 위치", dev.location_name if dev else "-")
-    lab(r, 4, "측정기기", f"케이웨더(주) 체감온도계 · {device_sn}" if device_sn else "-")
+    lab(r, 1, 3, "설치 위치", dev.location_name if dev else "-")
+    lab(r, 4, 7, "측정기기", f"케이웨더(주) 체감온도계 · {device_sn}" if device_sn else "-")
+    ws.row_dimensions[r].height = 22
     r += 1
-    lab(r, 1, "작성자", "")
-    lab(r, 4, "확인(관리자)", "")
+    lab(r, 1, 3, "작성자", "")
+    lab(r, 4, 7, "확인(관리자)", "")
+    ws.row_dimensions[r].height = 24
     r += 2
 
     # --- 측정 표(위험단계 + 수기 조치사항·비고) ---
     headers = ["측정시각", "습도(%)", "온도(℃)", "체감온도(℃)", "위험단계", "조치사항(수기)", "비고(수기)"]
+    head_row = r
     for ci, h in enumerate(headers, start=1):
         cell = ws.cell(r, ci, h)
         cell.fill = _HEADER_FILL
         cell.font = _HEADER_FONT
-        cell.alignment = _Align(horizontal="center")
-        cell.border = border
+        cell.alignment = _Align(horizontal="center", vertical="center")
+        cell.border = box
+    ws.row_dimensions[r].height = 22
+    ws.print_title_rows = f"{head_row}:{head_row}"  # 각 인쇄 페이지마다 표 머리글 반복
     r += 1
 
     if sns:
@@ -1291,7 +1330,10 @@ def export_excel(
                 cc.border = border
                 if cc not in (c6, c7):
                     cc.alignment = center
+            ws.row_dimensions[r].height = 17
             r += 1
+
+    ws.print_area = f"A1:{last}{r - 1}"  # 빈 열 제외, 표 끝까지만 인쇄
 
     buf = io.BytesIO()
     wb.save(buf)
