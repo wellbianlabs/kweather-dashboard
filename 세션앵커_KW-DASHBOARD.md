@@ -1,7 +1,15 @@
 # 세션 앵커 (Resume Checkpoint) — KW-DASHBOARD
 
 > 작성: 2026-06-17 · 컨텍스트 압축 대비 재개점. **여기부터 이어서 작업.**
-> 브랜치 `feature/mantine-migration` (origin **미푸시** = 프로덕션 무변경)
+> 브랜치 `Dev` (= feature/mantine-migration, **origin/Dev 추적** · main 미푸시 = 프로덕션 무변경)
+
+## 0. 06-17 세션 추가 완료 (이 배너 우선 확인)
+- **GitHub `Dev` 브랜치 생성·push**(origin/Dev). gh CLI(`wellbianlabs`) 인증 구성됨.
+- **Tailwind 완전 제거·Mantine 단일화(Phase 4)** — 커밋 `7afa002`. ReportPanel 17섹션 재변환 · App.tsx 구조 · index.css/postcss/config/deps 정리. (상세 `재변환매칭정본` ✅완료)
+- **#5 리뉴얼 실 진입점 승격** — react-router + 인증 게이트 + 실데이터 배선. `index.html`→`RenewRoot`. 라우트 `/`·`/map`·`/report`·`/devices`·`/settings`·`/admin`. 컨텍스트바·다크모드·모바일탭. 실렌더 검증 콘솔에러 0(`design_screenshots/renew_*.png`).
+  - 신규: `src/renew/{DashboardProvider,RenewRoot}.tsx` + `src/renew/pages/{Dashboard,Map,Report,Devices,Settings}Page.tsx`. ui/ NavbarNested·LinksGroup·AccountButton 라우터-인지화.
+  - **미푸시 결정**: 사용자 "로컬만 유지" · **리브랜딩(#6) 보류**(theme v2/다크 컨셉 나중).
+  - **남은 폴리시(#5 후속)**: DataTable·RiskMapSkeleton 실데이터 미배선(데모) · DataTable 다크모드 색 · `App.tsx`(구 위저드)·`renew.html`/`renew.tsx`/구 `RenewApp` = **고아**(승격으로 대체, 추후 제거) · BrowserRouter SPA fallback(백엔드 서빙 시 catch-all 필요).
 
 ## 1. 현재 상태
 - **스택**: React 19.2.7 + Mantine 9.3.1 + recharts 3.8.1 + Vite 5 + d3-geo + react-pdf 10.4.1

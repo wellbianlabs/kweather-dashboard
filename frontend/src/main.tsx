@@ -17,7 +17,8 @@ import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
 
 import { theme } from "./theme";
-import App from "./App";
+import { DashboardProvider } from "./renew/DashboardProvider";
+import { RenewRoot } from "./renew/RenewRoot";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -25,7 +26,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <DatesProvider settings={{ locale: "ko", firstDayOfWeek: 0 }}>
         <ModalsProvider>
           <Notifications position="top-right" />
-          <App />
+          <DashboardProvider>
+            <RenewRoot />
+          </DashboardProvider>
         </ModalsProvider>
       </DatesProvider>
     </MantineProvider>

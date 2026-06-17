@@ -11,22 +11,34 @@ interface LinksGroupProps {
   label: string;
   active?: boolean;
   initiallyOpened?: boolean;
-  links?: { label: string; link: string }[];
+  to?: string;
+  links?: { label: string; to: string }[];
+  onNavigate?: (to: string) => void;
 }
 
-export function LinksGroup({ icon: Icon, label, active, initiallyOpened, links }: LinksGroupProps) {
+export function LinksGroup({ icon: Icon, label, active, initiallyOpened, to, links, onNavigate }: LinksGroupProps) {
   const hasLinks = Array.isArray(links);
   const [opened, setOpened] = useState(initiallyOpened || false);
 
   const items = (hasLinks ? links : []).map((link) => (
-    <Text component="a" className={classes.link} href={link.link} key={link.label} onClick={(e) => e.preventDefault()}>
+    <Text
+      component="a"
+      className={classes.link}
+      href={link.to}
+      key={link.label}
+      onClick={(e) => { e.preventDefault(); onNavigate?.(link.to); }}
+    >
       {link.label}
     </Text>
   ));
 
   return (
     <>
-      <UnstyledButton onClick={() => setOpened((o) => !o)} className={classes.control} data-active={active || undefined}>
+      <UnstyledButton
+        onClick={() => { if (hasLinks) setOpened((o) => !o); else if (to) onNavigate?.(to); }}
+        className={classes.control}
+        data-active={active || undefined}
+      >
         <Group justify="space-between" gap={0}>
           <Box style={{ display: "flex", alignItems: "center" }}>
             <ThemeIcon variant="light" size={30}>
