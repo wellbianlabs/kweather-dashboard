@@ -152,6 +152,7 @@ export interface DailyReport {
   date: string;
   company_name: string | null;
   location_name: string | null;
+  address: string | null;
   max_feels_like: number | null;
   max_feels_like_time: string | null;
   max_temperature: number | null;

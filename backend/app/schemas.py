@@ -179,6 +179,7 @@ class DailyReportData(BaseModel):
     date: str
     company_name: str | None
     location_name: str | None
+    address: str | None = None
     max_feels_like: float | None
     max_feels_like_time: str | None
     max_temperature: float | None

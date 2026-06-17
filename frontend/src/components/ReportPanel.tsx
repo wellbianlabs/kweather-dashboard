@@ -280,10 +280,10 @@ export function WebReport({ report, deviceSn }: { report: DailyReport; deviceSn:
         style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
         <Box style={{ borderRight: "1px solid var(--mantine-color-gray-2)" }}>
           <Info k="사업장" v={report.company_name || "-"} />
-          <Info k="설치 위치" v={report.location_name || "-"} />
+          <Info k="주소" v={report.address || "-"} />
         </Box>
         <Box>
-          <Info k="대상 일자" v={report.date} />
+          <Info k="설치 위치" v={report.location_name || "-"} />
           <Info k="측정기기" v={`케이웨더(주) 체감온도계 · ${deviceSn}`} />
         </Box>
       </SimpleGrid>

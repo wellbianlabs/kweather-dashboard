@@ -87,7 +87,7 @@ export function buildReportData(p: ReportParams) {
   const avgFeels = +(feels.reduce((s, v) => s + v, 0) / 24).toFixed(1);
 
   const daily: DailyReport = {
-    device_sn: p.sn, date: p.date, company_name: p.company, location_name: p.location,
+    device_sn: p.sn, date: p.date, company_name: p.company, location_name: p.location, address: null,
     max_feels_like: p.peakFeels, max_feels_like_time: maxTime, max_temperature: p.maxTemp, avg_humidity: p.humidity,
     minutes_over_31: overMin(31), minutes_over_33: overMin(33), minutes_over_35: overMin(35), minutes_over_38: overMin(38),
     hours, work_hot_minutes: workHot, legal_rest_count: legalCount, legal_rest_minutes: legalMin,
