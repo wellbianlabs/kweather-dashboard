@@ -11,6 +11,7 @@ import { RiskMapSkeleton } from "../../components/RiskMapSkeleton";
 import { DataTable } from "../../components/ui/DataTable";
 import type { Kpi, WeatherCompare } from "../../types";
 import { useDashboard } from "../DashboardProvider";
+import { toRiskSites, toSiteRows } from "../siteAdapters";
 
 function fmtMin(min?: number | null): string {
   if (!min || min <= 0) return "0분";
@@ -27,7 +28,7 @@ const ACTION_BY_RANK: Record<number, string> = {
 };
 
 export function DashboardPage() {
-  const { kpi, ts, cmp, date, selected, deviceSn } = useDashboard();
+  const { kpi, ts, cmp, date, selected, deviceSn, sites } = useDashboard();
   return (
     <Stack gap="md">
       <Grid gap="md">
@@ -45,12 +46,12 @@ export function DashboardPage() {
 
       <Grid gap="md">
         <Grid.Col span={{ base: 12, md: 7 }}><WeatherCompareChart cmp={cmp} /></Grid.Col>
-        <Grid.Col span={{ base: 12, md: 5 }}><RiskMapSkeleton compact height={208} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 5 }}><RiskMapSkeleton sites={toRiskSites(sites)} compact height={208} /></Grid.Col>
       </Grid>
 
       <Paper withBorder radius="lg" p="lg" shadow="xs">
         <Title order={3} fz="md" mb="sm">사업장별 현재 위험 현황</Title>
-        <DataTable />
+        <DataTable rows={toSiteRows(sites)} />
       </Paper>
 
       <HeatGuidelines kpi={kpi} />

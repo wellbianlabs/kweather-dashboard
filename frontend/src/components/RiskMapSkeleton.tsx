@@ -55,7 +55,7 @@ export function RiskMapSkeleton({
     <Paper radius="lg" p="lg" withBorder shadow="xs">
       <Group justify="space-between" mb="sm" wrap="nowrap">
         <Group gap="xs">
-          <Title order={3} fz="md" c="#0f172a">위험 지도</Title>
+          <Title order={3} fz="md">위험 지도</Title>
           <Badge size="xs" variant="light" color="gray">시도 외곽선 · 무API</Badge>
           {worst && <Badge size="xs" styles={{ root: { background: worst.color, color: "#fff" } }}>최고 {worst.label}</Badge>}
         </Group>

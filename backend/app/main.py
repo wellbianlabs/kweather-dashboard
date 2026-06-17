@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .access import access_log_middleware
 from .config import settings
@@ -84,6 +85,27 @@ def health() -> dict:
 
 
 # --- 빌드된 프론트엔드 정적 서빙 (선택) ---
+class SPAStaticFiles(StaticFiles):
+    """SPA(react-router BrowserRouter) 폴백 정적 서빙.
+
+    실제 정적 파일(/assets/..., favicon, *.geo.json 등)은 그대로 서빙하고,
+    파일이 없는 클라이언트 라우트(/map, /report 등)는 index.html로 폴백해
+    딥링크/새로고침이 404가 아닌 React 앱을 로드하도록 한다.
+
+    단, `/api/...` 경로는 절대 폴백하지 않는다. (등록된 API 라우터가 이 mount보다
+    먼저 매칭되지만, 존재하지 않는 /api/... 가 여기까지 내려오면 index.html 대신
+    기존대로 404를 유지하기 위한 가드.)
+    """
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not path.startswith("api/") and path != "api":
+                return await super().get_response("index.html", scope)
+            raise
+
+
 _DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _DIST.exists():
-    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="frontend")
+    app.mount("/", SPAStaticFiles(directory=str(_DIST), html=True), name="frontend")

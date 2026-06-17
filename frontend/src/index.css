@@ -9,8 +9,9 @@
 html, body, #root { height: 100%; }
 
 body {
-  background: #f7f8fa;
-  color: #1e293b;
+  /* 테마 대응(다크모드) — 하드코딩 색은 다크에서 텍스트가 묻힘. light-dark 로 전환. */
+  background: light-dark(#f7f8fa, var(--mantine-color-body));
+  color: light-dark(#1e293b, var(--mantine-color-text));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.01em;

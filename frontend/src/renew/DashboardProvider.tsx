@@ -4,8 +4,20 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
 import { api, getToken, clearToken } from "../api";
-import type { AuthData, Device, Kpi, TimeSeries, UploadResult, WeatherCompare } from "../types";
+import type { AuthData, Device, HeatLevel, Kpi, TimeSeries, UploadResult, WeatherCompare } from "../types";
 import { notifications } from "@mantine/notifications";
+
+/** 사업장(기기)별 현재 위험 — DataTable·위험지도 공용. */
+export interface SiteRisk {
+  device_sn: string;
+  company_name: string | null;
+  location_name: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  feels: number | null;       // 기준일 최고 체감온도
+  level: HeatLevel | null;     // 기준일 위험단계(kpi.current_level)
+}
 
 interface DashboardCtx {
   booting: boolean;
@@ -31,6 +43,7 @@ interface DashboardCtx {
   kpi: Kpi | null;
   ts: TimeSeries | null;
   cmp: WeatherCompare | null;
+  sites: SiteRisk[];
   loadErr: string | null;
 
   loadDevices: () => Promise<Device[]>;
@@ -62,6 +75,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [kpi, setKpi] = useState<Kpi | null>(null);
   const [ts, setTs] = useState<TimeSeries | null>(null);
   const [cmp, setCmp] = useState<WeatherCompare | null>(null);
+  const [sites, setSites] = useState<SiteRisk[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
@@ -150,13 +164,34 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [auth, deviceSn, dayStart, dayEnd, periodStart, periodEnd, interval]);
 
+  // 사업장(기기)별 현재 위험 — 기준일 기준 per-device kpi 병렬 조회(DataTable·위험지도 공용)
+  useEffect(() => {
+    if (!auth || !devices.length) { setSites([]); return; }
+    let on = true;
+    Promise.all(
+      devices.map(async (d): Promise<SiteRisk> => {
+        const base = {
+          device_sn: d.device_sn, company_name: d.company_name, location_name: d.location_name,
+          address: d.address, latitude: d.latitude, longitude: d.longitude,
+        };
+        try {
+          const k = await api.kpi(d.device_sn, dayStart, dayEnd);
+          return { ...base, feels: k.max_feels_like, level: k.current_level };
+        } catch {
+          return { ...base, feels: null, level: null };
+        }
+      }),
+    ).then((rows) => { if (on) setSites(rows); });
+    return () => { on = false; };
+  }, [auth, devices, dayStart, dayEnd]);
+
   const selected = devices.find((d) => d.device_sn === deviceSn);
 
   const value: DashboardCtx = {
     booting, auth, onAuthed, logout,
     devices, deviceSn, setDeviceSn, selected,
     date, setDate, rangeStart, setRangeStart, rangeEnd, setRangeEnd, availableDates, interval, setIntervalMin,
-    kpi, ts, cmp, loadErr,
+    kpi, ts, cmp, sites, loadErr,
     loadDevices, loadRange, handleUploaded, handleReset,
   };
 
