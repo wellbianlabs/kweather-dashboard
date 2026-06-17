@@ -26,6 +26,14 @@ class AuthOut(BaseModel):
     is_admin: bool = False  # 관리자 대시보드 접근 가능 여부
 
 
+class ProfileUpdateIn(BaseModel):
+    """회원정보 수정 — 모든 필드 선택. 비밀번호 변경 시 current/new 동시 필요."""
+    email: str | None = None
+    company_name: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
 # ---------- Device ----------
 class DeviceBase(BaseModel):
     company_name: str | None = None

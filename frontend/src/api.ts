@@ -45,6 +45,20 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
   return r.json();
 }
 
+async function patchJSON<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(u(url), {
+    method: "PATCH",
+    headers: headers({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = await r.text();
+    try { detail = JSON.parse(detail).detail ?? detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(u(url), { headers: headers() });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -58,6 +72,12 @@ export const api = {
   login: (email: string, password: string) =>
     postJSON<AuthData>("/api/auth/login", { email, password }),
   me: () => getJSON<AuthData>("/api/auth/me"),
+  updateProfile: (payload: {
+    email?: string;
+    company_name?: string;
+    current_password?: string;
+    new_password?: string;
+  }) => patchJSON<AuthData>("/api/auth/me", payload),
 
   health: () => getJSON<any>("/api/health"),
 
