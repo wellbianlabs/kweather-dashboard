@@ -4,13 +4,21 @@ import {
 } from "recharts";
 import {
   Container, Stack, Group, Title, Text, Button, SegmentedControl, Alert, Paper,
-  SimpleGrid, Table, Badge, Divider, ThemeIcon,
+  SimpleGrid, Table, Badge, Divider, ThemeIcon, Select, PasswordInput, TextInput,
 } from "@mantine/core";
 import {
-  IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport,
+  IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport, IconKey, IconDeviceFloppy,
 } from "@tabler/icons-react";
 import { api } from "../api";
-import type { AdminOverview } from "../types";
+import type { AdminOverview, AdminSettings } from "../types";
+
+const KEY_META: { name: string; label: string; secret: boolean; hint: string }[] = [
+  { name: "KW_API_KEY", label: "케이웨더 Open API 키", secret: true, hint: "WEATHER_PROVIDER=kweather 일 때 사용" },
+  { name: "KMA_API_KEY", label: "기상청 API허브 인증키", secret: true, hint: "야외 체감온도 시간 매칭(ASOS)" },
+  { name: "KAKAO_REST_KEY", label: "카카오 REST 키", secret: true, hint: "주소→좌표·행정동 변환(없으면 OSM 폴백)" },
+  { name: "KW_BASE_URL", label: "케이웨더 API BASE URL", secret: false, hint: "" },
+  { name: "KW_PAST_BASE_URL", label: "케이웨더 과거자료 BASE URL", secret: false, hint: "" },
+];
 
 // 접근 로그 구분(kind) 라벨/색 — recent 이벤트 배지에 사용.
 const KIND_LABEL: Record<string, string> = {
@@ -54,6 +62,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<AdminOverview | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"overview" | "keys">("overview");
 
   // 기존 관리자 데이터 그대로 사용: api.adminOverview(days) → AdminOverview.
   const load = useCallback(() => {
@@ -83,31 +92,47 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   return (
     <Container size="xl" py="lg">
       <Stack gap="lg">
-        {/* 헤더 — 단일 통합 대시보드 제목/기준시각/기간선택 */}
+        {/* 헤더 — 사이트 전체 관리자 콘솔 (일반 이용자 화면과 별개) */}
         <Group justify="space-between" wrap="wrap" gap="sm">
           <div>
-            <Title order={2} fz="lg">접속 기록 통합 대시보드</Title>
+            <Title order={2} fz="lg">사이트 관리자 콘솔</Title>
             <Text fz="xs" c="dimmed">
-              트래픽·방문 추이 · 접근 로그 · 데이터 적재 현황을 한 화면에서{" "}
-              {data && `· 기준 ${data.generated_at} (KST)`}
+              사이트 전체 운영 — 접속 현황 및 외부 연동 키 설정{" "}
+              {view === "overview" && data && `· 기준 ${data.generated_at} (KST)`}
             </Text>
           </div>
-          <Group gap="xs">
-            <SegmentedControl
-              value={String(days)}
-              onChange={(v) => setDays(Number(v))}
-              data={[{ label: "7일", value: "7" }, { label: "14일", value: "14" }, { label: "30일", value: "30" }]}
-              size="xs"
-            />
-            <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={load}>새로고침</Button>
-            <Button onClick={onClose}>대시보드로</Button>
-          </Group>
+          <Button onClick={onClose}>이용자 화면으로</Button>
         </Group>
 
-        {err && <Alert color="red" variant="light">{err}</Alert>}
-        {loading && !data && <Text c="dimmed" ta="center" py="xl">불러오는 중...</Text>}
+        {/* 콘솔 탭 + (현황일 때) 기간/새로고침 */}
+        <Group justify="space-between" wrap="wrap" gap="sm">
+          <SegmentedControl
+            value={view}
+            onChange={(v) => setView(v as "overview" | "keys")}
+            data={[
+              { label: "접속 현황", value: "overview" },
+              { label: "외부 연동 키", value: "keys" },
+            ]}
+          />
+          {view === "overview" && (
+            <Group gap="xs">
+              <SegmentedControl
+                value={String(days)}
+                onChange={(v) => setDays(Number(v))}
+                data={[{ label: "7일", value: "7" }, { label: "14일", value: "14" }, { label: "30일", value: "30" }]}
+                size="xs"
+              />
+              <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={load}>새로고침</Button>
+            </Group>
+          )}
+        </Group>
 
-        {data && (
+        {view === "keys" && <ApiKeysCard />}
+
+        {view === "overview" && err && <Alert color="red" variant="light">{err}</Alert>}
+        {view === "overview" && loading && !data && <Text c="dimmed" ta="center" py="xl">불러오는 중...</Text>}
+
+        {view === "overview" && data && (
           <>
             {/* 오늘 현황 KPI — 통합 요약 (방문·트래픽·업로드·가입·누적) */}
             <SimpleGrid cols={{ base: 2, md: 5 }} spacing="sm">
@@ -250,5 +275,109 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         )}
       </Stack>
     </Container>
+  );
+}
+
+/** 외부 연동 키 설정 — 저장 시 서버 재시작 없이 반영(런타임 설정). 사이트 관리자 전용. */
+function ApiKeysCard() {
+  const [st, setSt] = useState<AdminSettings | null>(null);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const load = useCallback(() => {
+    api.adminSettings().then((s) => {
+      setSt(s);
+      setVals({
+        WEATHER_PROVIDER: s.status.WEATHER_PROVIDER?.value || "mock",
+        KW_BASE_URL: s.status.KW_BASE_URL?.value || "",
+        KW_PAST_BASE_URL: s.status.KW_PAST_BASE_URL?.value || "",
+        KW_API_KEY: "", KMA_API_KEY: "", KAKAO_REST_KEY: "",
+      });
+    }).catch((e) => setMsg({ ok: false, text: String(e.message || e) }));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    setSaving(true); setMsg(null);
+    try {
+      const updates: Record<string, string> = {
+        WEATHER_PROVIDER: vals.WEATHER_PROVIDER ?? "mock",
+        KW_BASE_URL: vals.KW_BASE_URL ?? "",
+        KW_PAST_BASE_URL: vals.KW_PAST_BASE_URL ?? "",
+      };
+      for (const k of ["KW_API_KEY", "KMA_API_KEY", "KAKAO_REST_KEY"]) {
+        if (vals[k]) updates[k] = vals[k];
+      }
+      const r = await api.saveAdminSettings(updates);
+      setSt((prev) => (prev ? { ...prev, status: r.status } : prev));
+      setVals((v) => ({ ...v, KW_API_KEY: "", KMA_API_KEY: "", KAKAO_REST_KEY: "" }));
+      setMsg({ ok: true, text: "저장되었습니다. 최대 15초 내 전체 워커에 반영됩니다." });
+    } catch (e: any) {
+      setMsg({ ok: false, text: "저장 실패: " + String(e.message || e) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const srcLabel = (s?: { source?: string }) =>
+    s?.source === "db" ? "저장됨" : s?.source === "env" ? "환경변수" : "미설정";
+
+  return (
+    <Paper radius="lg" p="lg" withBorder shadow="xs">
+      <Group gap="xs" mb="xs">
+        <ThemeIcon variant="light" color="kw" radius="md" size={34}><IconKey size={19} /></ThemeIcon>
+        <div>
+          <Title order={3} fz="md" c="#0f172a">외부 연동 키 설정</Title>
+          <Text fz="xs" c="dimmed">기상청·케이웨더·카카오 키를 입력하면 서버 재시작 없이 적용됩니다</Text>
+        </div>
+      </Group>
+
+      <Stack gap="md" mt="md">
+        <Select
+          label="날씨 데이터 제공자 (WEATHER_PROVIDER)"
+          description="mock=데모 시뮬레이션 · kweather=케이웨더 Open API · kma=기상청"
+          data={[
+            { value: "mock", label: "mock (데모/시뮬레이션)" },
+            { value: "kweather", label: "kweather (케이웨더 Open API)" },
+            { value: "kma", label: "kma (기상청)" },
+          ]}
+          value={vals.WEATHER_PROVIDER || "mock"}
+          onChange={(v) => setVals((p) => ({ ...p, WEATHER_PROVIDER: v || "mock" }))}
+          allowDeselect={false}
+          maw={420}
+        />
+
+        {KEY_META.map((k) => {
+          const cur = st?.status?.[k.name];
+          const status = `현재: ${srcLabel(cur)}${cur?.set && k.secret && cur.masked ? ` (${cur.masked})` : ""}`;
+          return k.secret ? (
+            <PasswordInput
+              key={k.name}
+              label={`${k.label} (${k.name})`}
+              description={`${k.hint}${k.hint ? " · " : ""}${status}`}
+              placeholder={cur?.set ? "변경 시에만 입력 (비우면 기존 유지)" : "키 입력"}
+              value={vals[k.name] ?? ""}
+              onChange={(e) => setVals((p) => ({ ...p, [k.name]: e.currentTarget.value }))}
+            />
+          ) : (
+            <TextInput
+              key={k.name}
+              label={`${k.label} (${k.name})`}
+              description={status}
+              value={vals[k.name] ?? ""}
+              onChange={(e) => setVals((p) => ({ ...p, [k.name]: e.currentTarget.value }))}
+            />
+          );
+        })}
+
+        {msg && <Alert color={msg.ok ? "teal" : "red"} variant="light">{msg.text}</Alert>}
+
+        <Group justify="flex-end">
+          <Button variant="default" onClick={load} disabled={saving}>되돌리기</Button>
+          <Button color="kw" leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={saving}>키 저장</Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }
