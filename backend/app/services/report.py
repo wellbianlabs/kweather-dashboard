@@ -949,7 +949,7 @@ def _html_to_pdf(html: str) -> bytes:
 
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
     d = _daily_detail(db, tenant, device_sn, on_date)
-    report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
+    report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{device_sn}"
     # 검토안 반영: 시간별 체감 라인차트(시각별 컬러바와 함께) + 내·외부 2선 비교차트.
     chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
     chart2 = _chart_compare(d.get("hours") or []) if d.get("has_data") else None
@@ -1180,7 +1180,7 @@ def periodic_pdf(
     days = len(stats["daily"])
     danger_days = stats["level_counts"]["danger"]
     peak = heat.classify(stats.get("overall_max_feels"))
-    report_no = f"KW-HP-{start.strftime('%Y%m%d')}-{(str(device_sn) if device_sn else 'ALL')[-4:]}"
+    report_no = f"KW-HP-{start.strftime('%Y%m%d')}-{device_sn if device_sn else 'ALL'}"
     company = location = None
     if device_sn:
         dev = db.get(Device, device_sn)
