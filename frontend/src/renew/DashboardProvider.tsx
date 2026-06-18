@@ -181,16 +181,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [loadRange, deviceSn]);
 
   // 대시보드 데이터 로드 (인증 후 상시 — step 게이트 제거)
+  // 레이스 가드: 일자/기기 변경 시 이전 요청의 늦은 응답이 최신 상태를 덮어쓰지 않도록
+  // live 플래그로 무효화한다(시계열은 6/15인데 기상청 비교만 6/14가 남아 '2일'로 그려지던 버그 방지).
   useEffect(() => {
     if (!auth) return;
     setLoadErr(null);
-    api.kpi(deviceSn, dayStart, dayEnd).then(setKpi).catch((e) => setLoadErr(String(e)));
+    let live = true;
+    api.kpi(deviceSn, dayStart, dayEnd).then((r) => { if (live) setKpi(r); }).catch((e) => { if (live) setLoadErr(String(e)); });
     if (deviceSn) {
-      api.timeseries(deviceSn, dayStart, dayEnd, interval).then(setTs).catch(() => setTs(null));
-      api.weatherCompare(deviceSn, dayStart, dayEnd, interval).then(setCmp).catch(() => setCmp(null));
+      api.timeseries(deviceSn, dayStart, dayEnd, interval).then((r) => { if (live) setTs(r); }).catch(() => { if (live) setTs(null); });
+      api.weatherCompare(deviceSn, dayStart, dayEnd, interval).then((r) => { if (live) setCmp(r); }).catch(() => { if (live) setCmp(null); });
     } else {
       setTs(null); setCmp(null);
     }
+    return () => { live = false; };
   }, [auth, deviceSn, dayStart, dayEnd, interval]);
 
   // 사업장(기기)별 현재 위험 — 기준일 기준 per-device kpi 병렬 조회(DataTable·위험지도 공용)

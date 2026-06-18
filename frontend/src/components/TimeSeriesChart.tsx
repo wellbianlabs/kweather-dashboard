@@ -35,10 +35,14 @@ export function TimeSeriesChart({ ts, cmp, kpi, date }: {
 }) {
   const [active, setActive] = useState<string[]>(DEFAULT_ON);
 
-  // 병합: 측정일자(t) 기준 측정기(ts) + 기상청(cmp)
+  // 병합: 측정일자(t) 기준 측정기(ts) + 기상청(cmp).
+  // date 가 지정되면(대시보드 단일일) 해당 날짜 포인트만 사용 — 시계열/기상청 응답이
+  // 엇갈려 다른 날짜가 섞여 '여러 날'로 그려지는 현상을 방지(방어적 필터).
+  const inDay = (t: string) => !date || t.slice(0, 10) === date;
   const byT = new Map<string, Record<string, unknown>>();
-  (ts?.points ?? []).forEach((p) => byT.set(p.t, { x: p.t, 측정_온도: p.temperature, 측정_체감: p.feels_like, 측정_습도: p.humidity }));
+  (ts?.points ?? []).forEach((p) => { if (inDay(p.t)) byT.set(p.t, { x: p.t, 측정_온도: p.temperature, 측정_체감: p.feels_like, 측정_습도: p.humidity }); });
   (cmp?.points ?? []).forEach((p) => {
+    if (!inDay(p.t)) return;
     const e = byT.get(p.t) ?? { x: p.t };
     e.기상_온도 = p.outdoor_temperature; e.기상_체감 = p.outdoor_feels; e.기상_습도 = p.outdoor_humidity;
     byT.set(p.t, e);
