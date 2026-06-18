@@ -351,22 +351,24 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     analysis: list[str] = []
     if work:
         analysis.append(
-            f"근무시간(09:00~18:00) 중 최고 체감온도는 {work['max_time']}경 {work['max_feels']}°C(단계: {work['peak_label']})이며, "
-            f"위험단계(38°C 이상) 노출이 {_fmt_min(work['danger_minutes'])} 누적됨."
+            f"근무시간(09:00~18:00) 중 최고 체감온도는 {work['max_time']}경 {work['max_feels']}°C({work['peak_label']}단계)이며, "
+            f"위험단계가 {_fmt_min(work['danger_minutes'])} 지속됨."
         )
     if lm["danger"]:
-        analysis.append(f"체감온도 38°C 이상(폭염중대경보 기준) 노출이 일일 {_fmt_min(lm['danger'])} 누적되어, 긴급조치 작업을 제외한 옥외작업 원칙적 중지 대상에 해당함.")
+        analysis.append(f"위험단계가 일일 {_fmt_min(lm['danger'])} 지속되어, 긴급조치 작업을 제외한 옥외작업을 원칙적으로 중지해야 함.")
     analysis.append(f"최고 체감온도는 {max_time}경 {max_feels}°C로 관측되어 일중 최고치를 기록함"
                     + (f" (당시 기온 {temp_at_peak}°C, 습도 {humi_at_peak}%)." if humi_at_peak is not None else f" (당시 기온 {temp_at_peak}°C)."))
-    base_label = "공식 체감온도" if has_out_feels else "기온"
-    src_label = "케이웨더" if has_out_feels or (cmp and cmp.provider in ("kweather", "kma")) else "참고용 추정"
+    src_label = "기상청" if has_out_feels or (cmp and cmp.provider in ("kweather", "kma")) else "참고용 추정"
+    base_label = "체감온도" if has_out_feels else "기온"
     if weather and weather["enclosed_alert"]:
         analysis.append(
-            f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 최대 {weather['max_delta']}°C 높게 측정되어 "
-            f"'밀폐형 폭염 사업장'에 해당함(관리 임계 {weather['threshold']}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요."
+            f"작업장 측정 체감온도가 {src_label} {base_label} 대비 최대 {weather['max_delta']}°C 높게 측정되어 "
+            f"'밀폐형 폭염 사업장'에 해당함(관리 임계 {weather['threshold']}°C 초과)."
         )
-    elif weather and avg_delta is not None:
-        analysis.append(f"작업장 내부 체감온도가 외부({src_label}) {base_label} 대비 평균 {avg_delta}°C 높게 측정됨(최대 {weather['max_delta']}°C).")
+        analysis.append("[대응 요령] 내부 체감온도가 외부보다 높은 시간대에는 환기·국소냉방·차열판 설치 등 작업환경 개선이 필요함.")
+    elif weather and avg_delta is not None and avg_delta > 0:
+        analysis.append(f"작업장 측정 체감온도가 {src_label} {base_label} 대비 평균 {avg_delta}°C 높게 측정됨(최대 {weather['max_delta']}°C).")
+        analysis.append("[대응 요령] 내부 체감온도가 외부보다 높은 시간대에는 환기·국소냉방 등 작업환경 개선을 권고함.")
 
     if avg_humi is not None and avg_humi >= 70:
         analysis.append("고온다습한 환경으로 체열 발산이 저해되어 온열질환 발생 위험이 가중되는 조건임.")
@@ -532,7 +534,7 @@ def _pil_compare(hours) -> str | None:
     use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
     key = "out_feels" if use_feels else "outdoor"
     pts_out = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
-    out_label = "기상청 공식 체감온도" if use_feels else "기상청 기온"
+    out_label = "기상청 체감온도" if use_feels else "기상청 기온"
     if len(pts_in) < 2 or len(pts_out) < 2:
         return None
     F = _pil_fonts()
@@ -575,7 +577,7 @@ def _pil_compare(hours) -> str | None:
     # 범례
     lx = W - R - 430
     d.line([(lx - 120, 28), (lx - 76, 28)], fill="#dc2626", width=6)
-    d.text((lx - 66, 28), "현장 체감온도", font=F(24), fill="#334155", anchor="lm")
+    d.text((lx - 66, 28), "측정 체감온도", font=F(24), fill="#334155", anchor="lm")
     d.line([(lx + 120, 28), (lx + 164, 28)], fill="#1790cd", width=6)
     d.text((lx + 174, 28), out_label, font=F(24), fill="#334155", anchor="lm")
 
@@ -663,7 +665,7 @@ def _mpl_compare(hours) -> str | None:
     use_feels = sum(1 for h in hours if h.get("out_feels") is not None) >= 2
     key = "out_feels" if use_feels else "outdoor"
     pout = [(h["hour"], h[key]) for h in hours if h.get(key) is not None]
-    out_label = "기상청 공식 체감온도" if use_feels else "기상청 기온"
+    out_label = "기상청 체감온도" if use_feels else "기상청 기온"
     if len(pin) < 2 or len(pout) < 2:
         return None
     xi = np.array([x for x, _ in pin], dtype=float); yi = np.array([v for _, v in pin], dtype=float)
@@ -677,7 +679,7 @@ def _mpl_compare(hours) -> str | None:
     ax.fill_between(xi, yi, ymin, color="#dc2626", alpha=0.08, lw=0, zorder=1)
     ax.plot(xo, yo, color="#1790cd", lw=2.4, label=out_label, marker="o", ms=4.5,
             mfc="white", mec="#1790cd", mew=1.5, zorder=3)
-    ax.plot(xi, yi, color="#dc2626", lw=2.4, label="현장 체감온도", marker="o", ms=4.5,
+    ax.plot(xi, yi, color="#dc2626", lw=2.4, label="측정 체감온도", marker="o", ms=4.5,
             mfc="white", mec="#dc2626", mew=1.5, zorder=4)
     ax.legend(loc="upper right", fontsize=9, frameon=False, ncol=2)
     _mpl_style_axes(ax, ymin, ymax)
@@ -825,11 +827,11 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 
 {% if d.has_data %}
 <pdf:keeptogether>
-<h2><span class="no">1.</span> 기온 및 체감온도 분석 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간: 09:00~18:00 · 괄호=발생 시각)</span></h2>
+<h2><span class="no">1.</span> 기온 및 체감온도 분석</h2>
 <table class="tbl">
   <tr><th style="width:22%">구분</th><th>최고 체감온도</th><th>최고기온</th><th>체감온도 33°C(주의단계) 이상 지속시간</th></tr>
   {% if d.work %}
-  <tr><td class="k"><b>근무시간</b></td>
+  <tr><td class="k"><b>근무시간(09:00~18:00)</b></td>
       <td class="num" style="color:{{ d.work.peak_color }}">{{ d.work.max_feels }}°C ({{ d.work.max_time }})</td>
       <td class="num">{{ d.work.max_temp }}°C ({{ d.work.max_temp_time }})</td>
       <td class="num" style="color:#b45309">{{ d.work.minutes_label['caution'] }}</td></tr>
@@ -849,20 +851,16 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
       <th style="background-color:{{ d.levels['caution'].color }}; color:#1f2937;">주의·폭염주의보<br/>(33°C↑)</th>
       <th style="background-color:{{ d.levels['warning'].color }}; color:#fff;">경고·폭염경보<br/>(35°C↑)</th>
       <th style="background-color:{{ d.levels['danger'].color }}; color:#fff;">위험·폭염중대경보<br/>(38°C↑)</th></tr>
-  {% if d.work %}<tr><td class="k"><b>근무시간</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_pct[code] }}</b></td>{% endfor %}</tr>{% endif %}
+  {% if d.work %}<tr><td class="k"><b>근무시간(09:00~18:00)</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_pct[code] }}</b></td>{% endfor %}</tr>{% endif %}
   <tr><td class="k">전일(24시간)</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_pct[code] }}</td>{% endfor %}</tr>
 </table>
 <p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 지속시간(괄호 = 해당 기간 대비 비율) · 단계 기준: 고용노동부 폭염 단계별 대응요령 · 기상청 폭염특보(주의보 33 / 경보 35 / 중대경보 38°C)</p>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">3.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#475569; font-weight:normal;">(전일 24시간 · 음영 = 근무시간 09~18시)</span></h2>
-<table class="tbl wide" style="margin-bottom:2pt;">
-  <tr><th class="k" style="width:12%">시각</th>{% for h in d.hours %}<th>{{ '%02d'|format(h.hour) }}</th>{% endfor %}</tr>
-  <tr><td class="k">체감온도(°C)</td>{% for h in d.hours %}<td style="background-color:{{ h.color }}; color:{{ h.fg }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
-</table>
-{% if chart %}<div style="margin-top:2pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
-<p class="note">※ 셀 색상 = 시간대별 체감온도의 폭염 위험단계 · 그래프 점선 = 단계 임계값(관심31/주의33/경고35/위험38°C), 음영 = 근무시간(09:00~18:00), 점 = 일중 최고 체감</p>
+<h2><span class="no">3.</span> 시간별 체감온도 변화</h2>
+{% if chart %}<div style="margin-top:3pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
+<p class="note">※ 음영 구간 = 근무시간(09:00~18:00)</p>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
@@ -899,12 +897,12 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">6.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
+<h2><span class="no">6.</span> 조치사항 및 권고</h2>
 <div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">7.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
+<h2><span class="no">7.</span> 법정 휴식 의무</h2>
 {% if d.work and d.work.hot_minutes > 0 %}
 <table class="tbl">
   <tr><th style="width:40%">근무시간(09~18) 체감 33°C↑ 작업</th><th>법정 최소 휴식 횟수</th><th>법정 최소 휴식 시간</th></tr>
@@ -919,7 +917,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2 style="margin-top:9pt;"><span class="no">부록.</span> 시간별 측정데이터 <span style="font-size:8pt; color:#475569; font-weight:normal;">(기온·체감온도·습도 · 시간 평균 · 색상 = 체감 위험단계)</span></h2>
+<h2 style="margin-top:9pt;"><span class="no">부록.</span> 시간별 측정데이터</h2>
 <table class="tbl wide">
   <tr><th class="k" style="width:12%">시각</th>{% for h in d.hours %}<th>{{ '%02d'|format(h.hour) }}시</th>{% endfor %}</tr>
   <tr><td class="k">기온(°C)</td>{% for h in d.hours %}<td>{{ h.temp if h.temp is not none else '-' }}</td>{% endfor %}</tr>
