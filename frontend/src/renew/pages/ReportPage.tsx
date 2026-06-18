@@ -4,12 +4,12 @@
 //  다운로드/미리보기는 기존 api 헬퍼(fetchBlob/download/saveBlob, *PdfUrl/excelUrl, dailyReport) 재사용.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert, Box, Button, Center, Group, Loader, Modal, Paper, Progress,
+  Alert, Box, Button, Center, Group, Loader, Modal, NumberInput, Paper, Progress,
   SegmentedControl, Select, Stack, Text,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import {
-  IconCalendar, IconDeviceDesktopAnalytics, IconDownload, IconFileSpreadsheet, IconFileText,
+  IconCalendar, IconClock, IconDeviceDesktopAnalytics, IconDownload, IconFileSpreadsheet, IconFileText,
 } from "@tabler/icons-react";
 import { api } from "../../api";
 import type { DailyReport } from "../../types";
@@ -44,6 +44,12 @@ export function ReportPage() {
   useEffect(() => { setOnDate(date); }, [date]);
   useEffect(() => { setStart(rangeStart); }, [rangeStart]);
   useEffect(() => { setEnd(rangeEnd); }, [rangeEnd]);
+
+  // 일일 Excel 측정 기록부 출력 단위(분). 기본 60분(=24행). "custom" 선택 시 customMin 사용.
+  const [excelUnit, setExcelUnit] = useState("60");
+  const [customMin, setCustomMin] = useState<number>(15);
+  const excelInterval =
+    excelUnit === "custom" ? Math.max(1, Math.min(Math.round(customMin) || 60, 1440)) : Number(excelUnit);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
@@ -119,7 +125,9 @@ export function ReportPage() {
     dailyReady && downloadOnly("daily", api.dailyPdfUrl(deviceSn!, onDate), `daily_${deviceSn}_${onDate}.pdf`);
   // 엑셀은 '일일 측정데이터' — 분석 일자(onDate) 하루치. 측정기 선택 필수.
   const onExcel = () =>
-    dailyReady && downloadOnly("excel", api.excelUrl(deviceSn, onDate, onDate), `data_${deviceSn}_${onDate}.xlsx`);
+    dailyReady &&
+    downloadOnly("excel", api.excelUrl(deviceSn, onDate, onDate, excelInterval),
+      `data_${deviceSn}_${onDate}_${excelInterval}m.xlsx`);
 
   const DateField = ({ label, value, onChange }:
     { label: string; value: string; onChange: (v: string) => void }) =>
@@ -177,6 +185,21 @@ export function ReportPage() {
           <Button color="kw" leftSection={<IconFileText size={16} />}
             loading={busy === "report" || busy === "periodic"} disabled={!submitReady || busy !== null}
             onClick={onSubmit}>보고서 생성</Button>
+          {/* 일일 Excel 측정 기록부 출력 단위 선택(10/30/60분·사용자 지정, 기본 1시간=24행) */}
+          <Select label="기록부 단위" size="sm" w={130} allowDeselect={false}
+            leftSection={<IconClock size={16} />}
+            value={excelUnit} onChange={(v) => v && setExcelUnit(v)}
+            data={[
+              { value: "10", label: "10분" },
+              { value: "30", label: "30분" },
+              { value: "60", label: "1시간" },
+              { value: "custom", label: "사용자 지정" },
+            ]} />
+          {excelUnit === "custom" && (
+            <NumberInput label="단위(분)" size="sm" w={110} min={1} max={1440} step={5}
+              value={customMin} suffix="분" clampBehavior="strict"
+              onChange={(v) => setCustomMin(typeof v === "number" ? v : Number(v) || 15)} />
+          )}
           <Button variant="light" color="teal" leftSection={<IconFileSpreadsheet size={16} />}
             loading={busy === "excel"} disabled={!dailyReady || busy !== null} onClick={onExcel}>일일 Excel</Button>
         </Group>

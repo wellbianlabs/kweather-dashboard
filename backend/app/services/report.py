@@ -1205,15 +1205,30 @@ _HEADER_FONT = Font(color="FFFFFF", bold=True)
 EXPORT_RAW_MAX = 100_000
 
 
+def _interval_label(minutes: int) -> str:
+    """출력 단위 표기: 60→'1시간', 90→'1시간 30분', 30→'30분'."""
+    h, m = divmod(int(minutes), 60)
+    if h and m:
+        return f"{h}시간 {m}분"
+    if h:
+        return f"{h}시간"
+    return f"{m}분"
+
+
 def export_excel(
-    db: Session, tenant: Tenant, device_sn: str | None, start: datetime, end: datetime
+    db: Session, tenant: Tenant, device_sn: str | None, start: datetime, end: datetime,
+    interval: int = 60,
 ) -> bytes:
     """Excel 내보내기 — 일일 '측정 기록부'(순수 기록 보고용).
 
     분석 요약·가이드 없이, 선택한 하루의 기기 측정값(시각·습도·온도·체감온도·위험단계)을
-    그대로 나열하고, 안전관리자가 온도 상황에 따른 조치사항·비고를 수기로 기록할 수 있게
-    빈 칸을 제공한다.
+    출력 단위(interval, 분)로 정리해 나열하고, 안전관리자가 온도 상황에 따른 조치사항·비고를
+    수기로 기록할 수 있게 빈 칸을 제공한다.
+
+    interval: 출력 시간 단위(분). 원시 측정값을 해당 단위로 평균 집계한다.
+        예) 10·30·60(기본, 24행) 또는 사용자 지정값(1~1440분).
     """
+    interval = max(1, min(int(interval or 60), 1440))
     from openpyxl.styles import Alignment as _Align, Border, Side
     from openpyxl.worksheet.page import PageMargins
     from openpyxl.worksheet.properties import PageSetupProperties
@@ -1279,7 +1294,7 @@ def export_excel(
         outline(row, lcol + 1, vend, box)
 
     lab(r, 1, 3, "사업장", dev.company_name if dev else "-")
-    lab(r, 4, 7, "대상 일자", on_date.isoformat())
+    lab(r, 4, 7, "대상 일자", f"{on_date.isoformat()}  (출력 단위: {_interval_label(interval)})")
     ws.row_dimensions[r].height = 22
     r += 1
     lab(r, 1, 3, "설치 위치", dev.location_name if dev else "-")
@@ -1316,13 +1331,25 @@ def export_excel(
             .limit(EXPORT_RAW_MAX)
         )
         center = _Align(horizontal="center")
-        for mt, temp, humi, feels in db.execute(q):
-            ts = pd.Timestamp(mt)
-            fv = float(feels) if feels is not None else None
+        raw = db.execute(q).all()
+        # 원시 측정값을 출력 단위(interval 분)로 평균 집계 → 선택한 단위로 행 생성
+        rows_iter: list[tuple] = []
+        if raw:
+            df = pd.DataFrame(raw, columns=["mt", "temp", "humi", "feels"])
+            df["mt"] = pd.to_datetime(df["mt"])
+            agg = (
+                df.set_index("mt").sort_index()
+                .resample(f"{interval}min", label="left", closed="left")
+                .mean().dropna(how="all")
+            )
+            for ts, row in agg.iterrows():
+                rows_iter.append((pd.Timestamp(ts), row["temp"], row["humi"], row["feels"]))
+        for ts, temp, humi, feels in rows_iter:
+            fv = float(feels) if pd.notna(feels) else None
             lvl = heat.classify(fv)
             c1 = ws.cell(r, 1, ts.strftime("%H:%M"))
-            c2 = ws.cell(r, 2, int(humi) if humi is not None else None)
-            c3 = ws.cell(r, 3, round(float(temp), 1) if temp is not None else None)
+            c2 = ws.cell(r, 2, round(float(humi)) if pd.notna(humi) else None)
+            c3 = ws.cell(r, 3, round(float(temp), 1) if pd.notna(temp) else None)
             c4 = ws.cell(r, 4, round(fv, 1) if fv is not None else None)
             c5 = ws.cell(r, 5, lvl.label if fv is not None else "")
             if fv is not None:

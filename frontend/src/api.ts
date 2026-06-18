@@ -270,6 +270,7 @@ export const api = {
   dailyPdfUrl: (sn: string, d: string) => `/api/reports/daily.pdf?device_sn=${encodeURIComponent(sn)}&on_date=${d}`,
   periodicPdfUrl: (sn: string | null, s: string, e: string) =>
     `/api/reports/periodic.pdf?start=${s}&end=${e}` + (sn ? `&device_sn=${encodeURIComponent(sn)}` : ""),
-  excelUrl: (sn: string | null, s: string, e: string) =>
-    `/api/reports/export.xlsx?start=${s}&end=${e}` + (sn ? `&device_sn=${encodeURIComponent(sn)}` : ""),
+  excelUrl: (sn: string | null, s: string, e: string, interval = 60) =>
+    `/api/reports/export.xlsx?start=${s}&end=${e}&interval=${interval}` +
+    (sn ? `&device_sn=${encodeURIComponent(sn)}` : ""),
 };

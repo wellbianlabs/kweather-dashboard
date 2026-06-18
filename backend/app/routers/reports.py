@@ -68,11 +68,13 @@ def periodic_pdf(
 @router.get("/export.xlsx")
 def export_xlsx(
     start: date_cls, end: date_cls, device_sn: str | None = None,
-    tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db),
+    interval: int = 60, tenant: Tenant = Depends(get_tenant),
+    db: Session = Depends(get_db),
 ):
     xlsx = report.export_excel(
         db, tenant, device_sn,
         datetime.combine(start, time.min), datetime.combine(end, time.max),
+        interval=interval,
     )
     fn = f"export_{start.isoformat()}_{end.isoformat()}.xlsx"
     return Response(
