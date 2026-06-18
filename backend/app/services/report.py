@@ -901,7 +901,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">6.</span> 종합 분석</h2>
+<h2 style="page-break-before: always; margin-top:0;"><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 </pdf:keeptogether>
 
