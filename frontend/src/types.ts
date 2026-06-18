@@ -48,6 +48,44 @@ export interface AdminOverview {
   recent: AdminEvent[];
 }
 
+export interface AdminSystem {
+  generated_at: string;
+  db: {
+    engine: string;
+    engine_label: string;
+    size_bytes?: number;
+    max_connections?: number;
+    connections?: number;
+    tables?: { name: string; bytes: number }[];
+    row_counts: Record<string, number | null>;
+    error?: string;
+  };
+  server: {
+    disk?: { total: number; used: number; free: number; pct: number };
+    memory?: { total: number; available: number; used: number; pct: number | null };
+    load?: number[];
+    cpu_count?: number;
+    uptime_sec?: number;
+  };
+  external: {
+    provider: string;
+    cached_days: number | null;
+    daily_quota: number;
+    api_requests_total?: number;
+    api_requests_today?: number;
+  };
+  logs: { access_rows: number | null; retention_days: number; oldest?: string | null };
+  backup: {
+    dir: string;
+    count?: number;
+    total_bytes?: number;
+    latest?: string;
+    latest_bytes?: number;
+    latest_at?: string;
+    error?: string;
+  };
+}
+
 export interface AdminSettingStatus {
   set: boolean;
   source: "db" | "env" | "none";

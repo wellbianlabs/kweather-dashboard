@@ -8,6 +8,7 @@ import type {
   AuthData,
   AdminOverview,
   AdminSettings,
+  AdminSystem,
 } from "./types";
 
 // 배포 시 백엔드 URL(VITE_API_BASE). 로컬/단일오리진은 빈 값(개발 시 Vite 프록시가 8000으로 전달).
@@ -97,6 +98,8 @@ export const api = {
   health: () => getJSON<any>("/api/health"),
 
   adminOverview: (days = 14) => getJSON<AdminOverview>(`/api/admin/overview?days=${days}`),
+
+  adminSystem: () => getJSON<AdminSystem>("/api/admin/system"),
 
   adminSettings: () => getJSON<AdminSettings>("/api/admin/settings"),
   saveAdminSettings: (updates: Record<string, string>) =>

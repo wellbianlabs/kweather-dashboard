@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from ..database import get_db
 from ..deps import get_admin
-from ..models import AccessLog, Device, SensorLog, Tenant
+from ..models import AccessLog, AppSetting, Device, ExternalDailyCache, SensorLog, Tenant
 from ..services import appsettings
 from ..utils import kst_now
 
@@ -39,6 +39,120 @@ def put_settings(
 ) -> dict:
     appsettings.save(db, payload.updates)
     return {"ok": True, "status": appsettings.masked_status(db)}
+
+
+@router.get("/system")
+def system(_admin: Tenant = Depends(get_admin), db: Session = Depends(get_db)) -> dict:
+    """서버 상태·용량 + 유지보수 현황(DB/디스크/메모리/기상청 호출/백업/로그)."""
+    import glob
+    import os
+    import shutil
+    import time as _time
+
+    from sqlalchemy import text
+
+    out: dict = {"generated_at": kst_now().strftime("%Y-%m-%d %H:%M:%S")}
+    dialect = db.get_bind().dialect.name
+
+    # ---- DB ----
+    dbinfo: dict = {"engine": dialect, "engine_label": dialect}
+    try:
+        if dialect == "postgresql":
+            ver = db.execute(text("show server_version")).scalar()
+            dbinfo["engine_label"] = f"PostgreSQL {ver}"
+            dbinfo["size_bytes"] = int(db.execute(text("select pg_database_size(current_database())")).scalar())
+            dbinfo["max_connections"] = int(db.execute(text("show max_connections")).scalar())
+            dbinfo["connections"] = int(db.execute(text("select count(*) from pg_stat_activity")).scalar())
+            rows = db.execute(text(
+                "select relname, pg_total_relation_size(c.oid) b "
+                "from pg_class c join pg_namespace n on n.oid=c.relnamespace "
+                "where n.nspname='public' and c.relkind='r' order by b desc limit 12")).all()
+            dbinfo["tables"] = [{"name": r[0], "bytes": int(r[1])} for r in rows]
+    except Exception as e:  # noqa: BLE001
+        dbinfo["error"] = str(e)[:120]
+
+    counts: dict = {}
+    for name, model in (("sensor_logs", SensorLog), ("access_logs", AccessLog),
+                        ("external_daily_cache", ExternalDailyCache), ("tenants", Tenant),
+                        ("devices", Device), ("app_settings", AppSetting)):
+        try:
+            counts[name] = int(db.scalar(select(func.count()).select_from(model)) or 0)
+        except Exception:  # noqa: BLE001
+            counts[name] = None
+    dbinfo["row_counts"] = counts
+
+    # ---- 서버 자원(디스크/메모리/부하) ----
+    server: dict = {}
+    try:
+        du = shutil.disk_usage("/")
+        server["disk"] = {"total": du.total, "used": du.used, "free": du.free,
+                          "pct": round(du.used / du.total * 100, 1)}
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        mi: dict = {}
+        with open("/proc/meminfo") as f:
+            for ln in f:
+                k, _, v = ln.partition(":")
+                mi[k.strip()] = int(v.strip().split()[0]) * 1024  # kB -> bytes
+        total, avail = mi.get("MemTotal", 0), mi.get("MemAvailable", 0)
+        server["memory"] = {"total": total, "available": avail, "used": total - avail,
+                            "pct": round((total - avail) / total * 100, 1) if total else None}
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        server["load"] = [round(x, 2) for x in os.getloadavg()]
+        server["cpu_count"] = os.cpu_count()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        with open("/proc/uptime") as f:
+            server["uptime_sec"] = int(float(f.read().split()[0]))
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ---- 외부(기상청) 연동 호출 현황 ----
+    today = kst_now().strftime("%Y%m%d")
+    ext: dict = {"provider": appsettings.get("WEATHER_PROVIDER"),
+                 "cached_days": counts.get("external_daily_cache"),
+                 "daily_quota": 1000000}  # data.go.kr ASOS 시간자료(현 계정 일일 트래픽)
+    try:
+        ext["api_requests_total"] = int(db.scalar(
+            select(func.count()).select_from(AccessLog).where(AccessLog.path.like("/api/weather%"))) or 0)
+        ext["api_requests_today"] = int(db.scalar(
+            select(func.count()).select_from(AccessLog).where(
+                AccessLog.path.like("/api/weather%"), AccessLog.ymd == today)) or 0)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ---- 접근 로그(보존정책) ----
+    logs: dict = {"access_rows": counts.get("access_logs"), "retention_days": 90}
+    try:
+        oldest = db.scalar(select(func.min(AccessLog.ts)))
+        logs["oldest"] = oldest.strftime("%Y-%m-%d %H:%M") if oldest else None
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ---- 백업 현황 ----
+    bk: dict = {"dir": "/opt/kweather/backups"}
+    try:
+        files = sorted(glob.glob("/opt/kweather/backups/kweather_*.dump"),
+                       key=os.path.getmtime, reverse=True)
+        bk["count"] = len(files)
+        bk["total_bytes"] = sum(os.path.getsize(f) for f in files)
+        if files:
+            bk["latest"] = os.path.basename(files[0])
+            bk["latest_bytes"] = os.path.getsize(files[0])
+            bk["latest_at"] = _time.strftime("%Y-%m-%d %H:%M", _time.localtime(os.path.getmtime(files[0])))
+    except Exception as e:  # noqa: BLE001
+        bk["error"] = str(e)[:120]
+
+    out["db"] = dbinfo
+    out["server"] = server
+    out["external"] = ext
+    out["logs"] = logs
+    out["backup"] = bk
+    return out
 
 
 @router.get("/overview")

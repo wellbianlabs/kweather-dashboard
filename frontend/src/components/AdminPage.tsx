@@ -8,9 +8,10 @@ import {
 } from "@mantine/core";
 import {
   IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport, IconKey, IconDeviceFloppy,
+  IconServer2,
 } from "@tabler/icons-react";
 import { api } from "../api";
-import type { AdminOverview, AdminSettings } from "../types";
+import type { AdminOverview, AdminSettings, AdminSystem } from "../types";
 
 const KEY_META: { name: string; label: string; secret: boolean; hint: string }[] = [
   { name: "KW_API_KEY", label: "케이웨더 Open API 키", secret: true, hint: "WEATHER_PROVIDER=kweather 일 때 사용" },
@@ -62,7 +63,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<AdminOverview | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"overview" | "keys">("overview");
+  const [view, setView] = useState<"overview" | "system" | "keys">("overview");
 
   // 기존 관리자 데이터 그대로 사용: api.adminOverview(days) → AdminOverview.
   const load = useCallback(() => {
@@ -108,9 +109,10 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         <Group justify="space-between" wrap="wrap" gap="sm">
           <SegmentedControl
             value={view}
-            onChange={(v) => setView(v as "overview" | "keys")}
+            onChange={(v) => setView(v as "overview" | "system" | "keys")}
             data={[
               { label: "접속 현황", value: "overview" },
+              { label: "서버·유지보수", value: "system" },
               { label: "외부 연동 키", value: "keys" },
             ]}
           />
@@ -126,6 +128,8 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
             </Group>
           )}
         </Group>
+
+        {view === "system" && <SystemPanel />}
 
         {view === "keys" && <ApiKeysCard />}
 
@@ -275,6 +279,122 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         )}
       </Stack>
     </Container>
+  );
+}
+
+function fmtBytes(n?: number): string {
+  if (n == null) return "—";
+  if (n < 1024) return `${n} B`;
+  const u = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 ? 1 : 0)} ${u[i]}`;
+}
+function fmtUptime(sec?: number): string {
+  if (!sec) return "—";
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  return d > 0 ? `${d}일 ${h}시간` : (h > 0 ? `${h}시간 ${m}분` : `${m}분`);
+}
+
+/** 서버·유지보수 — 자원(디스크/메모리/부하)·DB·기상청 호출·백업·로그 현황. 사이트 관리자 전용. */
+function SystemPanel() {
+  const [sys, setSys] = useState<AdminSystem | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true); setErr(null);
+    api.adminSystem().then(setSys).catch((e) => setErr(String(e.message || e))).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const n = (v?: number | null) => (v == null ? "—" : v.toLocaleString());
+
+  if (err) return <Alert color="red" variant="light">{err}</Alert>;
+  if (!sys) return <Text c="dimmed" ta="center" py="xl">불러오는 중...</Text>;
+
+  const { db, server, external, logs, backup } = sys;
+  const rc = db.row_counts || {};
+  const tableRows = (db.tables || []).map((t) => ({ name: t.name, bytes: t.bytes, rows: rc[t.name] ?? null }));
+
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between">
+        <Text fz="xs" c="dimmed">기준 {sys.generated_at} (KST)</Text>
+        <Button variant="default" size="xs" leftSection={<IconRefresh size={14} />} onClick={load} loading={loading}>새로고침</Button>
+      </Group>
+
+      {/* 서버 자원 KPI */}
+      <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm">
+        <Kpi label="디스크 사용" value={server.disk ? `${server.disk.pct}%` : "—"}
+          sub={server.disk ? `${fmtBytes(server.disk.used)} / ${fmtBytes(server.disk.total)} · 여유 ${fmtBytes(server.disk.free)}` : undefined}
+          accent={server.disk && server.disk.pct >= 85 ? "red" : "kw"} />
+        <Kpi label="메모리 사용" value={server.memory?.pct != null ? `${server.memory.pct}%` : "—"}
+          sub={server.memory ? `${fmtBytes(server.memory.used)} / ${fmtBytes(server.memory.total)}` : undefined}
+          accent={server.memory?.pct != null && server.memory.pct >= 85 ? "red" : undefined} />
+        <Kpi label="시스템 부하(1·5·15분)" value={server.load ? server.load.join(" · ") : "—"}
+          sub={server.cpu_count ? `CPU ${server.cpu_count}코어 · 업타임 ${fmtUptime(server.uptime_sec)}` : undefined} />
+        <Kpi label="DB 크기" value={fmtBytes(db.size_bytes)}
+          sub={`${db.engine_label} · 연결 ${n(db.connections)}/${n(db.max_connections)}`} accent="teal.7" />
+      </SimpleGrid>
+
+      {/* 기상청 외부연동 호출 */}
+      <Paper radius="lg" p="lg" withBorder shadow="xs">
+        <SectionHead icon={<IconActivity size={19} />} title="기상청 외부연동 호출"
+          desc="외부 기상청(ASOS) 데이터 연동 현황 — data.go.kr" />
+        <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm">
+          <Kpi label="제공자(provider)" value={external.provider || "—"} />
+          <Kpi label="오늘 외부요청" value={`${n(external.api_requests_today)}건`} sub={`누적 ${n(external.api_requests_total)}건`} accent="kw" />
+          <Kpi label="캐시된 외부 데이터" value={`${n(external.cached_days)}건`} sub="(기기·일자) 1회 호출 후 캐시" />
+          <Kpi label="일일 호출 한도" value={n(external.daily_quota)} sub="data.go.kr ASOS 시간자료" accent="teal.7" />
+        </SimpleGrid>
+      </Paper>
+
+      {/* 백업 + 로그 */}
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+        <Paper radius="lg" p="lg" withBorder shadow="xs">
+          <SectionHead icon={<IconDatabaseImport size={19} />} title="DB 백업" desc="매일 02:00 자동 백업 · 최근 14개 보존" />
+          <Stack gap={6}>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">최신 백업 시각</Text><Text fz="sm" fw={600}>{backup.latest_at ?? "—"}</Text></Group>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">최신 파일</Text><Text fz="xs" ff="monospace">{backup.latest ?? "—"} ({fmtBytes(backup.latest_bytes)})</Text></Group>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">보관 개수 · 총용량</Text><Text fz="sm">{n(backup.count)}개 · {fmtBytes(backup.total_bytes)}</Text></Group>
+            <Text fz="xs" c="dimmed">{backup.dir}</Text>
+          </Stack>
+        </Paper>
+        <Paper radius="lg" p="lg" withBorder shadow="xs">
+          <SectionHead icon={<IconClipboardList size={19} />} title="접근 로그 · 보존" desc="매일 03:30 90일 경과분 자동 정리" />
+          <Stack gap={6}>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">로그 행수</Text><Text fz="sm" fw={600}>{n(logs.access_rows)}행</Text></Group>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">가장 오래된 기록</Text><Text fz="sm">{logs.oldest ?? "—"}</Text></Group>
+            <Group justify="space-between"><Text fz="sm" c="dimmed">보존 정책</Text><Text fz="sm">{logs.retention_days}일</Text></Group>
+          </Stack>
+        </Paper>
+      </SimpleGrid>
+
+      {/* DB 테이블별 용량/행수 */}
+      <Paper radius="lg" p="lg" withBorder shadow="xs">
+        <SectionHead icon={<IconServer2 size={19} />} title="DB 테이블 현황" desc={`${db.engine_label} · 총 ${fmtBytes(db.size_bytes)}`} />
+        <Table.ScrollContainer minWidth={420}>
+          <Table verticalSpacing="xs" fz="sm" highlightOnHover>
+            <Table.Thead>
+              <Table.Tr><Table.Th>테이블</Table.Th><Table.Th ta="right">크기</Table.Th><Table.Th ta="right">행수</Table.Th></Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {tableRows.map((t) => (
+                <Table.Tr key={t.name}>
+                  <Table.Td ff="monospace" fz="xs">{t.name}</Table.Td>
+                  <Table.Td ta="right">{fmtBytes(t.bytes)}</Table.Td>
+                  <Table.Td ta="right">{n(t.rows)}</Table.Td>
+                </Table.Tr>
+              ))}
+              {tableRows.length === 0 && (
+                <Table.Tr><Table.Td colSpan={3} ta="center" c="dimmed" py="md">정보 없음</Table.Td></Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Paper>
+    </Stack>
   );
 }
 
