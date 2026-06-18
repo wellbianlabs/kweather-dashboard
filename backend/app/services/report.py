@@ -725,54 +725,54 @@ def _chart_timeline_band(hours) -> str | None:
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page { size: A4; margin: 30px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 22pt; bottom: 14pt; width: 551pt; height: 16pt; } }
-body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#1f2937; line-height:1.5; }
+@page { size: A4; margin: 20px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 20pt; bottom: 11pt; width: 555pt; height: 13pt; } }
+body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#0b1220; line-height:1.28; font-weight:bold; }
 table { width:100%; border-collapse: collapse; }
 
 /* 헤더 — 미니멀(식별번호) */
-.band td { padding: 0 0 9px 0; vertical-align: bottom; border-bottom: 1px solid #cbd5e1; }
+.band td { padding: 0 0 5px 0; vertical-align: bottom; border-bottom: 1.5px solid #64748b; }
 .band-r { text-align:right; width:30%; }
-.band-title { color:#0f172a; font-size:16pt; font-weight:bold; }
-.band-id { color:#64748b; font-size:8pt; margin-top:3pt; }
-.band-meta { color:#94a3b8; font-size:7pt; }
-.band-date { color:#0f172a; font-size:12pt; font-weight:bold; margin-top:1pt; }
+.band-title { color:#0b1220; font-size:16pt; font-weight:bold; }
+.band-id { color:#334155; font-size:8pt; margin-top:2pt; }
+.band-meta { color:#475569; font-size:7pt; }
+.band-date { color:#0b1220; font-size:12pt; font-weight:bold; margin-top:1pt; }
 
 /* 요약 히어로 */
-.hero td { border-bottom:1px solid #e2e8f0; padding:8px 12px; vertical-align:top; }
-.hero .mid { border-left:1px solid #e8edf3; border-right:1px solid #e8edf3; }
-.hero-label { font-size:7pt; color:#64748b; font-weight:bold; }
-.hero-val { font-size:21pt; font-weight:bold; margin-top:1pt; }
-.hero-unit { font-size:10pt; color:#94a3b8; font-weight:bold; }
-.hero-sub { font-size:7pt; color:#94a3b8; margin-top:2pt; }
+.hero td { border-bottom:1px solid #cbd5e1; padding:5px 10px; vertical-align:top; }
+.hero .mid { border-left:1px solid #cbd5e1; border-right:1px solid #cbd5e1; }
+.hero-label { font-size:7.5pt; color:#334155; font-weight:bold; }
+.hero-val { font-size:21pt; font-weight:bold; margin-top:0pt; }
+.hero-unit { font-size:10pt; color:#475569; font-weight:bold; }
+.hero-sub { font-size:7pt; color:#475569; margin-top:1pt; }
 .hero-badge { display:inline-block; padding:3px 12px; border-radius:9px; color:#fff; font-weight:bold; font-size:12pt; }
 
 /* 문서정보 — 심리스 */
-.docinfo { margin-top:8pt; }
-.docinfo td { padding:6px 8px; font-size:8.4pt; border-bottom:1px solid #eef2f6; }
-.docinfo .k { color:#64748b; width:14%; font-weight:bold; }
+.docinfo { margin-top:4pt; }
+.docinfo td { padding:3px 8px; font-size:8.8pt; border-bottom:1px solid #d8e0ea; color:#0b1220; }
+.docinfo .k { color:#1f2937; width:14%; font-weight:bold; }
 
 /* 섹션 */
-h2 { font-size:12pt; color:#0f172a; margin:14pt 0 6pt 0; font-weight:bold; }
+h2 { font-size:12pt; color:#0b1220; margin:7pt 0 2pt 0; font-weight:bold; }
 h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 
 /* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만) */
-.tbl th { padding:7px 8px; font-size:8.4pt; color:#64748b; font-weight:bold; text-align:center; border-bottom:1.5px solid #334155; }
-.tbl td { padding:6px 8px; font-size:8.8pt; text-align:center; border-bottom:1px solid #eef2f6; }
-.tbl .k { color:#475569; font-weight:bold; }
-.num { font-weight:bold; font-size:10pt; }
+.tbl th { padding:3.5px 8px; font-size:8.8pt; color:#1f2937; font-weight:bold; text-align:center; border-bottom:1.5px solid #1f2937; }
+.tbl td { padding:3px 8px; font-size:9pt; text-align:center; border-bottom:1px solid #d8e0ea; color:#0b1220; font-weight:bold; }
+.tbl .k { color:#0b1220; font-weight:bold; }
+.num { font-weight:bold; font-size:10.5pt; }
 .badge { display:inline-block; padding:1.5px 8px; border-radius:8px; color:#fff; font-weight:bold; font-size:8.5pt; }
-.legend { border:1px solid #e8edf3; }
-.legend td { padding:5px 7px; font-size:8.2pt; color:#475569; }
+.legend { border:1px solid #cbd5e1; }
+.legend td { padding:3.5px 7px; font-size:8.4pt; color:#1f2937; }
 .chartimg { width:540pt; }
-.alert { border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; padding:5px 8px; font-size:8.4pt; margin:4px 0; border-radius:4px; }
-.gov { margin:2pt 0 0 0; }
-.gov div { margin:2pt 0; font-size:9pt; }
+.alert { border:1.5px solid #f87171; background:#fef2f2; color:#b91c1c; padding:4px 8px; font-size:8.6pt; margin:3px 0; border-radius:4px; font-weight:bold; }
+.gov { margin:0 0 0 0; }
+.gov div { margin:1.2pt 0; font-size:9pt; color:#111827; font-weight:bold; }
 .gov .b { color:#0c3d85; font-weight:bold; }
-.gov2 { margin:2pt 0 0 0; }
-.gov2 div { margin:2pt 0; font-size:9pt; }
+.gov2 { margin:0 0 0 0; }
+.gov2 div { margin:1.2pt 0; font-size:9pt; color:#111827; font-weight:bold; }
 .gov2 .b { color:#16a34a; font-weight:bold; }
-.note { font-size:7.6pt; color:#64748b; margin:2pt 0; }
-.footer { margin-top:9pt; border-top:1.5px solid #0c3d85; padding-top:5pt; font-size:7pt; color:#64748b; line-height:1.45; }
+.note { font-size:7.8pt; color:#475569; margin:1pt 0; font-weight:normal; }
+.footer { margin-top:6pt; border-top:1.5px solid #0c3d85; padding-top:3pt; font-size:7pt; color:#475569; line-height:1.35; font-weight:normal; }
 .pagenum { text-align:right; font-size:7.5pt; color:#94a3b8; }
 </style></head><body>
 
@@ -851,15 +851,13 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 <p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 노출시간(측정 간격 반영) · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
 
 <pdf:keeptogether>
-<h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(전일 24시간 · 근무시간 09~18시 강조)</span></h2>
-{% if band %}<div style="margin-top:5pt;"><img src="{{ band }}" style="width:540pt;"/></div>{% endif %}
-<p class="note" style="margin-top:7pt;">단계 기준 —
-  <b style="color:{{ d.levels['attention'].color }};">관심</b> 체감 31°C↑ ·
+<h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#475569; font-weight:normal;">(전일 24시간 · 근무시간 09~18시 강조)</span></h2>
+{% if band %}<div style="margin-top:3pt;"><img src="{{ band }}" style="width:540pt;"/></div>{% endif %}
+<p class="note" style="margin-top:4pt;">색 띠 = 시간대별 체감온도의 폭염 위험단계(왼쪽 0시 → 오른쪽 23시, 근무시간 09~18시 포함) —
+  <b style="color:{{ d.levels['attention'].color }};">관심</b> 31°C↑ ·
   <b style="color:{{ d.levels['caution'].color }};">주의</b> 33°C↑ ·
   <b style="color:{{ d.levels['warning'].color }};">경고</b> 35°C↑ ·
   <b style="color:{{ d.levels['danger'].color }};">위험</b> 38°C↑</p>
-{% if chart %}<div style="margin-top:7pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
-<p class="note">※ 상단 띠는 시간대별 체감온도의 폭염 위험단계 · 그래프 점선은 단계 임계값, 강조 구간은 근무시간(09:00~18:00)</p>
 </pdf:keeptogether>
 
 <h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
@@ -885,7 +883,6 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 {{ '공식 체감온도' if d.weather.feels_based else '기온' }} 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
   <pdf:keeptogether>
-  {% if chart2 %}<div style="margin:2pt 0 6pt 0;"><img src="{{ chart2 }}" class="chartimg"/></div>{% endif %}
   <table class="tbl">
     <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
@@ -945,11 +942,10 @@ def _html_to_pdf(html: str) -> bytes:
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
     d = _daily_detail(db, tenant, device_sn, on_date)
     report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
-    chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
-    chart2 = _chart_compare(d.get("hours") or []) if d.get("has_data") else None
+    # 2페이지 압축: 큰 라인차트(시간별/비교)는 제거하고 색 띠(heatstrip)+표로 데이터 유지.
     band = _chart_timeline_band(d.get("hours") or []) if d.get("has_data") else None
     html = _DAILY_TEMPLATE.render(
-        d=d, chart=chart1, chart2=chart2, band=band, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+        d=d, chart=None, chart2=None, band=band, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
     )
     return _html_to_pdf(html)
 
