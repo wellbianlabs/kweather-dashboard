@@ -223,6 +223,8 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
             "temp": None if pd.isna(row["temperature"]) else round(float(row["temperature"]), 1),
             "humidity": None if pd.isna(row["humidity"]) else int(round(float(row["humidity"]))),
             "label": lvl.label, "color": lvl.color,
+            # 컬러바 셀: 밝은 단계색(관심 라임·주의 노랑)은 어두운 글자, 그 외 흰 글자
+            "fg": "#1f2937" if lvl.code in ("attention", "caution") else "#ffffff",
             "outdoor": o_ta, "out_feels": o_fl, "delta": delta,
         })
 
@@ -812,9 +814,8 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   </td>
 </tr></table>
 
-<h2><span class="no">1.</span> 측정대상 개요</h2>
 <table class="docinfo">
-  <tr><td class="k">고객명</td><td style="width:36%">{{ d.company_name or '-' }}</td>
+  <tr><td class="k">고객명</td><td style="width:30%">{{ d.company_name or '-' }}</td>
       <td class="k">기기명</td><td>{{ d.device_sn }}</td></tr>
   <tr><td class="k">소재지</td><td>{{ d.address or '-' }}</td>
       <td class="k">설치위치</td><td>{{ d.location_name or '-' }}</td></tr>
@@ -824,7 +825,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 
 {% if d.has_data %}
 <pdf:keeptogether>
-<h2><span class="no">2.</span> 기온 및 체감온도 분석 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간: 09:00~18:00 · 괄호=발생 시각)</span></h2>
+<h2><span class="no">1.</span> 기온 및 체감온도 분석 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간: 09:00~18:00 · 괄호=발생 시각)</span></h2>
 <table class="tbl">
   <tr><th style="width:22%">구분</th><th>최고 체감온도</th><th>최고기온</th><th>체감온도 33°C(주의단계) 이상 지속시간</th></tr>
   {% if d.work %}
@@ -841,32 +842,51 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">3.</span> 폭염 단계별 지속시간 분석</h2>
+<h2><span class="no">2.</span> 폭염 단계별 지속시간 분석</h2>
 <table class="tbl">
   <tr><th style="width:16%; text-align:left;">구분</th>
-      <th style="color:{{ d.levels['attention'].color }}; border-bottom:2.5px solid {{ d.levels['attention'].color }};">관심<br/>(31°C↑)</th>
-      <th style="color:{{ d.levels['caution'].color }}; border-bottom:2.5px solid {{ d.levels['caution'].color }};">주의·폭염주의보<br/>(33°C↑)</th>
-      <th style="color:{{ d.levels['warning'].color }}; border-bottom:2.5px solid {{ d.levels['warning'].color }};">경고·폭염경보<br/>(35°C↑)</th>
-      <th style="color:{{ d.levels['danger'].color }}; border-bottom:2.5px solid {{ d.levels['danger'].color }};">위험·폭염중대경보<br/>(38°C↑)</th></tr>
+      <th style="background-color:{{ d.levels['attention'].color }}; color:#fff;">관심<br/>(31°C↑)</th>
+      <th style="background-color:{{ d.levels['caution'].color }}; color:#1f2937;">주의·폭염주의보<br/>(33°C↑)</th>
+      <th style="background-color:{{ d.levels['warning'].color }}; color:#fff;">경고·폭염경보<br/>(35°C↑)</th>
+      <th style="background-color:{{ d.levels['danger'].color }}; color:#fff;">위험·폭염중대경보<br/>(38°C↑)</th></tr>
   {% if d.work %}<tr><td class="k"><b>근무시간</b></td>{% for code in ['attention','caution','warning','danger'] %}<td><b>{{ d.work.minutes_pct[code] }}</b></td>{% endfor %}</tr>{% endif %}
   <tr><td class="k">전일(24시간)</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_pct[code] }}</td>{% endfor %}</tr>
 </table>
 <p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 지속시간(괄호 = 해당 기간 대비 비율) · 단계 기준: 고용노동부 폭염 단계별 대응요령 · 기상청 폭염특보(주의보 33 / 경보 35 / 중대경보 38°C)</p>
-<p class="note"><b>범례</b> —
-  <b style="color:{{ d.levels['attention'].color }};">●</b> 관심 ·
-  <b style="color:{{ d.levels['caution'].color }};">●</b> 주의 ·
-  <b style="color:{{ d.levels['warning'].color }};">●</b> 경고 ·
-  <b style="color:{{ d.levels['danger'].color }};">●</b> 위험</p>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2 style="margin-top:7pt;"><span class="no">4.</span> 내·외부 체감온도 분석</h2>
+<h2><span class="no">3.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#475569; font-weight:normal;">(전일 24시간 · 음영 = 근무시간 09~18시)</span></h2>
+<table class="tbl wide" style="margin-bottom:2pt;">
+  <tr><th class="k" style="width:12%">시각</th>{% for h in d.hours %}<th>{{ '%02d'|format(h.hour) }}</th>{% endfor %}</tr>
+  <tr><td class="k">체감온도(°C)</td>{% for h in d.hours %}<td style="background-color:{{ h.color }}; color:{{ h.fg }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+</table>
+{% if chart %}<div style="margin-top:2pt;"><img src="{{ chart }}" class="chartimg"/></div>{% endif %}
+<p class="note">※ 셀 색상 = 시간대별 체감온도의 폭염 위험단계 · 그래프 점선 = 단계 임계값(관심31/주의33/경고35/위험38°C), 음영 = 근무시간(09:00~18:00), 점 = 일중 최고 체감</p>
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2 style="page-break-before: always; margin-top:0;"><span class="no">4.</span> 내·외부 체감온도 분석</h2>
+{% if d.external_daily %}
+<table class="tbl" style="margin-bottom:3pt;">
+  <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
+  <tr><td class="k">외부 · 기상청 AWS</td>
+      <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
+      <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
+      <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td></tr>
+  <tr><td class="k">작업장(내부 측정)</td>
+      <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
+      <td>{{ d.external_daily.in_max }}°C</td><td>{{ d.external_daily.in_avg }}°C</td></tr>
+</table>
+{% if d.external_daily.diff_feels is not none %}<p class="note">최고 체감온도 차(내-외): <b style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</b> — 작업장 체감온도가 외부보다 높을수록 복사열·밀폐 영향이 큼.</p>{% endif %}
+{% endif %}
 {% if d.weather and d.weather.enclosed_alert %}
 <div class="alert"><b>[경고단계]</b> 작업장 체감온도가 기상청 관측 체감온도보다 최대 {{ d.weather.max_delta }}°C 높게 관측됨{% if d.weather.max_delta_time %} ({{ d.weather.max_delta_time }}경){% endif %}. 해당 시간 환기·국소냉방 등 작업환경 개선 필요.</div>
 {% endif %}
+{% if chart2 %}<div style="margin:3pt 0;"><img src="{{ chart2 }}" class="chartimg"/></div>{% endif %}
 <table class="tbl wide">
   <tr><th class="k" style="width:12%">시각</th>{% for h in d.hours %}<th>{{ '%02d'|format(h.hour) }}</th>{% endfor %}</tr>
-  <tr><td class="k">측정 체감(°C)</td>{% for h in d.hours %}<td style="color:{{ h.color }};">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+  <tr><td class="k">측정 체감(°C)</td>{% for h in d.hours %}<td style="background-color:{{ h.color }}; color:{{ h.fg }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
   <tr><td class="k">기상청 체감(°C)</td>{% for h in d.hours %}<td style="color:#1790cd;">{{ h.out_feels if h.out_feels is not none else '-' }}</td>{% endfor %}</tr>
   <tr><td class="k">차이</td>{% for h in d.hours %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
 </table>
@@ -874,16 +894,41 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2 style="margin-top:9pt;"><span class="no">부록.</span> 시간별 측정데이터 <span style="font-size:8pt; color:#475569; font-weight:normal;">(기온·체감온도·습도 · 시간 평균)</span></h2>
+<h2><span class="no">5.</span> 종합 분석</h2>
+<div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2><span class="no">6.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
+<div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2><span class="no">7.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
+{% if d.work and d.work.hot_minutes > 0 %}
+<table class="tbl">
+  <tr><th style="width:40%">근무시간(09~18) 체감 33°C↑ 작업</th><th>법정 최소 휴식 횟수</th><th>법정 최소 휴식 시간</th></tr>
+  <tr><td class="num" style="color:#b45309;">{{ d.work.hot_label }}</td>
+      <td class="num">{{ d.work.legal_rest_count }}회</td>
+      <td class="num" style="color:#b45309;">{{ d.work.legal_rest_label }}</td></tr>
+</table>
+<p class="note">※ 측정 체감온도 기반 <b>법정 최소 의무량</b>(2시간 작업당 20분). 실제 부여한 휴식 기록과 대조하여 준수 여부를 확인하십시오.</p>
+{% else %}
+<p class="note">근무시간 중 체감온도 33°C 이상 작업이 없어 추가 의무 휴식 대상이 아님(통상 안전보건 관리 유지).</p>
+{% endif %}
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2 style="margin-top:9pt;"><span class="no">부록.</span> 시간별 측정데이터 <span style="font-size:8pt; color:#475569; font-weight:normal;">(기온·체감온도·습도 · 시간 평균 · 색상 = 체감 위험단계)</span></h2>
 <table class="tbl wide">
   <tr><th class="k" style="width:12%">시각</th>{% for h in d.hours %}<th>{{ '%02d'|format(h.hour) }}시</th>{% endfor %}</tr>
   <tr><td class="k">기온(°C)</td>{% for h in d.hours %}<td>{{ h.temp if h.temp is not none else '-' }}</td>{% endfor %}</tr>
-  <tr><td class="k">체감온도(°C)</td>{% for h in d.hours %}<td style="color:{{ h.color }};">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+  <tr><td class="k">체감온도(°C)</td>{% for h in d.hours %}<td style="background-color:{{ h.color }}; color:{{ h.fg }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
   <tr><td class="k">습도(%)</td>{% for h in d.hours %}<td>{{ h.humidity if h.humidity is not none else '-' }}</td>{% endfor %}</tr>
 </table>
 </pdf:keeptogether>
 {% else %}
-<h2><span class="no">2.</span> 측정 결과</h2>
+<h2><span class="no">1.</span> 측정 결과</h2>
 <p class="note">해당 일자에 수집된 측정 데이터가 없습니다.</p>
 {% endif %}
 
@@ -905,10 +950,11 @@ def _html_to_pdf(html: str) -> bytes:
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
     d = _daily_detail(db, tenant, device_sn, on_date)
     report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
-    # 검토안 반영 구조: 1.개요 / 2.기온·체감 / 3.단계별 지속시간 / 4.내·외부 체감 / 부록.시간별 데이터.
-    # 시계열 라인차트는 제거(표 기반)되어 차트 생성 불필요.
+    # 검토안 반영: 시간별 체감 라인차트(시각별 컬러바와 함께) + 내·외부 2선 비교차트.
+    chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
+    chart2 = _chart_compare(d.get("hours") or []) if d.get("has_data") else None
     html = _DAILY_TEMPLATE.render(
-        d=d, chart=None, chart2=None, band=None, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+        d=d, chart=chart1, chart2=chart2, band=None, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
     )
     return _html_to_pdf(html)
 
