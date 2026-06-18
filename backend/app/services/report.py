@@ -624,7 +624,7 @@ def _mpl_hourly(series, th) -> str | None:
     pi = int(np.argmax(ys))
     pc = heat.classify(float(ys[pi])).color
     ax.plot(xs[pi], ys[pi], "o", color=pc, mec="white", mew=1.8, ms=8, zorder=6)
-    ax.annotate(f"{ys[pi]:.1f}℃", (xs[pi], ys[pi]), xytext=(0, 13), textcoords="offset points",
+    ax.annotate(f"{ys[pi]:.1f}°C", (xs[pi], ys[pi]), xytext=(0, 13), textcoords="offset points",
                 ha="center", va="bottom", fontsize=10, fontweight="bold", color="white",
                 bbox=dict(boxstyle="round,pad=0.34", fc=pc, ec="none"), zorder=7)
 
@@ -751,11 +751,12 @@ table { width:100%; border-collapse: collapse; }
 .docinfo td { padding:3px 8px; font-size:8.8pt; border-bottom:1px solid #d8e0ea; color:#0b1220; }
 .docinfo .k { color:#1f2937; width:14%; font-weight:bold; }
 
-/* 섹션 */
-h2 { font-size:12pt; color:#0b1220; margin:7pt 0 2pt 0; font-weight:bold; }
+/* 섹션 — 제목은 항상 다음 내용과 같은 페이지에 유지(제목만 떨어지는 현상 방지). */
+h2 { font-size:12pt; color:#0b1220; margin:7pt 0 2pt 0; font-weight:bold; -pdf-keep-with-next: true; page-break-after: avoid; }
 h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 
-/* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만) */
+/* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만). 표는 페이지 경계에서 쪼개지지 않도록. */
+.tbl { page-break-inside: avoid; }
 .tbl th { padding:3.5px 8px; font-size:8.8pt; color:#1f2937; font-weight:bold; text-align:center; border-bottom:1.5px solid #1f2937; }
 .tbl td { padding:3px 8px; font-size:9pt; text-align:center; border-bottom:1px solid #d8e0ea; color:#0b1220; font-weight:bold; }
 .tbl .k { color:#0b1220; font-weight:bold; }
@@ -819,7 +820,8 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 <p class="note">※ 본 보고서의 모든 측정 데이터는 <b>케이웨더(주) 체감온도계 장비</b>로 측정·수집된 자료임. · 작성 일시 {{ generated }}</p>
 
 {% if d.has_data %}
-<h2><span class="no">2.</span> 측정 결과 요약 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간: 09:00~18:00)</span></h2>
+<pdf:keeptogether>
+<h2><span class="no">2.</span> 측정 결과 요약 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간: 09:00~18:00)</span></h2>
 <table class="tbl">
   <tr><th style="width:20%">구분</th><th>최고 체감온도</th><th>발생 시각</th><th>최고 기온</th><th>위험단계(38°C↑) 노출</th></tr>
   {% if d.work %}
@@ -840,7 +842,9 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   </tr>
 </table>
 <p class="note">※ 근로자 보호 관점에서 근무시간(09~18시) 수치를 우선 검토</p>
+</pdf:keeptogether>
 
+<pdf:keeptogether>
 <h2><span class="no">3.</span> 폭염 위험단계별 노출시간 분석</h2>
 <table class="tbl">
   <tr><th style="width:16%; text-align:left;">위험 단계</th>{% for code in ['attention','caution','warning','danger'] %}<th style="color:{{ d.levels[code].color }}; border-bottom:2.5px solid {{ d.levels[code].color }};">{{ d.levels[code].label }}</th>{% endfor %}</tr>
@@ -849,18 +853,20 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <tr><td class="k">전일 노출</td>{% for code in ['attention','caution','warning','danger'] %}<td>{{ d.level_minutes_label[code] }}</td>{% endfor %}</tr>
 </table>
 <p class="note">※ 각 단계 기준 체감온도 <b>이상</b> 누적 노출시간(측정 간격 반영) · 근무시간 = 09:00~18:00 · 단계 기준: 고용노동부 폭염 단계별 대응요령(체감온도)</p>
+</pdf:keeptogether>
 
 <pdf:keeptogether>
 <h2><span class="no">4.</span> 시간별 체감온도 변화 <span style="font-size:8pt; color:#475569; font-weight:normal;">(전일 24시간 · 근무시간 09~18시 강조)</span></h2>
-{% if band %}<div style="margin-top:3pt;"><img src="{{ band }}" style="width:540pt;"/></div>{% endif %}
-<p class="note" style="margin-top:4pt;">색 띠 = 시간대별 체감온도의 폭염 위험단계(왼쪽 0시 → 오른쪽 23시, 근무시간 09~18시 포함) —
-  <b style="color:{{ d.levels['attention'].color }};">관심</b> 31°C↑ ·
-  <b style="color:{{ d.levels['caution'].color }};">주의</b> 33°C↑ ·
-  <b style="color:{{ d.levels['warning'].color }};">경고</b> 35°C↑ ·
-  <b style="color:{{ d.levels['danger'].color }};">위험</b> 38°C↑</p>
+{% if chart %}<div style="margin-top:4pt;"><img src="{{ chart }}" class="chartimg"/></div>
+<p class="note">※ 선그래프 — 시간대별 체감온도 추이(점선 = 단계 임계값
+  [<b style="color:{{ d.levels['attention'].color }};">관심</b> 31 ·
+   <b style="color:{{ d.levels['caution'].color }};">주의</b> 33 ·
+   <b style="color:{{ d.levels['warning'].color }};">경고</b> 35 ·
+   <b style="color:{{ d.levels['danger'].color }};">위험</b> 38°C], 음영 = 근무시간 09:00~18:00, 점 = 일중 최고 체감)</p>{% endif %}
 </pdf:keeptogether>
 
-<h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
+<pdf:keeptogether>
+<h2><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
 {% if d.external_daily %}
   <table class="tbl" style="margin-bottom:4pt;">
     <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
@@ -882,7 +888,6 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   {% if d.weather.enclosed_alert %}
   <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 {{ '공식 체감온도' if d.weather.feels_based else '기온' }} 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
   {% endif %}
-  <pdf:keeptogether>
   <table class="tbl">
     <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
     <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
@@ -890,10 +895,10 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
     <tr><td class="k">체감차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
   </table>
   <p class="note">※ 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }} · 외부 체감온도 = 기상청 공식 산식(측정 당시 시각 매칭, 측정기 미기록 보완값)</p>
-  </pdf:keeptogether>
 {% elif not d.external_daily %}
   <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
 {% endif %}
+</pdf:keeptogether>
 
 <pdf:keeptogether>
 <h2><span class="no">6.</span> 종합 분석</h2>
@@ -942,10 +947,11 @@ def _html_to_pdf(html: str) -> bytes:
 def daily_pdf(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls, generated: str) -> bytes:
     d = _daily_detail(db, tenant, device_sn, on_date)
     report_no = f"KW-HS-{on_date.strftime('%Y%m%d')}-{str(device_sn)[-4:]}"
-    # 2페이지 압축: 큰 라인차트(시간별/비교)는 제거하고 색 띠(heatstrip)+표로 데이터 유지.
-    band = _chart_timeline_band(d.get("hours") or []) if d.get("has_data") else None
+    # 2페이지 압축: 시계열 라인차트(시간별 체감)는 필수 포함. 색 띠·비교 라인차트는
+    # 라인차트·표와 중복이라 제거해 분량을 줄이고 섹션이 페이지 경계에서 쪼개지지 않게 함.
+    chart1 = _chart_hourly_feels(d.get("series") or [], heat.thresholds()) if d.get("has_data") else None
     html = _DAILY_TEMPLATE.render(
-        d=d, chart=None, chart2=None, band=band, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
+        d=d, chart=chart1, chart2=None, band=None, pdf_font=_PDF_FONT, generated=generated, report_no=report_no
     )
     return _html_to_pdf(html)
 
