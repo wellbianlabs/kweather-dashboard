@@ -860,7 +860,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2 style="page-break-before: always; margin-top:0;"><span class="no">4.</span> 내·외부 체감온도 분석</h2>
+<h2 style="margin-top:7pt;"><span class="no">4.</span> 내·외부 체감온도 분석</h2>
 {% if d.weather and d.weather.enclosed_alert %}
 <div class="alert"><b>[경고단계]</b> 작업장 체감온도가 기상청 관측 체감온도보다 최대 {{ d.weather.max_delta }}°C 높게 관측됨{% if d.weather.max_delta_time %} ({{ d.weather.max_delta_time }}경){% endif %}. 해당 시간 환기·국소냉방 등 작업환경 개선 필요.</div>
 {% endif %}
@@ -870,7 +870,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <tr><td class="k">기상청 체감(°C)</td>{% for h in d.hours %}<td style="color:#1790cd;">{{ h.out_feels if h.out_feels is not none else '-' }}</td>{% endfor %}</tr>
   <tr><td class="k">차이</td>{% for h in d.hours %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
 </table>
-<p class="note">※ 기상청 체감온도 = 설치위치에서 가장 가까운 기상청 관측소(AWS/ASOS) 관측자료 기준 체감온도{% if d.external_daily and d.external_daily.region %} · 관측: {{ d.external_daily.region }}{% endif %} · 차이 = 측정 - 기상청 (°C).</p>
+<p class="note">※ 기상청 체감온도 = 설치위치에서 가장 가까운 기상청 AWS 관측자료 기준 체감온도{% if d.external_daily and d.external_daily.region %} · 관측: {{ d.external_daily.region }}{% endif %} · 차이 = 측정 - 기상청 (°C).</p>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
