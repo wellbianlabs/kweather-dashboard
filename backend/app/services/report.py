@@ -1210,7 +1210,8 @@ def export_excel(
     """Excel 내보내기 — 일일 '측정 기록부'(순수 기록 보고용).
 
     분석 요약·가이드 없이, 선택한 하루의 기기 측정값(시각·습도·온도·체감온도·위험단계)을
-    그대로 나열한다.
+    그대로 나열하고, 안전관리자가 온도 상황에 따른 조치사항·비고를 수기로 기록할 수 있게
+    빈 칸을 제공한다.
     """
     from openpyxl.styles import Alignment as _Align, Border, Side
     from openpyxl.worksheet.page import PageMargins
@@ -1222,7 +1223,7 @@ def export_excel(
     sns = analytics._resolve_scope(db, tenant, device_sn)
     dev = db.get(Device, device_sn) if device_sn else None
 
-    NCOL = 5  # 측정시각·습도·온도·체감온도·위험단계
+    NCOL = 7  # 측정시각·습도·온도·체감온도·위험단계·조치사항·비고
     wb = Workbook()
     ws = wb.active
     ws.title = "측정 기록부"
@@ -1238,10 +1239,10 @@ def export_excel(
     ws.sheet_view.showGridLines = False  # 직접 그린 구분선만 표시
 
     # 열 너비(합 ≈ A4 세로 가용폭) — fitToWidth로 한 페이지 폭에 자동 정렬
-    for i, w in enumerate([14, 12, 12, 15, 14], start=1):
+    for i, w in enumerate([10, 9, 9, 12, 11, 26, 18], start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
-    last = chr(64 + NCOL)  # 'E'
+    last = chr(64 + NCOL)  # 'G'
     title_font = Font(bold=True, size=16, color="0F172A")
     k_fill = PatternFill("solid", fgColor="F1F5F9")
     k_font = Font(bold=True, color="334155")
@@ -1277,20 +1278,20 @@ def export_excel(
         outline(row, lcol + 1, vend, box)
 
     lab(r, 1, 3, "사업장", dev.company_name if dev else "-")
-    lab(r, 4, 5,"대상 일자", on_date.isoformat())
+    lab(r, 4, 7, "대상 일자", on_date.isoformat())
     ws.row_dimensions[r].height = 22
     r += 1
     lab(r, 1, 3, "설치 위치", dev.location_name if dev else "-")
-    lab(r, 4, 5,"측정기기", f"케이웨더(주) 체감온도계 · {device_sn}" if device_sn else "-")
+    lab(r, 4, 7, "측정기기", f"케이웨더(주) 체감온도계 · {device_sn}" if device_sn else "-")
     ws.row_dimensions[r].height = 22
     r += 1
     lab(r, 1, 3, "작성자", "")
-    lab(r, 4, 5,"확인(관리자)", "")
+    lab(r, 4, 7, "확인(관리자)", "")
     ws.row_dimensions[r].height = 24
     r += 2
 
-    # --- 측정 표(시각·습도·온도·체감온도·위험단계) ---
-    headers = ["측정시각", "습도(%)", "온도(℃)", "체감온도(℃)", "위험단계"]
+    # --- 측정 표(위험단계 + 조치사항·비고 기록란) ---
+    headers = ["측정시각", "습도(%)", "온도(℃)", "체감온도(℃)", "위험단계", "조치사항", "비고"]
     head_row = r
     for ci, h in enumerate(headers, start=1):
         cell = ws.cell(r, ci, h)
@@ -1326,9 +1327,12 @@ def export_excel(
             if fv is not None:
                 c5.fill = PatternFill("solid", fgColor=lvl.color.lstrip("#").upper())
                 c5.font = Font(bold=True, color="FFFFFF")
-            for cc in (c1, c2, c3, c4, c5):
+            c6 = ws.cell(r, 6, "")  # 조치사항 — 수기
+            c7 = ws.cell(r, 7, "")  # 비고 — 수기
+            for cc in (c1, c2, c3, c4, c5, c6, c7):
                 cc.border = border
-                cc.alignment = center
+                if cc not in (c6, c7):
+                    cc.alignment = center
             ws.row_dimensions[r].height = 17
             r += 1
 
