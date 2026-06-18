@@ -184,7 +184,11 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
     # 캐시-어사이드 + 오늘 일자 staleness 갱신 + 카카오 불가 시 최근접 관측소 폴백은
     # weather.kma_hourly_cached 가 일원화하여 처리(대시보드 compare 와 동일 경로).
     ds_key = on_date.strftime("%Y%m%d")
-    ext_hourly = weather_svc.kma_hourly_cached(db, dev, ds_key)
+    # 실계정(KMA 프로바이더)만 기상청 시간자료 조회. 데모는 합성(mock)이라 건너뜀.
+    ext_hourly = (
+        weather_svc.kma_hourly_cached(db, dev, ds_key)
+        if weather_svc._provider_for(tenant).name == "kma" else None
+    )
     cache_row = db.scalar(
         select(ExternalDailyCache).where(
             ExternalDailyCache.device_sn == device_sn, ExternalDailyCache.ymd == ds_key

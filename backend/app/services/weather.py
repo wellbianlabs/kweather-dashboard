@@ -254,49 +254,43 @@ def _kma_asos_hourly(code: str, ds: str) -> dict[int, dict] | None:
 
 
 def _kma_asos_hourly_stn(stn: str | None, ds: str) -> dict[int, dict] | None:
-    """기상청 API허브 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
+    """기상청 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
 
-    반환: {hour: {"ta": float, "hm": float|None, "feels": float|None}}
+    공공데이터포털(apis.data.go.kr) AsosHourlyInfoService 사용
+    (apihub.kma.go.kr 는 일부 서버 IP에서 차단되므로 도달 가능한 data.go.kr 경로 채택).
+    KMA_API_KEY = data.go.kr 서비스키. 반환: {hour: {"ta","hm","feels"}}.
     """
-    if not appsettings.get("KMA_API_KEY") or not stn:
+    key = appsettings.get("KMA_API_KEY")
+    if not key or not stn:
         return None
     try:
-        import re as _re
-
         with httpx.Client(timeout=15.0) as client:
             r = client.get(
-                "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php",
-                params={"tm1": ds + "0000", "tm2": ds + "2359", "stn": stn, "help": "1",
-                        "authKey": appsettings.get("KMA_API_KEY")},
+                "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList",
+                params={"serviceKey": key, "dataType": "JSON", "dataCd": "ASOS", "dateCd": "HR",
+                        "stnIds": str(stn), "startDt": ds, "startHh": "00",
+                        "endDt": ds, "endHh": "23", "numOfRows": "50", "pageNo": "1"},
             )
-            text = r.text
-            if r.status_code != 200 or "활용신청" in text or "용량" in text:
+            if r.status_code != 200:
                 return None
-            idx_map: dict[str, int] = {}
-            for ln in text.splitlines():
-                m = _re.match(r"#\s*(\d+)\.\s+([A-Z0-9_]+)\s*[:(]", ln)
-                if m:
-                    idx_map[m.group(2)] = int(m.group(1)) - 1
-            i_ta, i_hm = idx_map.get("TA"), idx_map.get("HM")
-            if i_ta is None:
-                return None
+            items = (
+                r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
+            )
+            if isinstance(items, dict):
+                items = [items]
             out: dict[int, dict] = {}
-            for ln in text.splitlines():
-                st = ln.strip()
-                if not st or st.startswith("#"):
-                    continue
-                parts = st.split()
-                if not parts[0].startswith(ds):
+            for it in items:
+                tm = str(it.get("tm", ""))
+                if len(tm) < 13:
                     continue
                 try:
-                    hour = int(parts[0][8:10])
-                    ta = float(parts[i_ta])
-                    hm = float(parts[i_hm]) if i_hm is not None and i_hm < len(parts) else None
-                except (ValueError, IndexError):
+                    hour = int(tm[11:13])
+                    ta = float(it.get("ta"))
+                except (ValueError, TypeError):
                     continue
-                if ta in (-9.0, -99.0, -999.0):
-                    continue
-                if hm is not None and hm in (-9.0, -99.0, -999.0):
+                try:
+                    hm = float(it.get("hm"))
+                except (ValueError, TypeError):
                     hm = None
                 out[hour] = {"ta": round(ta, 1), "hm": hm, "feels": kma_feels_like(ta, hm)}
             return out or None
