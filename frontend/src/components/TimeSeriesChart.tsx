@@ -25,7 +25,9 @@ const SERIES: SeriesDef[] = [
   { key: "기상_온도", label: "기상청 온도", axis: "temp", color: "#0ea5e9", dash: true, w: 1.6 },
   { key: "기상_습도", label: "기상청 습도", axis: "humi", color: "#7dd3fc", dash: true, w: 1.4 },
 ];
-const DEFAULT_ON = ["측정_체감", "측정_온도", "측정_습도", "기상_체감"];
+// 기본은 핵심 체감온도 2계열만(측정기 실선 + 기상청 점선) — 단일일 곡선이 명확하게.
+// 온도·습도(습도는 면적·우측 %축)는 계열 칩으로 켜서 볼 수 있음(겹쳐 복잡해 보이는 것 방지).
+const DEFAULT_ON = ["측정_체감", "기상_체감"];
 const UNITS = Object.fromEntries(SERIES.map((s) => [s.key, s.axis === "humi" ? "%" : "℃"]));
 
 export function TimeSeriesChart({ ts, cmp, kpi, date }: {
