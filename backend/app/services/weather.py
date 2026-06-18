@@ -201,6 +201,67 @@ def resolve_asos_station(dev) -> str | None:
     return None
 
 
+def _dfs_grid(lat: float, lon: float) -> tuple[int, int]:
+    """위경도 → 기상청 동네예보 격자(nx, ny). 기상청 표준 Lambert Conformal Conic."""
+    import math
+    RE, GRID = 6371.00877, 5.0
+    SLAT1, SLAT2, OLON, OLAT, XO, YO = 30.0, 60.0, 126.0, 38.0, 43, 136
+    D = math.pi / 180.0
+    re = RE / GRID; s1 = SLAT1 * D; s2 = SLAT2 * D; ol = OLON * D; oa = OLAT * D
+    sn = math.tan(math.pi * 0.25 + s2 * 0.5) / math.tan(math.pi * 0.25 + s1 * 0.5)
+    sn = math.log(math.cos(s1) / math.cos(s2)) / math.log(sn)
+    sf = math.tan(math.pi * 0.25 + s1 * 0.5); sf = math.pow(sf, sn) * math.cos(s1) / sn
+    ro = math.tan(math.pi * 0.25 + oa * 0.5); ro = re * sf / math.pow(ro, sn)
+    ra = math.tan(math.pi * 0.25 + lat * D * 0.5); ra = re * sf / math.pow(ra, sn)
+    th = lon * D - ol
+    if th > math.pi:
+        th -= 2 * math.pi
+    if th < -math.pi:
+        th += 2 * math.pi
+    th *= sn
+    return int(ra * math.sin(th) + XO + 0.5), int(ro - ra * math.cos(th) + YO + 0.5)
+
+
+def _kma_ncst_hourly(lat, lon, ds: str) -> dict[int, dict] | None:
+    """초단기실황(getUltraSrtNcst) — 매시각 기온(T1H)·습도(REH) → 공식 체감온도.
+
+    ASOS 정식 시간자료가 아직 미발표인 당일·최근 일자 보완용
+    (data.go.kr VilageFcstInfoService_2.0, KMA_API_KEY 사용). 반환 {hour:{ta,hm,feels}}.
+    """
+    key = appsettings.get("KMA_API_KEY")
+    if not key or lat is None or lon is None:
+        return None
+    nx, ny = _dfs_grid(float(lat), float(lon))
+    now_kst = datetime.utcnow() + timedelta(hours=9)
+    last_h = now_kst.hour if ds == now_kst.strftime("%Y%m%d") else 23
+    url = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
+    out: dict[int, dict] = {}
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            for hh in range(0, last_h + 1):
+                try:
+                    r = client.get(url, params={
+                        "serviceKey": key, "dataType": "JSON", "numOfRows": "60", "pageNo": "1",
+                        "base_date": ds, "base_time": f"{hh:02d}00", "nx": nx, "ny": ny})
+                    if r.status_code != 200:
+                        continue
+                    items = (
+                        r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                    )
+                    vals = {it.get("category"): it.get("obsrValue") for it in items}
+                    ta = float(vals["T1H"])
+                    try:
+                        hm = float(vals.get("REH"))
+                    except (TypeError, ValueError):
+                        hm = None
+                    out[hh] = {"ta": round(ta, 1), "hm": hm, "feels": kma_feels_like(ta, hm)}
+                except Exception:  # noqa: BLE001
+                    continue
+    except Exception:  # noqa: BLE001
+        return None
+    return out or None
+
+
 def kma_hourly_cached(db: Session, dev, ds: str) -> dict[int, dict] | None:
     """(기기, 일자) 기상청 시간자료 — ExternalDailyCache 캐시-어사이드.
 
@@ -233,6 +294,8 @@ def kma_hourly_cached(db: Session, dev, ds: str) -> dict[int, dict] | None:
     if hourly is None or stale:
         stn = resolve_asos_station(dev)
         fetched = _kma_asos_hourly_stn(stn, ds) if stn else None
+        if not fetched:  # ASOS 미발표(당일·최근) → 초단기실황으로 보완
+            fetched = _kma_ncst_hourly(getattr(dev, "latitude", None), getattr(dev, "longitude", None), ds)
         if fetched:
             hourly = fetched
             try:
