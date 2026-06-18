@@ -7,9 +7,10 @@
   background-size: cover;
   background-position: center;
   background-color: #082f68; /* 이미지 미로드 시 폴백(브랜드 네이비) */
+  /* 산업현장(제강·중공업 단지) 커버 — 브랜드 그라데이션 오버레이로 흰 텍스트 가독성 확보. */
   background-image:
-    linear-gradient(135deg, rgba(8, 47, 104, 0.9) 0%, rgba(15, 73, 158, 0.72) 45%, rgba(217, 119, 6, 0.5) 100%),
-    url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1600&q=80');
+    linear-gradient(135deg, rgba(8, 47, 104, 0.88) 0%, rgba(15, 73, 158, 0.7) 45%, rgba(217, 119, 6, 0.5) 100%),
+    url('https://images.unsplash.com/photo-1765810542186-c6becc0687b1?auto=format&fit=crop&w=1600&q=80');
 }
 
 .form {
