@@ -381,7 +381,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
         peak_label=peak.label, peak_color=peak.color, guidance=analytics._GUIDANCE[peak.code],
         level_minutes=lm, level_minutes_label=lm_label, level_minutes_pct=level_minutes_pct,
         max_temp_time=max_temp_time, total_minutes=int(round(n * step)),
-        hours=hours, weather=weather, analysis=analysis,
+        hours=hours, weather=weather, analysis=analysis, has_external=has_out_feels,
         external_daily=external_daily, work=work, series=series,
         temp_at_peak=temp_at_peak, humi_at_peak=humi_at_peak,
     )
@@ -888,6 +888,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
   <tr><td class="k">기상청 체감(°C)</td>{% for h in d.hours %}<td style="color:#1790cd;">{{ h.out_feels if h.out_feels is not none else '-' }}</td>{% endfor %}</tr>
   <tr><td class="k">차이</td>{% for h in d.hours %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
 </table>
+{% if not d.has_external %}<p class="note"><b style="color:#b45309;">※ 해당 일자의 기상청 관측자료가 아직 제공되지 않았습니다(기상청 ASOS 발표 지연 — 당일·최근 일자는 미제공). 자료 제공 후 보고서를 다시 생성하면 자동 표시됩니다.</b></p>{% endif %}
 <p class="note">※ 기상청 체감온도 = 설치위치에서 가장 가까운 기상청 AWS 관측자료 기준 체감온도{% if d.external_daily and d.external_daily.region %} · 관측: {{ d.external_daily.region }}{% endif %} · 차이 = 측정 - 기상청 (°C).</p>
 </pdf:keeptogether>
 
