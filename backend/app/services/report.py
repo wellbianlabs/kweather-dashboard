@@ -274,7 +274,7 @@ def _daily_detail(db: Session, tenant: Tenant, device_sn: str, on_date: date_cls
 
     # 외부 일별 요약(과거자료): 캐시 우선 → 아카이브/ASOS 일자료 → 시간자료 집계 폴백
     external_daily = None
-    provider = weather_svc.get_provider()
+    provider = weather_svc._provider_for(tenant)
     ed = None
     if cache_row and (cache_row.max_temp is not None or cache_row.avg_temp is not None):
         ed = {

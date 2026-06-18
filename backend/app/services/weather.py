@@ -61,6 +61,19 @@ class MockWeatherProvider(WeatherProvider):
             cur += timedelta(hours=1)
         return out
 
+    def past_daily(self, lat, lon, region_code, day) -> dict | None:
+        """[mock] 합성 일별 요약 — 동일 일주기 곡선에서 평균/최고/최저 + 추정 습도."""
+        h = self.hourly_temps(lat, lon, region_code,
+                              datetime(day.year, day.month, day.day, 0),
+                              datetime(day.year, day.month, day.day, 23))
+        temps = list(h.values())
+        if not temps:
+            return None
+        avg = round(sum(temps) / len(temps), 1)
+        humi = round(max(40.0, min(85.0, 80.0 - (avg - 22.0) * 1.5)), 1)
+        return {"avg": avg, "max": round(max(temps), 1), "min": round(min(temps), 1),
+                "humi": humi, "source": "데모 합성 기상자료", "region": None}
+
 
 class KmaWeatherProvider(WeatherProvider):
     """공공데이터포털 ASOS 시간자료 (best-effort).
@@ -461,6 +474,20 @@ class KWeatherProvider(WeatherProvider):
         return {dt: float(cur["temp"])} if start <= dt <= end else {}
 
 
+DEMO_API_KEY = "demo-key"
+
+
+def _provider_for(tenant) -> WeatherProvider:
+    """데모 계정은 합성(mock) 외부데이터, 그 외(실계정)는 설정된 프로바이더.
+
+    데모는 합성 날짜라 실제 관측이 없으므로 mock으로 외부 비교를 채워 보이게 하고,
+    실계정은 실제 외부(케이웨더 게이트웨이 등) 자료를 사용한다.
+    """
+    if tenant is not None and getattr(tenant, "api_key", None) == DEMO_API_KEY:
+        return MockWeatherProvider()
+    return get_provider()
+
+
 def get_provider() -> WeatherProvider:
     p = appsettings.get("WEATHER_PROVIDER").lower()
     if p == "kma":
@@ -474,7 +501,7 @@ def compare(
     db: Session, tenant: Tenant, device_sn: str,
     start: datetime | None, end: datetime | None, interval: int,
 ) -> WeatherCompareOut:
-    provider = get_provider()
+    provider = _provider_for(tenant)
     dev = db.get(Device, device_sn)
     if dev is None or dev.tenant_id != tenant.id:
         raise ValueError("해당 기기에 접근 권한이 없습니다.")
@@ -490,10 +517,11 @@ def compare(
     t0 = indoor.points[0].t
     t1 = indoor.points[-1].t
 
-    # 단일 일자: 기상청 시간자료(체감온도 포함) 최우선 — 측정 당시의 외부값 시간 매칭.
-    # (실황 1점이 잡혀도 시간 매칭을 건너뛰지 않도록 KMA 경로를 먼저 시도)
+    # 단일 일자: 기상청 API허브 시간자료(체감온도 포함)를 우선 시도 — KMA 프로바이더일 때만.
+    # (apihub.kma.go.kr 가 막힌 서버에서 불필요한 타임아웃 행을 피하려 provider 게이트를 둠.
+    #  → option B로 apihub 를 열면 WEATHER_PROVIDER=kma 로 전환해 다시 사용)
     ext_hourly = None
-    if appsettings.get("KMA_API_KEY") and t0.date() == t1.date():
+    if provider.name == "kma" and appsettings.get("KMA_API_KEY") and t0.date() == t1.date():
         ext_hourly = kma_hourly_cached(db, dev, t0.strftime("%Y%m%d"))
 
     hourly: dict = {}
@@ -559,7 +587,7 @@ def current_external(db: Session, tenant: Tenant, device_sn: str) -> CurrentWeat
     dev = db.get(Device, device_sn)
     if dev is None or dev.tenant_id != tenant.id:
         raise ValueError("해당 기기에 접근 권한이 없습니다.")
-    provider = get_provider()
+    provider = _provider_for(tenant)
 
     cur = None
     if hasattr(provider, "current"):
