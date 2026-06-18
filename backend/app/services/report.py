@@ -870,17 +870,52 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">5.</span> 종합 분석</h2>
+<h2 style="page-break-before: always; margin-top:0;"><span class="no">5.</span> 내·외부 기온 비교 분석 <span style="font-size:8pt; color:#475569; font-weight:normal;">(근무시간 기준 · 외부: 케이웨더 기상관측자료)</span></h2>
+{% if d.external_daily %}
+  <table class="tbl" style="margin-bottom:4pt;">
+    <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
+    <tr><td class="k">외부 · 기상청 공식</td>
+        <td class="num" style="color:#1790cd;">{{ d.external_daily.out_feels_max if d.external_daily.out_feels_max is not none else '-' }}°C</td>
+        <td>{{ d.external_daily.out_max if d.external_daily.out_max is not none else '-' }}°C</td>
+        <td>{{ d.external_daily.out_avg if d.external_daily.out_avg is not none else '-' }}°C</td></tr>
+    <tr><td class="k">작업장(내부 측정)</td>
+        <td class="num" style="color:#dc2626;">{{ d.max_feels }}°C</td>
+        <td>{{ d.external_daily.in_max }}°C</td>
+        <td>{{ d.external_daily.in_avg }}°C</td></tr>
+  </table>
+  {% if d.external_daily.diff_feels is not none %}
+  <p class="note">최고 체감온도 차(내-외): <b style="color:#b91c1c;">+{{ d.external_daily.diff_feels }}°C</b> — 작업장 체감온도가 기상청 공식 외부 체감온도보다 높을수록 복사열·밀폐 영향이 큼</p>
+  {% endif %}
+  <p class="note">※ 출처: {{ d.external_daily.source }} · 작업장 최고기온이 외부 일 최고기온 대비 {{ d.external_daily.diff_max }}°C {{ '높음' if (d.external_daily.diff_max or 0) >= 0 else '낮음' }} (복사열·환기 영향 지표)</p>
+{% endif %}
+{% if d.weather %}
+  {% if d.weather.enclosed_alert %}
+  <div class="alert"><b>[경고] 밀폐형 폭염 사업장</b> — 내부 체감온도가 외부 {{ '공식 체감온도' if d.weather.feels_based else '기온' }} 대비 최대 {{ d.weather.max_delta }}°C, 평균 {{ d.weather.avg_delta }}°C 높게 측정됨(관리 임계 {{ d.weather.threshold }}°C 초과). 환기·차열·국소냉방 등 작업환경 개선 필요.</div>
+  {% endif %}
+  <table class="tbl">
+    <tr><th class="k" style="width:15%">시각</th>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<th>{{ h.hour }}시</th>{% endfor %}</tr>
+    <tr><td class="k">내부 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:{{ h.color }}; font-weight:bold;">{{ h.feels if h.feels is not none else '-' }}</td>{% endfor %}</tr>
+    <tr><td class="k">기상청 공식 체감(°C)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td style="color:#1790cd; font-weight:bold;">{{ h.out_feels if h.out_feels is not none else (h.outdoor if h.outdoor is not none else '-') }}</td>{% endfor %}</tr>
+    <tr><td class="k">체감차(내-외)</td>{% for h in d.hours if h.hour >= 9 and h.hour < 18 %}<td{% if h.delta is not none and h.delta >= 5 %} style="color:#b91c1c; font-weight:bold;"{% endif %}>{{ h.delta if h.delta is not none else '-' }}</td>{% endfor %}</tr>
+  </table>
+  <p class="note">※ 출처: {{ '케이웨더(주)' if d.weather.provider in ('kweather', 'kma') else '참고용 추정치' }} · 외부 체감온도 = 기상청 공식 산식(측정 당시 시각 매칭, 측정기 미기록 보완값)</p>
+{% elif not d.external_daily %}
+  <p class="note">해당 일자의 외부 관측자료가 아직 제공되지 않아 비교 분석을 생략함.</p>
+{% endif %}
+</pdf:keeptogether>
+
+<pdf:keeptogether>
+<h2><span class="no">6.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">6.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
+<h2><span class="no">7.</span> 조치사항 및 권고 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(최고 위험단계 「{{ d.peak_label }}」 기준)</span></h2>
 <div class="gov2">{% for g in d.guidance %}<div><span class="b">○</span> {{ g }}</div>{% endfor %}</div>
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">7.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
+<h2><span class="no">8.</span> 법정 휴식 의무 <span style="font-size:8pt; color:#64748b; font-weight:normal;">(산업안전보건규칙 — 체감 33°C↑ 작업 시 2시간마다 20분 이상)</span></h2>
 {% if d.work and d.work.hot_minutes > 0 %}
 <table class="tbl">
   <tr><th style="width:40%">근무시간(09~18) 체감 33°C↑ 작업</th><th>법정 최소 휴식 횟수</th><th>법정 최소 휴식 시간</th></tr>
