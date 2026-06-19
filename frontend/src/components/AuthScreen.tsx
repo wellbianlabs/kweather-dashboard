@@ -68,10 +68,10 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
             {/* 브랜딩 */}
             <Stack gap={6} align="center" mb="xl">
               <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 36 }} />
-              <Title order={1} ta="center" mt="sm" fz={21} fw={700}>
-                체감온도계 데이터 분석 프로그램
+              <Title order={1} ta="center" mt="sm" fz={27} fw={800} lh={1.25}>
+                체감온도계 데이터 분석 소프트웨어
               </Title>
-              <Text size="sm" c="dimmed" ta="center">
+              <Text size="md" c="dimmed" ta="center" fw={500}>
                 폭염·체감온도 데이터 분석 및 안전관리
               </Text>
               <Badge color="teal" variant="light" size="lg" radius="xl" mt={6}>
@@ -151,10 +151,12 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
 
       {/* 우측 이미지 영역 — 브랜드 카피 */}
       <div className={classes.brand}>
-        <Title order={2} c="#fff" fz={32} fw={800} lh={1.2} mb="md" style={{ maxWidth: 560 }}>
+        <Title order={2} c="#fff" fz={46} fw={900} lh={1.15} mb="md"
+          style={{ maxWidth: 600, textShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
           현장을 지키는<br />폭염 데이터
         </Title>
-        <Text c="rgba(255,255,255,0.82)" fz="md" mb="xl" style={{ maxWidth: 480 }}>
+        <Text c="rgba(255,255,255,0.92)" fz="lg" fw={500} mb="xl"
+          style={{ maxWidth: 520, textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>
           케이웨더 체감온도계로 측정한 실측 데이터로 폭염 위험을 진단하고, 산업안전보건 기준에 따른 안전관리
           리포트를 자동 생성합니다.
         </Text>

@@ -80,7 +80,7 @@ export function SiteFooter({ withBanner = false }: { withBanner?: boolean }) {
             pt="md"
             style={{ borderTop: "1px solid var(--mantine-color-gray-2)" }}
           >
-            체감온도 데이터 분석 프로그램 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
+            체감온도 데이터 분석 소프트웨어 · 위험단계 기준(체감온도): 관심 31℃ / 주의 33℃ / 경고 35℃ / 위험 38℃
             <br />
             측정 데이터는 케이웨더 체감온도계 장비로 측정되며, 외부 기상자료 출처는 케이웨더(주)입니다.
             © {new Date().getFullYear()} KWeather Inc. All rights reserved.

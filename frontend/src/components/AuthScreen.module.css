@@ -7,10 +7,10 @@
   background-size: cover;
   background-position: center;
   background-color: #082f68; /* 이미지 미로드 시 폴백(브랜드 네이비) */
-  /* 실내 산업현장(용접 작업자) 커버 — 브랜드 그라데이션 오버레이로 흰 텍스트 가독성 확보. */
+  /* 야외 작업현장(여러 작업자) 커버 — 브랜드 그라데이션 오버레이로 흰 텍스트 가독성 확보. */
   background-image:
-    linear-gradient(135deg, rgba(8, 47, 104, 0.85) 0%, rgba(15, 73, 158, 0.68) 45%, rgba(217, 119, 6, 0.48) 100%),
-    url('https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&w=1600&q=80');
+    linear-gradient(135deg, rgba(6, 33, 74, 0.90) 0%, rgba(12, 60, 130, 0.74) 45%, rgba(180, 83, 9, 0.55) 100%),
+    url('https://images.unsplash.com/photo-1704892712277-05dd8ba8831b?auto=format&fit=crop&w=1600&q=80');
 }
 
 .form {
@@ -38,11 +38,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(4px);
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
 }
 
