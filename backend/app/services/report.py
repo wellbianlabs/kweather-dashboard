@@ -616,7 +616,7 @@ def _mpl_hourly(series, th) -> str | None:
     ymin = float(np.floor(ymin / 5) * 5)
     ymax = float(np.ceil(ymax / 5) * 5)
 
-    fig, ax = plt.subplots(figsize=(11, 2.7), dpi=150)
+    fig, ax = plt.subplots(figsize=(11, 2.35), dpi=150)
     ax.axvspan(9, 18, color="#0f499e", alpha=0.05, lw=0)  # 근무시간 음영
 
     # 영역 그라데이션(라인 아래) — imshow + 폴리곤 클립
@@ -674,7 +674,7 @@ def _mpl_compare(hours) -> str | None:
     ymin = float(np.floor((allv.min() - 2) / 5) * 5)
     ymax = float(np.ceil((allv.max() + 3) / 5) * 5)
 
-    fig, ax = plt.subplots(figsize=(11, 2.5), dpi=150)
+    fig, ax = plt.subplots(figsize=(11, 2.1), dpi=150)
     ax.fill_between(xo, yo, ymin, color="#1790cd", alpha=0.08, lw=0, zorder=1)
     ax.fill_between(xi, yi, ymin, color="#dc2626", alpha=0.08, lw=0, zorder=1)
     ax.plot(xo, yo, color="#1790cd", lw=2.4, label=out_label, marker="o", ms=4.5,
@@ -750,8 +750,8 @@ def _chart_timeline_band(hours) -> str | None:
 _DAILY_TEMPLATE = Template(
     """
 <html><head><style>
-@page { size: A4; margin: 20px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 20pt; bottom: 11pt; width: 555pt; height: 13pt; } }
-body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#0b1220; line-height:1.28; font-weight:bold; }
+@page { size: A4; margin: 16px; @frame footer_frame { -pdf-frame-content: pageFooter; left: 16pt; bottom: 9pt; width: 563pt; height: 12pt; } }
+body { font-family: "{{ pdf_font }}"; font-size: 9pt; color:#0b1220; line-height:1.24; font-weight:bold; }
 table { width:100%; border-collapse: collapse; }
 
 /* 헤더 — 미니멀(식별번호) */
@@ -772,12 +772,12 @@ table { width:100%; border-collapse: collapse; }
 .hero-badge { display:inline-block; padding:3px 12px; border-radius:9px; color:#fff; font-weight:bold; font-size:12pt; }
 
 /* 문서정보 — 심리스 */
-.docinfo { margin-top:4pt; }
-.docinfo td { padding:3px 8px; font-size:8.8pt; border-bottom:1px solid #d8e0ea; color:#0b1220; }
+.docinfo { margin-top:3pt; }
+.docinfo td { padding:2px 8px; font-size:8.8pt; border-bottom:1px solid #d8e0ea; color:#0b1220; }
 .docinfo .k { color:#1f2937; width:14%; font-weight:bold; }
 
 /* 섹션 — 제목은 항상 다음 내용과 같은 페이지에 유지(제목만 떨어지는 현상 방지). */
-h2 { font-size:12pt; color:#0b1220; margin:7pt 0 2pt 0; font-weight:bold; -pdf-keep-with-next: true; page-break-after: avoid; }
+h2 { font-size:11.5pt; color:#0b1220; margin:4pt 0 1pt 0; font-weight:bold; -pdf-keep-with-next: true; page-break-after: avoid; }
 h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 
 /* 데이터 표 — 심리스(세로선·채움 없음, 하단 라인만). 표는 페이지 경계에서 쪼개지지 않도록. */
@@ -864,7 +864,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2 style="page-break-before: always; margin-top:0;"><span class="no">4.</span> 내·외부 체감온도 분석</h2>
+<h2><span class="no">4.</span> 내·외부 체감온도 분석</h2>
 {% if d.external_daily %}
 <table class="tbl" style="margin-bottom:3pt;">
   <tr><th style="width:24%">구분</th><th>최고 체감온도</th><th>일 최고기온</th><th>일 평균기온</th></tr>
@@ -893,7 +893,7 @@ h2 .no { color:#0c3d85; font-weight:bold; margin-right:5px; }
 </pdf:keeptogether>
 
 <pdf:keeptogether>
-<h2><span class="no">5.</span> 종합 분석</h2>
+<h2 style="page-break-before: always;"><span class="no">5.</span> 종합 분석</h2>
 <div class="gov">{% for a in d.analysis %}<div><span class="b">□</span> {{ a }}</div>{% endfor %}</div>
 </pdf:keeptogether>
 
