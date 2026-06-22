@@ -11,6 +11,14 @@ import type { Device } from "../../types";
 import { AccountButton } from "./AccountButton";
 import classes from "./NavbarNested.module.css";
 
+// 폭염 위험단계 범례(체감온도 기준) — 사이드바 안내 카드용
+const LEVELS = [
+  { label: "관심", temp: 31, color: "#84cc16" },
+  { label: "주의", temp: 33, color: "#eab308" },
+  { label: "경고", temp: 35, color: "#f97316" },
+  { label: "위험", temp: 38, color: "#dc2626" },
+] as const;
+
 // 보조 메뉴 공통 스타일
 const ITEM_STYLES = {
   root: { borderRadius: "var(--mantine-radius-md)", padding: "11px 12px" },
@@ -41,6 +49,8 @@ export function NavbarNested({
     <nav className={classes.navbar}>
       <div className={classes.header}>
         <img src="/kweather-logo.png" alt="KWEATHER" style={{ height: 22 }} />
+        <Text className={classes.brandTitle}>체감온도계 데이터 분석 소프트웨어</Text>
+        <Text className={classes.brandSub}>폭염·체감온도 안전관리</Text>
       </div>
 
       {/* 상단: 등록 측정기 목록 */}
@@ -75,6 +85,29 @@ export function NavbarNested({
           );
         })}
       </ScrollArea>
+
+      {/* 측정기 목록 아래 여백 채움: STS 장비 안내 + 폭염 위험단계 범례 */}
+      <div className={classes.infoCard}>
+        <div className={classes.deviceBox}>
+          <img src="/sts-device.svg" alt="케이웨더 체감온도계 STS 장비" className={classes.deviceImg} />
+          <Text className={classes.deviceCaption}>케이웨더 체감온도계 · STS</Text>
+        </div>
+
+        <div className={classes.legend}>
+          <Text className={classes.legendTitle}>폭염 위험단계 (체감온도)</Text>
+          {LEVELS.map((lv) => (
+            <div key={lv.label} className={classes.legendRow}>
+              <span className={classes.legendDot} style={{ background: lv.color }} />
+              <span className={classes.legendName}>{lv.label}</span>
+              <span className={classes.legendVal}>{lv.temp}℃ 이상</span>
+            </div>
+          ))}
+        </div>
+
+        <Text className={classes.infoTip}>
+          측정기를 선택하면 해당 기기의 분석 화면으로 이동합니다.
+        </Text>
+      </div>
 
       {/* 하단: 보조 메뉴 */}
       <div className={classes.bottomNav}>
