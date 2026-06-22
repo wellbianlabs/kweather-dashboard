@@ -89,7 +89,7 @@ export function NavbarNested({
       {/* 측정기 목록 아래 여백 채움: STS 장비 안내 + 폭염 위험단계 범례 */}
       <div className={classes.infoCard}>
         <div className={classes.deviceBox}>
-          <img src="/sts-device.svg" alt="케이웨더 체감온도계 STS 장비" className={classes.deviceImg} />
+          <div className={classes.deviceImg} role="img" aria-label="케이웨더 체감온도계 STS 장비" />
           <Text className={classes.deviceCaption}>케이웨더 체감온도계 · STS</Text>
         </div>
 

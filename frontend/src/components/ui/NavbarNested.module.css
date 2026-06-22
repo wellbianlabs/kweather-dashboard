@@ -57,11 +57,16 @@
   flex-direction: column;
   align-items: center;
 }
+/* 실제 STS 장비 사진 — 흰 여백을 잘라내고 장비만 보이도록 확대 크롭 */
 .deviceImg {
   width: 100%;
-  max-width: 150px;
-  height: auto;
-  display: block;
+  max-width: 180px;
+  aspect-ratio: 1.08 / 1;
+  background-image: url('/sts-device.jpg');
+  background-repeat: no-repeat;
+  background-position: center 47%;
+  background-size: 200%;
+  border-radius: 8px;
 }
 .deviceCaption {
   margin-top: 6px;
