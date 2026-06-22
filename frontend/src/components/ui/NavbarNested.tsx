@@ -53,7 +53,13 @@ export function NavbarNested({
         <Text className={classes.brandSub}>폭염·체감온도 안전관리</Text>
       </div>
 
-      {/* 상단: 등록 측정기 목록 */}
+      {/* 맨 상단: STS 기기 이미지 */}
+      <div className={classes.deviceBox}>
+        <div className={classes.deviceImg} role="img" aria-label="케이웨더 체감온도계 STS 장비" />
+        <Text className={classes.deviceCaption}>케이웨더 체감온도계 · STS</Text>
+      </div>
+
+      {/* 그 아래: 등록 측정기 목록(늘어남) */}
       <ScrollArea className={classes.navbarMain}>
         <Text className={classes.sectionLabel}>측정기</Text>
         {devices.length === 0 && <Text size="sm" c="dimmed" px="sm" py={8}>등록된 측정기가 없습니다</Text>}
@@ -86,13 +92,8 @@ export function NavbarNested({
         })}
       </ScrollArea>
 
-      {/* 측정기 목록 아래 여백 채움: STS 장비 안내 + 폭염 위험단계 범례 */}
+      {/* 측정기 목록 아래(좌측 하단) 채움: 폭염 위험단계 범례 + 팁 */}
       <div className={classes.infoCard}>
-        <div className={classes.deviceBox}>
-          <div className={classes.deviceImg} role="img" aria-label="케이웨더 체감온도계 STS 장비" />
-          <Text className={classes.deviceCaption}>케이웨더 체감온도계 · STS</Text>
-        </div>
-
         <div className={classes.legend}>
           <Text className={classes.legendTitle}>폭염 위험단계 (체감온도)</Text>
           {LEVELS.map((lv) => (

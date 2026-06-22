@@ -52,15 +52,22 @@
   background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7));
 }
 
+/* 맨 상단 STS 기기 이미지 카드 */
 .deviceBox {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-bottom: var(--mantine-spacing-md);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7));
 }
 /* 실제 STS 장비 사진 — 흰 여백을 잘라내고 장비만 보이도록 확대 크롭 */
 .deviceImg {
   width: 100%;
-  max-width: 180px;
+  max-width: 124px;
   aspect-ratio: 1.08 / 1;
   background-image: url('/sts-device.jpg');
   background-repeat: no-repeat;
