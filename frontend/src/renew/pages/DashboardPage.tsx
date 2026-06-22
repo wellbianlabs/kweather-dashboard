@@ -3,7 +3,10 @@
 // 위험지도·외부날씨비교·사업장표는 목업 기준으로 제외(컴포넌트는 보존).
 import type { ReactNode } from "react";
 import { Badge, Box, Button, Card, Grid, Group, Stack, Text } from "@mantine/core";
-import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import {
+  Area, AreaChart, Bar, CartesianGrid, Cell, ComposedChart, LabelList, Line,
+  ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { TimeSeriesChart } from "../../components/TimeSeriesChart";
@@ -110,32 +113,85 @@ function HeatGauge({ temp, th }: { temp: number | null; th: Record<string, numbe
   );
 }
 
-/* 최근 7일 일 최고 체감(실측) — 단계색 막대. */
-function ForecastBar({ weekly, th }: { weekly: { date: string; max_feels: number | null }[]; th: Record<string, number> }) {
+/* 최근 7일 체감온도 분석 — 일 최고(단계색 막대) + 일 평균(선) + 위험단계 임계선. */
+type WeeklyRow = { date: string; max_feels: number | null; avg_feels: number | null; max_temp: number | null };
+
+function WeeklyTooltip({ active, payload, th }: any) {
+  if (!active || !payload?.length) return null;
+  const r = payload[0]?.payload as { d: string; max: number | null; avg: number | null; temp: number | null };
+  if (!r) return null;
+  const lv = r.max != null ? LV[classifyBy(r.max, th)] : null;
+  return (
+    <Box style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", boxShadow: "0 4px 12px rgba(15,23,42,0.12)" }}>
+      <Text fz={11} fw={700} c="dark.6" mb={4}>{r.d}</Text>
+      <Group gap={6} mb={2} wrap="nowrap">
+        <Box w={8} h={8} style={{ borderRadius: 2, background: lv?.color ?? "#cbd5e1" }} />
+        <Text fz={11} c="dimmed">최고 체감</Text>
+        <Text fz={11} fw={700} ml="auto">{r.max != null ? `${r.max.toFixed(1)}℃` : "-"}{lv ? ` (${lv.label})` : ""}</Text>
+      </Group>
+      <Group gap={6} mb={2} wrap="nowrap">
+        <Box w={8} h={8} style={{ borderRadius: 8, background: "#1e293b" }} />
+        <Text fz={11} c="dimmed">평균 체감</Text>
+        <Text fz={11} fw={700} ml="auto">{r.avg != null ? `${r.avg.toFixed(1)}℃` : "-"}</Text>
+      </Group>
+      <Group gap={6} wrap="nowrap">
+        <Box w={8} h={8} />
+        <Text fz={11} c="dimmed">최고 기온</Text>
+        <Text fz={11} fw={700} ml="auto">{r.temp != null ? `${r.temp.toFixed(1)}℃` : "-"}</Text>
+      </Group>
+    </Box>
+  );
+}
+
+function ForecastBar({ weekly, th }: { weekly: WeeklyRow[]; th: Record<string, number> }) {
   const rows = weekly.map((w) => ({
     d: w.date.slice(5),
-    f: w.max_feels,
+    max: w.max_feels,
+    avg: w.avg_feels,
+    temp: w.max_temp,
     color: w.max_feels != null ? LV[classifyBy(w.max_feels, th)].color : "#e5e7eb",
   }));
-  const vals = rows.map((r) => r.f).filter((v): v is number => v != null);
-  if (!vals.length) {
-    return <Box style={{ height: 150, display: "flex", alignItems: "center", justifyContent: "center" }}>
+  const vals = rows.flatMap((r) => [r.max, r.avg]).filter((v): v is number => v != null);
+  if (!rows.some((r) => r.max != null)) {
+    return <Box style={{ height: 188, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Text size="sm" c="dimmed">측정 데이터 없음</Text></Box>;
   }
-  const ymin = Math.max(20, Math.floor((Math.min(...vals) - 3) / 5) * 5);
-  const ymax = Math.ceil((Math.max(...vals) + 3) / 5) * 5;
+  const ymin = Math.max(0, Math.floor((Math.min(...vals) - 2) / 2) * 2);
+  const ymax = Math.ceil((Math.max(...vals) + 3) / 2) * 2;
+  // 도메인 안에 들어오는 임계선만 표시(주의/경고/위험)
+  const marks = ([["caution", "주의"], ["warning", "경고"], ["danger", "위험"]] as const)
+    .map(([k, label]) => ({ v: th[k] ?? ({ caution: 33, warning: 35, danger: 38 } as any)[k], label, color: LV[k].color }))
+    .filter((m) => m.v >= ymin && m.v <= ymax);
   return (
-    <Box style={{ height: 156 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 24, right: 12, left: 12, bottom: 4 }} barCategoryGap="22%">
-          <XAxis dataKey="d" interval={0} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <YAxis hide width={0} domain={[ymin, ymax]} />
-          <Bar dataKey="f" radius={[5, 5, 0, 0]} maxBarSize={34} isAnimationActive={false}
-            label={{ position: "top", fontSize: 10, fontWeight: 600, fill: "#475569" }}>
-            {rows.map((r, i) => <Cell key={i} fill={r.color} />)}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <Box>
+      <Box style={{ height: 188 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ top: 22, right: 30, left: -10, bottom: 2 }} barCategoryGap="26%">
+            <CartesianGrid vertical={false} stroke="#eef2f6" />
+            <XAxis dataKey="d" interval={0} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+            <YAxis domain={[ymin, ymax]} width={34} tick={{ fontSize: 9.5, fill: "#94a3b8" }}
+              axisLine={false} tickLine={false} tickFormatter={(v) => `${v}°`} />
+            <Tooltip content={<WeeklyTooltip th={th} />} cursor={{ fill: "rgba(148,163,184,0.10)" }} />
+            {marks.map((m) => (
+              <ReferenceLine key={m.label} y={m.v} stroke={m.color} strokeDasharray="4 3" strokeWidth={1}
+                label={{ value: `${m.label} ${m.v}°`, position: "right", fontSize: 8.5, fill: m.color }} />
+            ))}
+            <Bar dataKey="max" radius={[5, 5, 0, 0]} maxBarSize={30} isAnimationActive={false}>
+              {rows.map((r, i) => <Cell key={i} fill={r.color} />)}
+              <LabelList dataKey="max" position="top" fontSize={10} fontWeight={700} fill="#334155"
+                formatter={(v: any) => (typeof v === "number" ? v.toFixed(1) : "")} />
+            </Bar>
+            <Line type="monotone" dataKey="avg" stroke="#1e293b" strokeWidth={1.6} isAnimationActive={false}
+              dot={{ r: 2.2, fill: "#1e293b", strokeWidth: 0 }} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </Box>
+      {/* 범례 */}
+      <Group gap={14} justify="center" mt={6} wrap="wrap">
+        <Group gap={5} wrap="nowrap"><Box w={11} h={11} style={{ borderRadius: 3, background: "linear-gradient(180deg,#f97316,#dc2626)" }} /><Text fz={10} c="dimmed">일 최고 체감</Text></Group>
+        <Group gap={5} wrap="nowrap"><Box w={14} h={2} style={{ borderRadius: 2, background: "#1e293b" }} /><Text fz={10} c="dimmed">일 평균 체감</Text></Group>
+        <Group gap={5} wrap="nowrap"><Box w={14} h={0} style={{ borderTop: "1.5px dashed #dc2626" }} /><Text fz={10} c="dimmed">위험단계 임계</Text></Group>
+      </Group>
     </Box>
   );
 }
@@ -222,8 +278,8 @@ export function DashboardPage() {
         <Stack gap="md">
           {/* 최근 7일 일 최고 체감(실측) */}
           <Card radius="lg" withBorder shadow="xs" p="lg">
-            <CardHead title="최근 7일 일 최고 체감" sub={`${selected?.device_sn ?? deviceSn ?? "측정기"} · 일별 최고 체감(실측)`}
-              right={<Text fz={10} c="dimmed">단계색</Text>} />
+            <CardHead title="최근 7일 체감온도 분석" sub={`${selected?.device_sn ?? deviceSn ?? "측정기"} · 일 최고·평균 체감(실측)`}
+              right={<Text fz={10} c="dimmed">℃</Text>} />
             <ForecastBar weekly={weekly} th={th} />
           </Card>
 

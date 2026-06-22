@@ -58,8 +58,8 @@ interface DashboardCtx {
   closeUpload: () => void;
   lastUpload: Record<string, string>;
 
-  // 최근 7일 일 최고 체감(실측) — 주간 위젯용
-  weekly: { date: string; max_feels: number | null }[];
+  // 최근 7일 일별 체감 통계(실측) — 주간 위젯용(최고·평균 체감 + 최고 기온)
+  weekly: { date: string; max_feels: number | null; avg_feels: number | null; max_temp: number | null }[];
 }
 
 const Ctx = createContext<DashboardCtx | null>(null);
@@ -94,7 +94,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [lastUpload, setLastUpload] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("kw_last_upload") || "{}"); } catch { return {}; }
   });
-  const [weekly, setWeekly] = useState<{ date: string; max_feels: number | null }[]>([]);
+  const [weekly, setWeekly] = useState<{ date: string; max_feels: number | null; avg_feels: number | null; max_temp: number | null }[]>([]);
   const openUpload = useCallback((sn?: string | null) => {
     setUploadTarget(sn ?? null);
     setUploadOpen(true);
@@ -226,8 +226,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     Promise.all(days.map(async (d) => {
       try {
         const k = await api.kpi(deviceSn, `${d}T00:00:00`, `${d}T23:59:59`);
-        return { date: d, max_feels: k.max_feels_like };
-      } catch { return { date: d, max_feels: null }; }
+        return { date: d, max_feels: k.max_feels_like, avg_feels: k.avg_feels_like, max_temp: k.max_temperature };
+      } catch { return { date: d, max_feels: null, avg_feels: null, max_temp: null }; }
     })).then((rows) => { if (on) setWeekly(rows); });
     return () => { on = false; };
   }, [auth, deviceSn, availableDates, date]);
