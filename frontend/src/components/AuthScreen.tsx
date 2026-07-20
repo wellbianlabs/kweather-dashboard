@@ -153,7 +153,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
       <div className={classes.brand}>
         <Title order={2} c="#fff" fz={62} fw={900} lh={1.12} mb="lg"
           style={{ maxWidth: 640, textShadow: "0 2px 14px rgba(0,0,0,0.5)", letterSpacing: "-0.5px" }}>
-          현장을 지키는<br />폭염 데이터
+          현장의 온도를 기록하는<br />체감온도계
         </Title>
         <Text c="rgba(255,255,255,0.94)" fz={22} fw={500} mb={40} lh={1.5}
           style={{ maxWidth: 560, textShadow: "0 1px 10px rgba(0,0,0,0.45)" }}>
