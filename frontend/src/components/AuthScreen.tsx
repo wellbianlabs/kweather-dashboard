@@ -151,12 +151,12 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
 
       {/* 우측 이미지 영역 — 브랜드 카피 */}
       <div className={classes.brand}>
-        <Title order={2} c="#fff" fz={46} fw={900} lh={1.15} mb="md"
-          style={{ maxWidth: 600, textShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
+        <Title order={2} c="#fff" fz={62} fw={900} lh={1.12} mb="lg"
+          style={{ maxWidth: 640, textShadow: "0 2px 14px rgba(0,0,0,0.5)", letterSpacing: "-0.5px" }}>
           현장을 지키는<br />폭염 데이터
         </Title>
-        <Text c="rgba(255,255,255,0.92)" fz="lg" fw={500} mb="xl"
-          style={{ maxWidth: 520, textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>
+        <Text c="rgba(255,255,255,0.94)" fz={22} fw={500} mb={40} lh={1.5}
+          style={{ maxWidth: 560, textShadow: "0 1px 10px rgba(0,0,0,0.45)" }}>
           케이웨더 체감온도계로 측정한 실측 데이터로 폭염 위험을 진단하고, 산업안전보건 기준에 따른 안전관리
           리포트를 자동 생성합니다.
         </Text>
@@ -173,7 +173,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
 function BrandPill({ icon: Icon, label }: { icon: typeof IconChartLine; label: string }) {
   return (
     <span className={classes.brandPill}>
-      <ThemeIcon size={20} radius="xl" variant="transparent" c="#fff"><Icon size={16} /></ThemeIcon>
+      <ThemeIcon size={24} radius="xl" variant="transparent" c="#fff"><Icon size={19} /></ThemeIcon>
       {label}
     </span>
   );
