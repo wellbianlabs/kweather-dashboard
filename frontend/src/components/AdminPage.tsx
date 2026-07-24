@@ -79,9 +79,19 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
 
   const n = (v: number) => v.toLocaleString();
 
-  // 가입 회사(회원) 목록 페이지네이션 — 20개 단위
+  // 가입 회사(회원) 목록 — 가입일 최신순 정렬 후 20개 단위 페이지네이션
   const TENANTS_PER_PAGE = 20;
-  const allTenants = data?.tenants ?? [];
+  const allTenants = useMemo(() => {
+    const arr = [...(data?.tenants ?? [])];
+    // created_at(YYYY-MM-DD...) 문자열 내림차순 — 최신 가입이 맨 위, 가입일 없음은 맨 뒤
+    arr.sort((a, b) => {
+      if (!a.created_at && !b.created_at) return 0;
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return b.created_at.localeCompare(a.created_at);
+    });
+    return arr;
+  }, [data]);
   const tenantPageCount = Math.max(1, Math.ceil(allTenants.length / TENANTS_PER_PAGE));
   const curTenantPage = Math.min(tenantPage, tenantPageCount);
   const pagedTenants = allTenants.slice(
