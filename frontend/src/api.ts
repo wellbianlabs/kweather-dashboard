@@ -6,6 +6,7 @@ import type {
   UploadResult,
   DailyReport,
   AuthData,
+  AdminLogs,
   AdminOverview,
   AdminSettings,
   AdminSystem,
@@ -100,6 +101,9 @@ export const api = {
   adminOverview: (days = 14) => getJSON<AdminOverview>(`/api/admin/overview?days=${days}`),
 
   adminSystem: () => getJSON<AdminSystem>("/api/admin/system"),
+
+  adminLogs: (page = 1, per = 20, days = 30) =>
+    getJSON<AdminLogs>(`/api/admin/logs?page=${page}&per=${per}&days=${days}`),
 
   adminSettings: () => getJSON<AdminSettings>("/api/admin/settings"),
   saveAdminSettings: (updates: Record<string, string>) =>

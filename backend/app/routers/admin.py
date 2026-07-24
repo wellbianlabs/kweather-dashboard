@@ -284,3 +284,39 @@ def overview(
         "tenants": tenants,
         "recent": recent,
     }
+
+
+@router.get("/logs")
+def access_logs(
+    page: int = Query(1, ge=1),
+    per: int = Query(20, ge=1, le=100),
+    days: int = Query(30, ge=1, le=90),
+    _admin: Tenant = Depends(get_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """접근 로그 전체 조회 — 최근 N일(기본 30일)분을 서버측 페이지네이션(기본 20개)으로.
+
+    overview.recent(최근 30건 고정)와 달리 기간 내 로그 전부를 페이지로 넘겨볼 수 있다.
+    """
+    now = kst_now()
+    start_ymd = (now - timedelta(days=days - 1)).strftime("%Y%m%d")
+    cond = AccessLog.ymd >= start_ymd
+    total = int(db.scalar(select(func.count()).select_from(AccessLog).where(cond)) or 0)
+
+    tmap = {t.id: (t.name, t.email) for t in db.scalars(select(Tenant))}
+    items = []
+    for a in db.scalars(
+        select(AccessLog).where(cond).order_by(AccessLog.id.desc())
+        .offset((page - 1) * per).limit(per)
+    ):
+        comp, mail = tmap.get(a.tenant_id, (None, None))
+        items.append({
+            "ts": a.ts.strftime("%m-%d %H:%M:%S") if a.ts else None,
+            "company": comp,
+            "email": mail,
+            "kind": a.kind,
+            "method": a.method,
+            "path": a.path,
+            "status": a.status,
+        })
+    return {"total": total, "page": page, "per": per, "days": days, "items": items}

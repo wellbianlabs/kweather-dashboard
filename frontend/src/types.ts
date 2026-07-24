@@ -39,6 +39,14 @@ export interface AdminEvent {
   status: number;
 }
 
+export interface AdminLogs {
+  total: number;
+  page: number;
+  per: number;
+  days: number;
+  items: AdminEvent[];
+}
+
 export interface AdminOverview {
   generated_at: string;
   totals: { members: number; devices: number; rows: number };

@@ -11,7 +11,7 @@ import {
   IconServer2,
 } from "@tabler/icons-react";
 import { api } from "../api";
-import type { AdminOverview, AdminSettings, AdminSystem } from "../types";
+import type { AdminLogs, AdminOverview, AdminSettings, AdminSystem } from "../types";
 
 const KEY_META: { name: string; label: string; secret: boolean; hint: string }[] = [
   { name: "KW_API_KEY", label: "케이웨더 Open API 키", secret: true, hint: "WEATHER_PROVIDER=kweather 일 때 사용" },
@@ -65,6 +65,22 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"overview" | "system" | "keys">("overview");
   const [tenantPage, setTenantPage] = useState(1);
+
+  // 접근 로그 — 최근 30일 전체를 서버측 페이지네이션(20개 단위)으로 조회
+  const LOGS_PER_PAGE = 20;
+  const LOGS_DAYS = 30;
+  const [logsPage, setLogsPage] = useState(1);
+  const [logs, setLogs] = useState<AdminLogs | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  useEffect(() => {
+    if (view !== "overview") return;
+    setLogsLoading(true);
+    api.adminLogs(logsPage, LOGS_PER_PAGE, LOGS_DAYS)
+      .then(setLogs)
+      .catch(() => setLogs(null))
+      .finally(() => setLogsLoading(false));
+  }, [view, logsPage]);
+  const logsPageCount = Math.max(1, Math.ceil((logs?.total ?? 0) / LOGS_PER_PAGE));
 
   // 기존 관리자 데이터 그대로 사용: api.adminOverview(days) → AdminOverview.
   const load = useCallback(() => {
@@ -195,15 +211,25 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
               </ResponsiveContainer>
             </Paper>
 
-            {/* (b) 접근 로그 — 최근 이벤트 테이블 */}
+            {/* (b) 접근 로그 — 최근 30일 전체, 20개 단위 페이지네이션 */}
             <Paper radius="lg" p="lg" withBorder shadow="xs">
-              <SectionHead
-                icon={<IconClipboardList size={19} />}
-                title="접근 로그"
-                desc="최근 접속 · 인증 · 업로드 · 조회 이벤트"
-              />
+              <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
+                <SectionHead
+                  icon={<IconClipboardList size={19} />}
+                  title="접근 로그"
+                  desc={`최근 ${LOGS_DAYS}일 접속 · 인증 · 업로드 · 조회 이벤트`}
+                />
+                {logs && (
+                  <Text fz="xs" c="dimmed">
+                    총 {n(logs.total)}건 · {logs.total > 0
+                      ? `${n((logs.page - 1) * LOGS_PER_PAGE + 1)}–${n(Math.min(logs.page * LOGS_PER_PAGE, logs.total))} 표시`
+                      : "0건"}
+                  </Text>
+                )}
+              </Group>
               <Table.ScrollContainer minWidth={640}>
-                <Table verticalSpacing="xs" fz="sm" highlightOnHover stickyHeader>
+                <Table verticalSpacing="xs" fz="sm" highlightOnHover stickyHeader
+                  style={{ opacity: logsLoading ? 0.55 : 1 }}>
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>시각</Table.Th>
@@ -214,7 +240,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {data.recent.map((e, i) => (
+                    {(logs?.items ?? data.recent).map((e, i) => (
                       <Table.Tr key={i}>
                         <Table.Td ff="monospace" fz="xs" c="dimmed">{e.ts}</Table.Td>
                         <Table.Td>
@@ -227,7 +253,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                         <Table.Td ta="right" c={e.status >= 400 ? "red" : "dimmed"}>{e.status}</Table.Td>
                       </Table.Tr>
                     ))}
-                    {data.recent.length === 0 && (
+                    {(logs?.items ?? data.recent).length === 0 && (
                       <Table.Tr>
                         <Table.Td colSpan={5} ta="center" c="dimmed" py="md">기록이 없습니다.</Table.Td>
                       </Table.Tr>
@@ -235,6 +261,14 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                   </Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
+              {logsPageCount > 1 && (
+                <Group justify="center" mt="md">
+                  <Pagination
+                    total={logsPageCount} value={Math.min(logsPage, logsPageCount)} onChange={setLogsPage}
+                    size="sm" color="kw" siblings={1} withEdges disabled={logsLoading}
+                  />
+                </Group>
+              )}
             </Paper>
 
             {/* (c) 업로드 / 데이터 적재 현황 — 기간 요약 + 사업장별 적재 테이블 */}
