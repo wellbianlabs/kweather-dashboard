@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import {
   Container, Stack, Group, Title, Text, Button, SegmentedControl, Alert, Paper,
-  SimpleGrid, Table, Badge, Divider, ThemeIcon, Select, PasswordInput, TextInput,
+  SimpleGrid, Table, Badge, Divider, ThemeIcon, Select, PasswordInput, TextInput, Pagination,
 } from "@mantine/core";
 import {
   IconRefresh, IconActivity, IconClipboardList, IconDatabaseImport, IconKey, IconDeviceFloppy,
@@ -64,6 +64,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"overview" | "system" | "keys">("overview");
+  const [tenantPage, setTenantPage] = useState(1);
 
   // 기존 관리자 데이터 그대로 사용: api.adminOverview(days) → AdminOverview.
   const load = useCallback(() => {
@@ -77,6 +78,19 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   useEffect(() => { load(); }, [load]);
 
   const n = (v: number) => v.toLocaleString();
+
+  // 가입 회사(회원) 목록 페이지네이션 — 20개 단위
+  const TENANTS_PER_PAGE = 20;
+  const allTenants = data?.tenants ?? [];
+  const tenantPageCount = Math.max(1, Math.ceil(allTenants.length / TENANTS_PER_PAGE));
+  const curTenantPage = Math.min(tenantPage, tenantPageCount);
+  const pagedTenants = allTenants.slice(
+    (curTenantPage - 1) * TENANTS_PER_PAGE, curTenantPage * TENANTS_PER_PAGE,
+  );
+  // 데이터 재적재로 회사 수가 줄어 현재 페이지가 범위를 벗어나면 보정
+  useEffect(() => {
+    if (tenantPage > tenantPageCount) setTenantPage(tenantPageCount);
+  }, [tenantPage, tenantPageCount]);
 
   // daily(추이) 데이터에서 적재 현황 요약을 파생 — 새 엔드포인트 없이 기존 필드 재사용.
   const uploadSummary = useMemo(() => {
@@ -234,7 +248,14 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                 </SimpleGrid>
               )}
 
-              <Divider mb="md" label="사업장(회원)별 데이터 현황" labelPosition="left" />
+              <Group justify="space-between" align="center" mb="md" wrap="wrap" gap="xs">
+                <Divider label="사업장(회원)별 데이터 현황" labelPosition="left" style={{ flex: 1, minWidth: 200 }} />
+                <Text fz="xs" c="dimmed">
+                  총 {n(allTenants.length)}개 회원 · {allTenants.length > 0
+                    ? `${n((curTenantPage - 1) * TENANTS_PER_PAGE + 1)}–${n(Math.min(curTenantPage * TENANTS_PER_PAGE, allTenants.length))} 표시`
+                    : "0개"}
+                </Text>
+              </Group>
 
               <Table.ScrollContainer minWidth={720}>
                 <Table verticalSpacing="xs" fz="sm" highlightOnHover>
@@ -250,7 +271,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {data.tenants.map((t) => (
+                    {pagedTenants.map((t) => (
                       <Table.Tr key={t.id}>
                         <Table.Td fw={500} c="#1e293b">
                           {t.company}
@@ -274,6 +295,15 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
                   </Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
+
+              {tenantPageCount > 1 && (
+                <Group justify="center" mt="md">
+                  <Pagination
+                    total={tenantPageCount} value={curTenantPage} onChange={setTenantPage}
+                    size="sm" color="kw" siblings={1} withEdges
+                  />
+                </Group>
+              )}
             </Paper>
           </>
         )}
