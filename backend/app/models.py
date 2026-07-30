@@ -136,3 +136,16 @@ class AccessLog(Base):
     __table_args__ = (
         Index("ix_accesslog_ymd_visitor", "ymd", "visitor"),
     )
+
+
+class AppSetting(Base):
+    """런타임 앱 설정(외부 연동 키 등) — 관리자 페이지에서 입력/저장.
+
+    .env(환경변수)보다 우선 적용되며, 짧은 캐시로 전 워커에 곧바로 반영된다.
+    """
+
+    __tablename__ = "app_settings"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=kst_now, onupdate=kst_now)

@@ -1,4 +1,4 @@
-"""주소 -> 위경도 지오코딩.
+﻿"""주소 -> 위경도 지오코딩.
 
 카카오 로컬 주소검색(키 있으면 우선, 한국 주소 정확)을 쓰고,
 실패하거나 키가 없으면 Nominatim(OpenStreetMap, 키 불필요)으로 폴백한다.
@@ -8,10 +8,11 @@ from __future__ import annotations
 import httpx
 
 from ..config import settings
+from . import appsettings
 
 
 def _kakao(address: str) -> dict | None:
-    key = settings.KAKAO_REST_KEY
+    key = appsettings.get("KAKAO_REST_KEY")
     if not key:
         return None
     headers = {"Authorization": f"KakaoAK {key}"}
@@ -67,10 +68,10 @@ def _nominatim(address: str) -> dict | None:
 
 def region_code(lat: float, lon: float) -> str | None:
     """위경도 -> 행정동 코드(10자리). 카카오 coord2regioncode 사용(케이웨더 kw-odam1 호환)."""
-    if not settings.KAKAO_REST_KEY or lat is None or lon is None:
+    if not appsettings.get("KAKAO_REST_KEY") or lat is None or lon is None:
         return None
     try:
-        with httpx.Client(timeout=10.0, headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_KEY}"}) as client:
+        with httpx.Client(timeout=10.0, headers={"Authorization": f"KakaoAK {appsettings.get('KAKAO_REST_KEY')}"}) as client:
             r = client.get(
                 "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json",
                 params={"x": lon, "y": lat},

@@ -7,6 +7,13 @@
       "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
       "cwd": "C:\\project\\KWEATHER_STS\\backend",
       "port": 8000
+    },
+    {
+      "name": "kweather-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "cwd": "C:\\project\\KWEATHER_STS\\frontend",
+      "port": 5174
     }
   ]
 }

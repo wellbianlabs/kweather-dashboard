@@ -16,9 +16,11 @@ frontend/.env.local
 # Vercel
 .vercel/
 
-# 임시/테스트 산출물 / 백업
+# 임시/테스트 산출물 / 백업 (배포·커밋 스크래치 파일)
 _test_*
 _verify_*
+_cm.txt
+_*.py
 *.bak
 _pgsetup/
 
@@ -30,3 +32,9 @@ sample_data/
 
 # TS build info
 frontend/tsconfig.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# 작업 스크린샷(세션 산출물, 커밋 제외)
+design_screenshots/

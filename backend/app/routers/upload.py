@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_tenant
+from ..deps import block_demo, get_tenant
 from ..models import Tenant
 from ..schemas import UploadResult
 from ..services import ingest
@@ -21,6 +21,7 @@ async def upload_csv(
     tenant: Tenant = Depends(get_tenant),
     db: Session = Depends(get_db),
 ):
+    block_demo(tenant)
     results: list[UploadResult] = []
     for f in files:
         raw = await f.read()

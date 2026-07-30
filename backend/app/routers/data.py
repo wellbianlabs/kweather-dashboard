@@ -6,12 +6,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_tenant
+from ..deps import block_demo, get_tenant
 from ..models import Device, ExternalDailyCache, SensorLog, Tenant
 
 router = APIRouter(prefix="/api/data", tags=["data"])
-
-DEMO_API_KEY = "demo-key"
 
 
 @router.delete("")
@@ -24,8 +22,7 @@ def reset_data(
 
     기기 등록 정보와 계정은 유지된다. 외부 기상 캐시도 함께 비운다.
     """
-    if tenant.api_key == DEMO_API_KEY:
-        raise HTTPException(403, "공용 데모 계정의 데이터는 초기화할 수 없습니다.")
+    block_demo(tenant)
 
     if device_sn:
         dev = db.get(Device, device_sn)

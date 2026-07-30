@@ -24,6 +24,15 @@ class AuthOut(BaseModel):
     company_name: str
     has_data: bool = False  # 기존 업로드 데이터 유무 (온보딩 단계 결정용)
     is_admin: bool = False  # 관리자 대시보드 접근 가능 여부
+    is_demo: bool = False   # 공용 데모(읽기 전용) 계정 여부
+
+
+class ProfileUpdateIn(BaseModel):
+    """회원정보 수정 — 모든 필드 선택. 비밀번호 변경 시 current/new 동시 필요."""
+    email: str | None = None
+    company_name: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
 
 
 # ---------- Device ----------
@@ -143,6 +152,7 @@ class WeatherComparePoint(BaseModel):
     indoor_feels_like: float | None
     outdoor_temperature: float | None
     outdoor_feels: float | None = None   # 기상청 공식 산식 기반 외부 체감온도
+    outdoor_humidity: float | None = None  # 기상청 습도(시간별 캐시 hm)
     delta: float | None  # 내부 체감 - 외부 체감(체감 없으면 기온) 차이
 
 
@@ -170,6 +180,7 @@ class DailyReportData(BaseModel):
     date: str
     company_name: str | None
     location_name: str | None
+    address: str | None = None
     max_feels_like: float | None
     max_feels_like_time: str | None
     max_temperature: float | None

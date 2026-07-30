@@ -1,55 +1,80 @@
 import {
-  ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { Alert, Box, Group, Paper, Text, Title } from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import type { WeatherCompare } from "../types";
-import { IconAlert } from "./Icons";
-
-function fmtTime(t: string) {
-  const d = new Date(t);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+import { ChartTooltip, dayCount, dayStarts, makeTickFormatter } from "./chartkit";
 
 export function WeatherCompareChart({ cmp }: { cmp: WeatherCompare | null }) {
-  const data = (cmp?.points || []).map((p) => ({
-    time: fmtTime(p.t),
+  const points = cmp?.points ?? [];
+  const data = points.map((p) => ({
+    x: p.t,
     "현장 체감온도": p.indoor_feels_like,
-    "야외 체감온도": p.outdoor_feels,
-    "야외 기온": p.outdoor_temperature,
+    "기상청 공식 체감온도": p.outdoor_feels,
+    "기상청 기온": p.outdoor_temperature,
     "체감온도 격차": p.delta,
   }));
-  const hasOutFeels = data.some((d) => d["야외 체감온도"] != null);
+  const hasOutFeels = data.some((d) => d["기상청 공식 체감온도"] != null);
+  const days = dayCount(points);
+  const multi = days > 1;
+  const tickFmt = makeTickFormatter(days);
+  const dstarts = multi ? dayStarts(points) : [];
 
   return (
-    <div className="card">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-900">야외 vs 현장(내부) 체감온도 비교 <span className="font-normal text-slate-400">— 기상청 공식 외부 체감온도 매칭</span></h3>
-        <span className="text-xs text-slate-400">데이터 제공: 케이웨더(주)</span>
-      </div>
+    <Paper radius="lg" p="lg" withBorder shadow="xs">
+      <Group justify="space-between" mb="xs">
+        <Title order={3} fz="md" c="#0f172a">
+          현장(내부) vs 기상청 공식 체감온도 비교 <Text span c="dimmed" fw={400}>— 측정 당시 시각 매칭</Text>
+        </Title>
+        <Text size="xs" c="dimmed">데이터 제공: 케이웨더(주)</Text>
+      </Group>
 
       {cmp?.enclosed_alert && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <IconAlert className="mr-1.5 inline h-4 w-4 -translate-y-px" /> <b>밀폐형 폭염 사업장 경고</b> — 현장 체감온도가 야외 체감온도보다 최대 {cmp.max_delta}℃ 높습니다
+        <Alert color="red" variant="light" icon={<IconAlertTriangle size={16} />} mb="md">
+          <b>밀폐형 폭염 사업장 경고</b> — 현장 체감온도가 기상청 공식 체감온도보다 최대 {cmp.max_delta}℃ 높습니다
           (임계 {cmp.enclosed_threshold}℃ 초과). 환기·냉방 대책이 필요합니다.
-        </div>
+        </Alert>
       )}
 
       {data.length === 0 ? (
-        <div className="flex h-72 items-center justify-center text-slate-400">데이터가 없습니다.</div>
+        <Box h={288} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Text c="dimmed">데이터가 없습니다.</Text>
+        </Box>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-            <XAxis dataKey="time" tick={{ fontSize: 11 }} minTickGap={40} />
-            <YAxis tick={{ fontSize: 11 }} unit="℃" />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="체감온도 격차" fill="#fecaca" barSize={10} />
-            <Line type="monotone" dataKey="현장 체감온도" stroke="#dc2626" dot={false} strokeWidth={2.2} />
-            {hasOutFeels && <Line type="monotone" dataKey="야외 체감온도" stroke="#1790cd" dot={false} strokeWidth={2.2} />}
-            <Line type="monotone" dataKey="야외 기온" stroke="#94a3b8" strokeDasharray="5 4" dot={false} strokeWidth={1.4} />
+          <ComposedChart data={data} margin={{ top: multi ? 24 : 10, right: 14, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="cmp-delta" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f87171" stopOpacity={0.55} />
+                <stop offset="100%" stopColor="#fecaca" stopOpacity={0.25} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke="#eef2f7" />
+            <XAxis
+              dataKey="x"
+              tickFormatter={tickFmt}
+              minTickGap={multi ? 56 : 40}
+              tick={{ fontSize: 11, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={{ stroke: "#e2e8f0" }}
+            />
+            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} unit="℃" width={44} />
+            <Tooltip content={<ChartTooltip units={{ "현장 체감온도": "℃", "기상청 공식 체감온도": "℃", "기상청 기온": "℃", "체감온도 격차": "℃" }} />} />
+            <Legend wrapperStyle={{ fontSize: 12 }} iconType="plainline" />
+            {dstarts.map((d, i) => (
+              <ReferenceLine key={d.x} x={d.x}
+                stroke={i === 0 ? "transparent" : "#dbe3ec"} strokeDasharray="3 4"
+                label={{ value: d.label, position: "top", fontSize: 10, fontWeight: 700, fill: "#475569" }} />
+            ))}
+            <Bar dataKey="체감온도 격차" fill="url(#cmp-delta)" barSize={multi ? 4 : 10} radius={[3, 3, 0, 0]} />
+            <Line type="monotone" dataKey="현장 체감온도" stroke="#dc2626" dot={false} strokeWidth={2.4} strokeLinecap="round" activeDot={{ r: 5 }} />
+            {hasOutFeels && <Line type="monotone" dataKey="기상청 공식 체감온도" stroke="#1790cd" dot={false} strokeWidth={2.2} strokeLinecap="round" activeDot={{ r: 4 }} />}
+            <Line type="monotone" dataKey="기상청 기온" stroke="#94a3b8" strokeDasharray="5 4" dot={false} strokeWidth={1.4} activeDot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </Paper>
   );
 }

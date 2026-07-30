@@ -1,46 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ──────────────────────────────────────────────────────────────
+   Mantine 단일 스타일 시스템 (Tailwind 완전 제거됨).
+   Mantine 코어 스타일은 main.tsx 에서 *.layer.css(=@layer mantine) 로 적재.
+   아래 전역 규칙(html/body/스크롤바)은 비레이어드 → Mantine 위에 자연 우선.
+   @layer mantine; 선언으로 Mantine 레이어를 먼저 등록(비레이어드 규칙이 항상 우선).
+   ────────────────────────────────────────────────────────────── */
+@layer mantine;
 
 html, body, #root { height: 100%; }
 
 body {
-  background: #f7f8fa;
-  color: #1e293b;
+  /* 테마 대응(다크모드) — 하드코딩 색은 다크에서 텍스트가 묻힘. light-dark 로 전환. */
+  background: light-dark(#f7f8fa, var(--mantine-color-body));
+  color: light-dark(#1e293b, var(--mantine-color-text));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.01em;
-}
-
-@layer components {
-  /* 공통 카드 — 화이트톤 프리미엄 */
-  .card {
-    @apply rounded-2xl border border-slate-200/70 bg-white p-5 shadow-card;
-  }
-  /* 주요 버튼 */
-  .btn-primary {
-    @apply rounded-xl bg-kw px-4 py-2.5 text-sm font-semibold text-white transition
-           hover:bg-kw-dark disabled:opacity-40;
-  }
-  .btn-ghost {
-    @apply rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700
-           transition hover:bg-slate-50 disabled:opacity-40;
-  }
-  /* 입력 */
-  .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800
-           placeholder:text-slate-400 focus:border-kw/50 focus:outline-none focus:ring-2 focus:ring-kw/10;
-  }
-  .select {
-    @apply rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800
-           focus:border-kw/50 focus:outline-none;
-  }
-}
-
-/* 로딩 인디케이터 바 */
-@keyframes loading {
-  0% { margin-left: -35%; }
-  100% { margin-left: 100%; }
 }
 
 /* 얇고 차분한 스크롤바 */

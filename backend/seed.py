@@ -40,7 +40,6 @@ DEVICES = [
 ]
 
 FULL_DAYS = 7            # 오늘 이전 풀데이 수
-TODAY_UNTIL = time(9, 0)  # 오늘 데이터는 오전까지(운영 중 단말기 모사)
 # 일자별 폭염 강도(점진 상승 — 기간보고서 추세 데모). 마지막 값이 '오늘'.
 DAY_FACTORS = [0.82, 0.88, 0.95, 0.90, 1.00, 1.06, 1.12, 1.05]
 
@@ -49,7 +48,9 @@ random.seed(42)
 
 def _gen_txt_for_day(day: date, night: float, amp: float, heat_w: float, factor: float) -> str:
     """단말기 일자별 로그(TXT): 'YYYY-MM-DD HH:MM, 체감온도, 온도, 습도,' 10분 간격."""
-    until = TODAY_UNTIL if day == date.today() else time(23, 50)
+    # 데모는 '가짜 전시'이므로 모든 날을 풀데이로 생성 — 기본 선택일(최신일)이
+    # 부분일이 되어 그래프가 비어 보이는 문제를 방지(폭염 단계가 모두 드러나도록).
+    until = time(23, 50)
     lines: list[str] = []
     t = datetime.combine(day, time(0, 0))
     while t.time() <= until and t.date() == day:

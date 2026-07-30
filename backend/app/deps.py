@@ -35,6 +35,22 @@ def get_tenant(
     return tenant
 
 
+DEMO_API_KEY = "demo-key"
+
+
+def is_demo(tenant: Tenant) -> bool:
+    return tenant.api_key == DEMO_API_KEY
+
+
+def block_demo(tenant: Tenant) -> None:
+    """공용 데모 계정의 쓰기/변경 작업 차단 — 데모는 읽기 전용 전시 계정."""
+    if is_demo(tenant):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="데모 계정은 읽기 전용입니다. 데이터 변경은 정식 계정에서 가능합니다.",
+        )
+
+
 def admin_emails() -> set[str]:
     return {e.strip().lower() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
 
