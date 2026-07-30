@@ -12,7 +12,16 @@ import {
 import classes from "./AuthScreen.module.css";
 
 export function AuthScreen({ onAuthed }: { onAuthed: (a: AuthData) => void }) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  // 데모에서 '회원가입 하러 가기'로 넘어온 경우 회원가입 탭을 바로 연다(1회성 플래그).
+  const [mode, setMode] = useState<"login" | "signup">(() => {
+    try {
+      if (localStorage.getItem("kw_auth_mode") === "signup") {
+        localStorage.removeItem("kw_auth_mode");
+        return "signup";
+      }
+    } catch { /* ignore */ }
+    return "login";
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

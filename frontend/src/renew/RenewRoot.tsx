@@ -1,13 +1,14 @@
 // 리뉴얼 실 진입점 — 부팅/인증 게이트 + react-router 셸(AppShell) + 컨텍스트 바.
 // 운영 모드: 상시 네비(사이드바/모바일 탭) + 라우팅(/, /map, /report, /devices, /settings, /admin).
 import {
-  ActionIcon, AppShell, Badge, Box, Button, Center, Container, Group, Loader, Paper,
-  SegmentedControl, Select, Stack, Text, Tooltip, useComputedColorScheme, useMantineColorScheme,
+  ActionIcon, AppShell, Badge, Box, Button, Center, Container, Group, Loader, Modal, Paper,
+  SegmentedControl, Select, Stack, Text, ThemeIcon, Tooltip, useComputedColorScheme, useMantineColorScheme,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconCalendar, IconDeviceDesktopAnalytics, IconFileText, IconLayoutDashboard, IconMenu2, IconUpload,
+  IconCalendar, IconDeviceDesktopAnalytics, IconFileText, IconLayoutDashboard, IconMenu2,
+  IconUpload, IconUserPlus,
 } from "@tabler/icons-react";
 import {
   BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate,
@@ -43,6 +44,7 @@ function Shell() {
   const {
     auth, logout, devices, deviceSn, setDeviceSn, loadRange,
     uploadOpen, uploadTarget, openUpload, closeUpload, handleUploaded,
+    demoNoticeOpen, closeDemoNotice,
   } = useDashboard();
 
   const go = (to: string) => { navigate(to); closeMobile(); };
@@ -124,6 +126,36 @@ function Shell() {
         opened={uploadOpen} onClose={closeUpload} devices={devices}
         targetSn={uploadTarget} onUploaded={handleUploaded}
       />
+
+      {/* 비회원(데모) 업로드 시도 → 회원가입 안내 팝업 */}
+      <Modal
+        opened={demoNoticeOpen} onClose={closeDemoNotice} centered radius="lg" padding="lg" size="md"
+        overlayProps={{ backgroundOpacity: 0.5, blur: 2 }}
+        title={
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon variant="light" color="orange" size={38} radius="md"><IconUserPlus size={20} /></ThemeIcon>
+            <Text fw={700}>회원가입 후 업로드할 수 있습니다</Text>
+          </Group>
+        }
+      >
+        <Stack gap="sm">
+          <Text size="sm" lh={1.6}>
+            지금은 <b>둘러보기(데모)</b> 상태입니다. 회원가입 없이 데이터를 올리면{" "}
+            <Text span fw={700} c="red.7">데이터가 기록되지 않습니다.</Text>
+          </Text>
+          <Text size="sm" lh={1.6} c="dimmed">
+            <b>회원가입을 먼저 완료</b>하시면 회사 전용 공간이 만들어지고, 업로드한 측정 데이터가
+            안전하게 저장·분석됩니다. 케이웨더 단말기 이용자는 평생 무료입니다.
+          </Text>
+          <Group justify="flex-end" gap="xs" mt="xs">
+            <Button variant="default" onClick={closeDemoNotice}>계속 둘러보기</Button>
+            <Button color="kw" leftSection={<IconUserPlus size={16} />}
+              onClick={() => { try { localStorage.setItem("kw_auth_mode", "signup"); } catch {} closeDemoNotice(); logout(); }}>
+              회원가입 하러 가기
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </>
   );
 }
@@ -155,9 +187,9 @@ function ContextBar() {
               })),
             ]}
           />
-          <Tooltip label={isDemo ? "데모 계정은 읽기 전용입니다" : (lastUploadAt ? `최근 업로드 ${lastUploadAt}` : "측정 데이터 업로드")} withArrow>
+          <Tooltip label={isDemo ? "회원가입 후 업로드할 수 있습니다" : (lastUploadAt ? `최근 업로드 ${lastUploadAt}` : "측정 데이터 업로드")} withArrow>
             <Button size="sm" variant="default" leftSection={<IconUpload size={16} />}
-              disabled={isDemo} onClick={() => openUpload(deviceSn)}>업로드</Button>
+              onClick={() => openUpload(deviceSn)}>업로드</Button>
           </Tooltip>
           {availableDates.length > 0 ? (
             <Select

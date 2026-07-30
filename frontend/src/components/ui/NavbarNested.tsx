@@ -74,10 +74,9 @@ export function NavbarNested({
               onClick={() => { onSelectDevice?.(d.device_sn); onNavigate?.("/"); }}
               leftSection={<Box w={8} h={8} style={{ borderRadius: 4, background: cur ? "var(--mantine-color-kw-6)" : "var(--mantine-color-gray-4)" }} />}
               rightSection={
-                <Tooltip label={isDemo ? "데모 계정은 읽기 전용입니다" : "측정 데이터 업로드"} withArrow position="right">
+                <Tooltip label={isDemo ? "회원가입 후 업로드할 수 있습니다" : "측정 데이터 업로드"} withArrow position="right">
                   <ActionIcon component="div" variant="light" color="kw" size="md" radius="sm" aria-label="upload"
-                    disabled={isDemo} data-disabled={isDemo || undefined}
-                    onClick={(e) => { e.stopPropagation(); if (!isDemo) onUpload?.(d.device_sn); }}>
+                    onClick={(e) => { e.stopPropagation(); onUpload?.(d.device_sn); }}>
                     <IconPlus size={16} />
                   </ActionIcon>
                 </Tooltip>

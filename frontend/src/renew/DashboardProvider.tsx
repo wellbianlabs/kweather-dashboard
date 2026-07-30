@@ -58,6 +58,10 @@ interface DashboardCtx {
   closeUpload: () => void;
   lastUpload: Record<string, string>;
 
+  // 비회원(데모) 업로드 시도 시 회원가입 안내 팝업
+  demoNoticeOpen: boolean;
+  closeDemoNotice: () => void;
+
   // 최근 7일 일별 체감 통계(실측) — 주간 위젯용(최고·평균 체감 + 최고 기온)
   weekly: { date: string; max_feels: number | null; avg_feels: number | null; max_temp: number | null }[];
 }
@@ -95,10 +99,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     try { return JSON.parse(localStorage.getItem("kw_last_upload") || "{}"); } catch { return {}; }
   });
   const [weekly, setWeekly] = useState<{ date: string; max_feels: number | null; avg_feels: number | null; max_temp: number | null }[]>([]);
+  // 비회원(데모) 업로드 시도 안내 팝업
+  const [demoNoticeOpen, setDemoNoticeOpen] = useState(false);
+  const closeDemoNotice = useCallback(() => setDemoNoticeOpen(false), []);
   const openUpload = useCallback((sn?: string | null) => {
+    // 회원가입 없이(데모 계정) 업로드하면 데이터가 기록되지 않음 → 안내 팝업으로 대체
+    if (auth?.is_demo) {
+      setDemoNoticeOpen(true);
+      return;
+    }
     setUploadTarget(sn ?? null);
     setUploadOpen(true);
-  }, []);
+  }, [auth]);
   const closeUpload = useCallback(() => setUploadOpen(false), []);
 
   const dayStart = useMemo(() => `${date}T00:00:00`, [date]);
@@ -241,6 +253,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     kpi, ts, cmp, sites, loadErr,
     loadDevices, loadRange, handleUploaded, handleReset,
     uploadOpen, uploadTarget, openUpload, closeUpload, lastUpload, weekly,
+    demoNoticeOpen, closeDemoNotice,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
