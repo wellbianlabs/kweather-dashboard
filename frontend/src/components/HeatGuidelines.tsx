@@ -1,5 +1,6 @@
 import type { Kpi } from "../types";
-import { IconCheck } from "./Icons";
+import { Box, Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { IconCheck } from "@tabler/icons-react";
 
 /* 정부 발표 폭염 단계별 대응 지침
    근거: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」(2026.5.13.),
@@ -41,100 +42,96 @@ export function HeatGuidelines({ kpi }: { kpi: Kpi | null }) {
   const activeIdx = GUIDELINES.findIndex((g) => g.code === current);
 
   return (
-    <div className="card !p-6">
-      {/* 헤더 + 3대 수칙 */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-extrabold tracking-tight text-slate-900">폭염 단계별 안전조치 기준</h3>
-          <p className="mt-1 text-[13px] text-slate-400">
+    <Paper radius="lg" p="xl" withBorder shadow="xs">
+      {/* 헤더 + 5대 수칙 */}
+      <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
+        <Box style={{ flex: "1 1 320px" }}>
+          <Title order={3} fz="xl" fw={800} c="#0f172a">폭염 단계별 안전조치 기준</Title>
+          <Text mt={4} fz={13} c="dimmed">
             고용노동부 「2026 폭염 대비 노동자 건강보호 대책」 · 폭염특보: 주의보 33℃ / 경보 35℃ / 중대경보 38℃(신설) · 체감 33℃↑ 작업 시 2시간마다 20분 휴식 법제화
-          </p>
-        </div>
-        <div className="shrink-0">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">폭염안전 5대 기본수칙 · 법적 의무</div>
-          <div className="flex flex-wrap gap-2">
+          </Text>
+        </Box>
+        <Box style={{ flexShrink: 0 }}>
+          <Text fz={10} fw={700} tt="uppercase" c="dimmed" mb={6}>폭염안전 5대 기본수칙 · 법적 의무</Text>
+          <Group gap="xs">
             {RULES.map((r) => (
-              <div key={r.k} className="rounded-2xl bg-kw-50 px-3.5 py-2.5 text-center">
-                <div className="text-sm font-extrabold leading-tight text-kw">{r.k}</div>
-                <div className="mt-0.5 text-[10px] font-medium text-kw/60">{r.d}</div>
-              </div>
+              <Box key={r.k} bg="kw.0" px="sm" py="xs" ta="center" style={{ borderRadius: "1rem" }}>
+                <Text fz="sm" fw={800} c="kw" lh={1.1}>{r.k}</Text>
+                <Text mt={2} fz={10} fw={500} c="kw" style={{ opacity: 0.6 }}>{r.d}</Text>
+              </Box>
             ))}
-          </div>
-        </div>
-      </div>
+          </Group>
+        </Box>
+      </Group>
 
       {/* 단계 스펙트럼 바 */}
-      <div className="mt-5">
-        <div className="flex overflow-hidden rounded-full">
+      <Box mt="lg">
+        <Group gap={0} style={{ overflow: "hidden", borderRadius: 999 }}>
           {GUIDELINES.map((g, i) => (
-            <div key={g.code} className="relative h-3 flex-1 transition-all"
-                 style={{ background: g.color, opacity: activeIdx === -1 || activeIdx === i ? 1 : 0.25 }} />
+            <Box key={g.code} style={{
+              height: 12, flex: 1, background: g.color,
+              opacity: activeIdx === -1 || activeIdx === i ? 1 : 0.25, transition: "all .2s",
+            }} />
           ))}
-        </div>
-        <div className="mt-1.5 flex text-[11px] font-semibold text-slate-400">
+        </Group>
+        <Group gap={0} mt={6}>
           {GUIDELINES.map((g) => (
-            <div key={g.code} className="flex-1">체감 {g.temp}℃~</div>
+            <Text key={g.code} style={{ flex: 1 }} fz={11} fw={600} c="dimmed">체감 {g.temp}℃~</Text>
           ))}
-        </div>
-      </div>
+        </Group>
+      </Box>
 
       {/* 단계 카드 */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <SimpleGrid cols={{ base: 1, sm: 2, xl: 4 }} spacing="md" mt="md">
         {GUIDELINES.map((g) => {
           const active = current === g.code;
           return (
-            <div key={g.code}
-                 className={`overflow-hidden rounded-2xl border bg-white transition ${
-                   active ? "border-transparent shadow-lift ring-2" : "border-slate-200/70 shadow-card"
-                 }`}
-                 style={active ? ({ ["--tw-ring-color" as any]: g.color }) : undefined}>
+            <Paper key={g.code} radius="lg" withBorder={!active} shadow={active ? "md" : "xs"}
+              style={{ overflow: "hidden", outline: active ? `2px solid ${g.color}` : undefined }}>
               {/* 컬러 헤더 밴드 */}
-              <div className="px-5 pb-3 pt-4 text-white"
-                   style={{ background: `linear-gradient(135deg, ${g.color}, ${g.color}d9)` }}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[19px] font-extrabold leading-none tracking-tight">{g.label}</span>
-                      <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold leading-none">{g.advisory}</span>
-                    </div>
-                    <div className="mt-1.5 text-[11px] font-semibold text-white/85">{g.summary}</div>
-                  </div>
-                  <div className="text-right leading-none">
-                    <span className="text-[30px] font-extrabold tracking-tight">{g.temp}</span>
-                    <span className="text-sm font-bold text-white/85">℃~</span>
-                  </div>
-                </div>
+              <Box px="md" pt="md" pb="sm" c="white" style={{ background: `linear-gradient(135deg, ${g.color}, ${g.color}d9)` }}>
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Box>
+                    <Group gap={6} align="center">
+                      <Text fz={19} fw={800} lh={1}>{g.label}</Text>
+                      <Box px={6} py={2} style={{ background: "rgba(255,255,255,.25)", borderRadius: 4 }}>
+                        <Text fz={9} fw={700} lh={1}>{g.advisory}</Text>
+                      </Box>
+                    </Group>
+                    <Text mt={6} fz={11} fw={600} style={{ color: "rgba(255,255,255,.85)" }}>{g.summary}</Text>
+                  </Box>
+                  <Box ta="right" style={{ lineHeight: 1 }}>
+                    <Text span fz={30} fw={800}>{g.temp}</Text>
+                    <Text span fz="sm" fw={700} style={{ color: "rgba(255,255,255,.85)" }}>℃~</Text>
+                  </Box>
+                </Group>
                 {active && (
-                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-extrabold"
-                       style={{ color: g.color }}>
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
-                            style={{ background: g.color }} />
-                      <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: g.color }} />
-                    </span>
-                    현재 해당 단계
-                  </div>
+                  <Box mt="xs" px="sm" py={4} bg="white"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, color: g.color }}>
+                    <Box style={{ width: 8, height: 8, borderRadius: 999, background: g.color }} />
+                    <Text fz={11} fw={800}>현재 해당 단계</Text>
+                  </Box>
                 )}
-              </div>
+              </Box>
               {/* 조치사항 */}
-              <ul className="space-y-2.5 px-5 py-4">
+              <Stack gap="xs" px="md" py="md">
                 {g.actions.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[13px] font-medium leading-snug text-slate-700">
-                    <span className="mt-0.5 shrink-0" style={{ color: g.color }}>
-                      <IconCheck className="h-3.5 w-3.5" />
-                    </span>
-                    {a}
-                  </li>
+                  <Group key={i} gap={8} align="flex-start" wrap="nowrap">
+                    <Box style={{ color: g.color, marginTop: 2, flexShrink: 0, display: "inline-flex" }}>
+                      <IconCheck size={14} />
+                    </Box>
+                    <Text fz={13} fw={500} lh={1.35} c="#334155">{a}</Text>
+                  </Group>
                 ))}
-              </ul>
-            </div>
+              </Stack>
+            </Paper>
           );
         })}
-      </div>
+      </SimpleGrid>
 
-      <p className="mt-5 border-t border-slate-100 pt-3 text-right text-[11px] text-slate-400">
+      <Text mt="lg" pt="sm" ta="right" fz={11} c="dimmed" style={{ borderTop: "1px solid var(--mantine-color-gray-2)" }}>
         근거: 고용노동부 「2026 폭염 대비 노동자 건강보호 대책」(2026.5.13.) · 산업안전보건기준에 관한 규칙 제566조 · 기상청 폭염특보(중대경보 신설)
-      </p>
-    </div>
+      </Text>
+    </Paper>
   );
 }

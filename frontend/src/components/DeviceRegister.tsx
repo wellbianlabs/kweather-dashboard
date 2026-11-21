@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Paper, Title, Text, SimpleGrid, TextInput, Button, Alert, Group, Stack } from "@mantine/core";
+import { IconSearch, IconMapPin } from "@tabler/icons-react";
 import { api } from "../api";
-import { IconSearch, IconPin } from "./Icons";
 import type { Device } from "../types";
 import { DeviceManager } from "./DeviceManager";
 
@@ -10,8 +11,8 @@ const EMPTY = (company: string) => ({
 });
 
 export function DeviceRegister({
-  devices, defaultCompany, onChange,
-}: { devices: Device[]; defaultCompany: string; onChange: () => void }) {
+  devices, defaultCompany, onChange, readOnly = false,
+}: { devices: Device[]; defaultCompany: string; onChange: () => void; readOnly?: boolean }) {
   const [form, setForm] = useState(EMPTY(defaultCompany));
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -90,75 +91,86 @@ export function DeviceRegister({
     }
   }
 
-  const inp = "input";
-
   return (
-    <div className="space-y-4">
-      <div className="card">
-        <h3 className="font-semibold text-slate-800">사업장 · 기기 등록</h3>
-        <p className="mt-1 text-xs text-slate-500">
+    <Stack gap="md">
+      <Paper radius="lg" p="lg" withBorder shadow="xs">
+        <Title order={3} fz="md" c="#0f172a">사업장 · 기기 등록</Title>
+        <Text size="xs" c="dimmed" mt={4}>
           데이터를 올리기 전에 먼저 기기를 등록하세요. 기기명은 <b>관리자가 알아보기 쉬운 이름으로 자유롭게</b> 입력하면 되며,
           <b>여러 대를 각각 추가 등록</b>할 수 있습니다. (위경도를 입력하면 기상청 외부 날씨 비교가 활성화됩니다.)
-        </p>
+        </Text>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">기기명 *</span>
-            <input className={inp} value={form.device_sn} onChange={(e) => set("device_sn", e.target.value)}
-                   placeholder="예: 1공장 정련로, 본관 사무실 등 (자유 입력)" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">회사명</span>
-            <input className={inp} value={form.company_name} onChange={(e) => set("company_name", e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">설치 위치 (장소)</span>
-            <input className={inp} value={form.location_name} onChange={(e) => set("location_name", e.target.value)}
-                   placeholder="예: 제2공장 정련로 앞" />
-          </label>
-          <div className="md:col-span-3">
-            <span className="mb-1 block text-xs font-medium text-slate-600">
-              주소 <span className="text-slate-400">— '주소 검색'으로 도로명/지번을 선택하면 주소·위경도가 자동 입력됩니다</span>
-            </span>
-            <div className="flex gap-2">
-              <input className={`${inp} flex-1`} value={form.address} readOnly onClick={openPostcode}
-                     placeholder="주소 검색을 눌러 도로명·지번 주소를 선택하세요" />
-              <button type="button" onClick={openPostcode}
-                      className="btn-primary shrink-0">
-                <span className="inline-flex items-center gap-1.5"><IconSearch className="h-4 w-4" />주소 검색</span>
-              </button>
-              <button type="button" onClick={() => geocodeAddress(form.address)} disabled={geoBusy || !form.address}
-                      className="btn-ghost shrink-0"
-                      title="현재 주소로 좌표 다시 찾기">
-                {geoBusy ? "…" : (<span className="inline-flex items-center gap-1.5"><IconPin className="h-4 w-4" />좌표 변환</span>)}
-              </button>
-            </div>
-          </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">위도</span>
-            <input className={inp} value={form.latitude} onChange={(e) => set("latitude", e.target.value)}
-                   placeholder="자동/직접 입력" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">경도</span>
-            <input className={inp} value={form.longitude} onChange={(e) => set("longitude", e.target.value)}
-                   placeholder="자동/직접 입력" />
-          </label>
-          {geoMsg && (
-            <div className="rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700 md:col-span-3">{geoMsg}</div>
-          )}
+        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" mt="md">
+          <TextInput
+            label="기기명"
+            withAsterisk
+            value={form.device_sn}
+            onChange={(e) => set("device_sn", e.target.value)}
+            placeholder="예: 1공장 정련로, 본관 사무실 등 (자유 입력)"
+          />
+          <TextInput
+            label="회사명"
+            value={form.company_name}
+            onChange={(e) => set("company_name", e.target.value)}
+          />
+          <TextInput
+            label="설치 위치 (장소)"
+            value={form.location_name}
+            onChange={(e) => set("location_name", e.target.value)}
+            placeholder="예: 제2공장 정련로 앞"
+          />
+        </SimpleGrid>
+
+        <div style={{ marginTop: "var(--mantine-spacing-sm)" }}>
+          <Group gap="sm" align="flex-end" wrap="nowrap">
+            <TextInput
+              label="주소"
+              readOnly
+              onClick={openPostcode}
+              value={form.address}
+              placeholder="주소 검색을 눌러 도로명·지번 주소를 선택하세요"
+              style={{ flex: 1 }}
+            />
+            <Button onClick={openPostcode} leftSection={<IconSearch size={16} />}>주소 검색</Button>
+            <Button
+              variant="default"
+              onClick={() => geocodeAddress(form.address)}
+              disabled={geoBusy || !form.address}
+              leftSection={<IconMapPin size={16} />}
+              title="현재 주소로 좌표 다시 찾기"
+            >
+              {geoBusy ? "…" : "좌표 변환"}
+            </Button>
+          </Group>
+          <Text size="xs" c="dimmed" mt={4}>
+            — '주소 검색'으로 도로명/지번을 선택하면 주소·위경도가 자동 입력됩니다
+          </Text>
         </div>
 
-        {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-        {okMsg && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{okMsg}</p>}
+        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm" mt="sm">
+          <TextInput
+            label="위도"
+            value={form.latitude}
+            onChange={(e) => set("latitude", e.target.value)}
+            placeholder="자동/직접 입력"
+          />
+          <TextInput
+            label="경도"
+            value={form.longitude}
+            onChange={(e) => set("longitude", e.target.value)}
+            placeholder="자동/직접 입력"
+          />
+        </SimpleGrid>
 
-        <button onClick={register} disabled={busy}
-                className="btn-primary mt-4">
-          {busy ? "등록 중..." : "기기 등록"}
-        </button>
-      </div>
+        {readOnly && <Alert color="gray" variant="light" mt="sm">데모 계정은 읽기 전용입니다. 기기 등록·수정은 정식 계정에서 가능합니다.</Alert>}
+        {geoMsg && <Alert color="teal" variant="light" mt="sm">{geoMsg}</Alert>}
+        {error && <Alert color="red" variant="light" mt="sm">{error}</Alert>}
+        {okMsg && <Alert color="teal" variant="light" mt="sm">{okMsg}</Alert>}
 
-      <DeviceManager devices={devices} onChange={onChange} />
-    </div>
+        <Button loading={busy} onClick={register} mt="md" disabled={readOnly}>기기 등록</Button>
+      </Paper>
+
+      <DeviceManager devices={devices} onChange={onChange} readOnly={readOnly} />
+    </Stack>
   );
 }

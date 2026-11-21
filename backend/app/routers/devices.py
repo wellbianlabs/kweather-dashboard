@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_tenant
+from ..deps import block_demo, get_tenant
 from ..models import Device, Tenant
 from ..schemas import DeviceCreate, DeviceOut, DeviceUpdate
 
@@ -44,6 +44,7 @@ def _ensure_region_code(dev: Device) -> None:
 def create_device(
     payload: DeviceCreate, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
 ):
+    block_demo(tenant)
     existing = db.get(Device, payload.device_sn)
     if existing is not None:
         raise HTTPException(409, "이미 등록된 기기명입니다. 다른 이름을 사용해 주세요.")
@@ -67,6 +68,7 @@ def update_device(
     device_sn: str, payload: DeviceUpdate,
     tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db),
 ):
+    block_demo(tenant)
     dev = _owned(db, tenant, device_sn)
     data = payload.model_dump(exclude_unset=True)
     # 좌표가 바뀌는데 행정동 코드가 함께 오지 않으면 기존 코드를 비우고 재확정
@@ -87,6 +89,7 @@ def update_device(
 def delete_device(
     device_sn: str, tenant: Tenant = Depends(get_tenant), db: Session = Depends(get_db)
 ):
+    block_demo(tenant)
     dev = _owned(db, tenant, device_sn)
     db.delete(dev)
     db.commit()

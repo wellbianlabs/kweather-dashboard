@@ -1,4 +1,4 @@
-"""외부 날씨(기상청) 연동 어댑터 (PRD 3.3).
+﻿"""외부 날씨(기상청) 연동 어댑터 (PRD 3.3).
 
 `WeatherProvider` 인터페이스 뒤에 Mock / KMA 구현을 두어 교체 가능하게 함.
 - mock: API 키 없이 동작하는 결정론적 시뮬레이션 (지역/날짜 기반 일주기 곡선)
@@ -23,6 +23,7 @@ from ..config import settings
 from ..models import Device, SensorLog, Tenant
 from ..schemas import CurrentWeatherOut, HeatLevelOut, WeatherCompareOut, WeatherComparePoint
 from . import analytics
+from . import appsettings
 
 
 class WeatherProvider(ABC):
@@ -60,6 +61,19 @@ class MockWeatherProvider(WeatherProvider):
             cur += timedelta(hours=1)
         return out
 
+    def past_daily(self, lat, lon, region_code, day) -> dict | None:
+        """[mock] 합성 일별 요약 — 동일 일주기 곡선에서 평균/최고/최저 + 추정 습도."""
+        h = self.hourly_temps(lat, lon, region_code,
+                              datetime(day.year, day.month, day.day, 0),
+                              datetime(day.year, day.month, day.day, 23))
+        temps = list(h.values())
+        if not temps:
+            return None
+        avg = round(sum(temps) / len(temps), 1)
+        humi = round(max(40.0, min(85.0, 80.0 - (avg - 22.0) * 1.5)), 1)
+        return {"avg": avg, "max": round(max(temps), 1), "min": round(min(temps), 1),
+                "humi": humi, "source": "데모 합성 기상자료", "region": None}
+
 
 class KmaWeatherProvider(WeatherProvider):
     """공공데이터포털 ASOS 시간자료 (best-effort).
@@ -71,11 +85,11 @@ class KmaWeatherProvider(WeatherProvider):
     BASE = "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
 
     def hourly_temps(self, lat, lon, region_code, start, end):
-        if not settings.KMA_API_KEY:
+        if not appsettings.get("KMA_API_KEY"):
             raise RuntimeError("KMA_API_KEY 미설정")
         stn = region_code or "159"  # 기본: 부산(159)
         params = {
-            "serviceKey": settings.KMA_API_KEY,
+            "serviceKey": appsettings.get("KMA_API_KEY"),
             "dataType": "JSON",
             "dataCd": "ASOS",
             "dateCd": "HR",
@@ -187,6 +201,67 @@ def resolve_asos_station(dev) -> str | None:
     return None
 
 
+def _dfs_grid(lat: float, lon: float) -> tuple[int, int]:
+    """위경도 → 기상청 동네예보 격자(nx, ny). 기상청 표준 Lambert Conformal Conic."""
+    import math
+    RE, GRID = 6371.00877, 5.0
+    SLAT1, SLAT2, OLON, OLAT, XO, YO = 30.0, 60.0, 126.0, 38.0, 43, 136
+    D = math.pi / 180.0
+    re = RE / GRID; s1 = SLAT1 * D; s2 = SLAT2 * D; ol = OLON * D; oa = OLAT * D
+    sn = math.tan(math.pi * 0.25 + s2 * 0.5) / math.tan(math.pi * 0.25 + s1 * 0.5)
+    sn = math.log(math.cos(s1) / math.cos(s2)) / math.log(sn)
+    sf = math.tan(math.pi * 0.25 + s1 * 0.5); sf = math.pow(sf, sn) * math.cos(s1) / sn
+    ro = math.tan(math.pi * 0.25 + oa * 0.5); ro = re * sf / math.pow(ro, sn)
+    ra = math.tan(math.pi * 0.25 + lat * D * 0.5); ra = re * sf / math.pow(ra, sn)
+    th = lon * D - ol
+    if th > math.pi:
+        th -= 2 * math.pi
+    if th < -math.pi:
+        th += 2 * math.pi
+    th *= sn
+    return int(ra * math.sin(th) + XO + 0.5), int(ro - ra * math.cos(th) + YO + 0.5)
+
+
+def _kma_ncst_hourly(lat, lon, ds: str) -> dict[int, dict] | None:
+    """초단기실황(getUltraSrtNcst) — 매시각 기온(T1H)·습도(REH) → 공식 체감온도.
+
+    ASOS 정식 시간자료가 아직 미발표인 당일·최근 일자 보완용
+    (data.go.kr VilageFcstInfoService_2.0, KMA_API_KEY 사용). 반환 {hour:{ta,hm,feels}}.
+    """
+    key = appsettings.get("KMA_API_KEY")
+    if not key or lat is None or lon is None:
+        return None
+    nx, ny = _dfs_grid(float(lat), float(lon))
+    now_kst = datetime.utcnow() + timedelta(hours=9)
+    last_h = now_kst.hour if ds == now_kst.strftime("%Y%m%d") else 23
+    url = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
+    out: dict[int, dict] = {}
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            for hh in range(0, last_h + 1):
+                try:
+                    r = client.get(url, params={
+                        "serviceKey": key, "dataType": "JSON", "numOfRows": "60", "pageNo": "1",
+                        "base_date": ds, "base_time": f"{hh:02d}00", "nx": nx, "ny": ny})
+                    if r.status_code != 200:
+                        continue
+                    items = (
+                        r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                    )
+                    vals = {it.get("category"): it.get("obsrValue") for it in items}
+                    ta = float(vals["T1H"])
+                    try:
+                        hm = float(vals.get("REH"))
+                    except (TypeError, ValueError):
+                        hm = None
+                    out[hh] = {"ta": round(ta, 1), "hm": hm, "feels": kma_feels_like(ta, hm)}
+                except Exception:  # noqa: BLE001
+                    continue
+    except Exception:  # noqa: BLE001
+        return None
+    return out or None
+
+
 def kma_hourly_cached(db: Session, dev, ds: str) -> dict[int, dict] | None:
     """(기기, 일자) 기상청 시간자료 — ExternalDailyCache 캐시-어사이드.
 
@@ -219,6 +294,8 @@ def kma_hourly_cached(db: Session, dev, ds: str) -> dict[int, dict] | None:
     if hourly is None or stale:
         stn = resolve_asos_station(dev)
         fetched = _kma_asos_hourly_stn(stn, ds) if stn else None
+        if not fetched:  # ASOS 미발표(당일·최근) → 초단기실황으로 보완
+            fetched = _kma_ncst_hourly(getattr(dev, "latitude", None), getattr(dev, "longitude", None), ds)
         if fetched:
             hourly = fetched
             try:
@@ -240,49 +317,43 @@ def _kma_asos_hourly(code: str, ds: str) -> dict[int, dict] | None:
 
 
 def _kma_asos_hourly_stn(stn: str | None, ds: str) -> dict[int, dict] | None:
-    """기상청 API허브 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
+    """기상청 ASOS 시간자료 — 과거 일자의 매시각 기온/습도 + 공식 체감온도.
 
-    반환: {hour: {"ta": float, "hm": float|None, "feels": float|None}}
+    공공데이터포털(apis.data.go.kr) AsosHourlyInfoService 사용
+    (apihub.kma.go.kr 는 일부 서버 IP에서 차단되므로 도달 가능한 data.go.kr 경로 채택).
+    KMA_API_KEY = data.go.kr 서비스키. 반환: {hour: {"ta","hm","feels"}}.
     """
-    if not settings.KMA_API_KEY or not stn:
+    key = appsettings.get("KMA_API_KEY")
+    if not key or not stn:
         return None
     try:
-        import re as _re
-
         with httpx.Client(timeout=15.0) as client:
             r = client.get(
-                "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php",
-                params={"tm1": ds + "0000", "tm2": ds + "2359", "stn": stn, "help": "1",
-                        "authKey": settings.KMA_API_KEY},
+                "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList",
+                params={"serviceKey": key, "dataType": "JSON", "dataCd": "ASOS", "dateCd": "HR",
+                        "stnIds": str(stn), "startDt": ds, "startHh": "00",
+                        "endDt": ds, "endHh": "23", "numOfRows": "50", "pageNo": "1"},
             )
-            text = r.text
-            if r.status_code != 200 or "활용신청" in text or "용량" in text:
+            if r.status_code != 200:
                 return None
-            idx_map: dict[str, int] = {}
-            for ln in text.splitlines():
-                m = _re.match(r"#\s*(\d+)\.\s+([A-Z0-9_]+)\s*[:(]", ln)
-                if m:
-                    idx_map[m.group(2)] = int(m.group(1)) - 1
-            i_ta, i_hm = idx_map.get("TA"), idx_map.get("HM")
-            if i_ta is None:
-                return None
+            items = (
+                r.json().get("response", {}).get("body", {}).get("items", {}).get("item", [])
+            )
+            if isinstance(items, dict):
+                items = [items]
             out: dict[int, dict] = {}
-            for ln in text.splitlines():
-                st = ln.strip()
-                if not st or st.startswith("#"):
-                    continue
-                parts = st.split()
-                if not parts[0].startswith(ds):
+            for it in items:
+                tm = str(it.get("tm", ""))
+                if len(tm) < 13:
                     continue
                 try:
-                    hour = int(parts[0][8:10])
-                    ta = float(parts[i_ta])
-                    hm = float(parts[i_hm]) if i_hm is not None and i_hm < len(parts) else None
-                except (ValueError, IndexError):
+                    hour = int(tm[11:13])
+                    ta = float(it.get("ta"))
+                except (ValueError, TypeError):
                     continue
-                if ta in (-9.0, -99.0, -999.0):
-                    continue
-                if hm is not None and hm in (-9.0, -99.0, -999.0):
+                try:
+                    hm = float(it.get("hm"))
+                except (ValueError, TypeError):
                     hm = None
                 out[hour] = {"ta": round(ta, 1), "hm": hm, "feels": kma_feels_like(ta, hm)}
             return out or None
@@ -296,7 +367,7 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
     KMA_API_KEY(=API허브 authKey) 필요. 응답은 고정폭 텍스트(헤더 주석 + 데이터 라인).
     헤더의 컬럼명(TA_AVG/TA_MAX/TA_MIN/HM_AVG)을 찾아 인덱스로 파싱한다.
     """
-    if not settings.KMA_API_KEY or not code:
+    if not appsettings.get("KMA_API_KEY") or not code:
         return None
     stn = _SIDO_ASOS.get(str(code)[:2])
     if not stn:
@@ -305,7 +376,7 @@ def _kma_asos_daily(code: str, ds: str) -> dict | None:
         with httpx.Client(timeout=12.0) as client:
             r = client.get(
                 "https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php",
-                params={"tm1": ds, "tm2": ds, "stn": stn, "disp": "0", "help": "1", "authKey": settings.KMA_API_KEY},
+                params={"tm1": ds, "tm2": ds, "stn": stn, "disp": "0", "help": "1", "authKey": appsettings.get("KMA_API_KEY")},
             )
             text = r.text
             if r.status_code != 200 or "활용신청" in text or "용량" in text:
@@ -360,8 +431,8 @@ class KWeatherProvider(WeatherProvider):
     name = "kweather"
 
     def _get(self, client, sensor: str, code: str | None = None):
-        url = f"{settings.KW_BASE_URL}/{sensor}" + (f"/{code}" if code else "")
-        r = client.get(url, params={"api_key": settings.KW_API_KEY})
+        url = f"{appsettings.get('KW_BASE_URL')}/{sensor}" + (f"/{code}" if code else "")
+        r = client.get(url, params={"api_key": appsettings.get("KW_API_KEY")})
         r.raise_for_status()
         j = r.json()
         if str(j.get("error")) != "0":
@@ -381,7 +452,7 @@ class KWeatherProvider(WeatherProvider):
 
     def current(self, lat, lon, region_code) -> dict | None:
         """현재 외부 실황: {temp, feels, humidity, ts, region}."""
-        if not settings.KW_API_KEY:
+        if not appsettings.get("KW_API_KEY"):
             raise RuntimeError("KW_API_KEY 미설정")
         with httpx.Client(timeout=12.0) as client:
             code = self._dong_code(client, lat, lon, region_code)
@@ -406,7 +477,7 @@ class KWeatherProvider(WeatherProvider):
         1년자료(w4/v2/cbko)를 우선 조회하고, 비어 있으면 전일날씨(kw-cbko1, w3)로 폴백한다.
         day: datetime.date
         """
-        if not settings.KW_API_KEY:
+        if not appsettings.get("KW_API_KEY"):
             return None
         ds = day.strftime("%Y%m%d")
         with httpx.Client(timeout=12.0) as client:
@@ -416,8 +487,8 @@ class KWeatherProvider(WeatherProvider):
             # 1) 과거 1년자료 (별도 상품 권한 필요)
             try:
                 r = client.get(
-                    f"{settings.KW_PAST_BASE_URL}/cbko/{code}",
-                    params={"startdate": ds, "enddate": ds, "api_key": settings.KW_API_KEY},
+                    f"{appsettings.get('KW_PAST_BASE_URL')}/cbko/{code}",
+                    params={"startdate": ds, "enddate": ds, "api_key": appsettings.get("KW_API_KEY")},
                 )
                 if r.status_code == 200 and str(r.json().get("error")) == "0":
                     d = r.json().get("data") or {}
@@ -460,8 +531,22 @@ class KWeatherProvider(WeatherProvider):
         return {dt: float(cur["temp"])} if start <= dt <= end else {}
 
 
+DEMO_API_KEY = "demo-key"
+
+
+def _provider_for(tenant) -> WeatherProvider:
+    """데모 계정은 합성(mock) 외부데이터, 그 외(실계정)는 설정된 프로바이더.
+
+    데모는 합성 날짜라 실제 관측이 없으므로 mock으로 외부 비교를 채워 보이게 하고,
+    실계정은 실제 외부(케이웨더 게이트웨이 등) 자료를 사용한다.
+    """
+    if tenant is not None and getattr(tenant, "api_key", None) == DEMO_API_KEY:
+        return MockWeatherProvider()
+    return get_provider()
+
+
 def get_provider() -> WeatherProvider:
-    p = settings.WEATHER_PROVIDER.lower()
+    p = appsettings.get("WEATHER_PROVIDER").lower()
     if p == "kma":
         return KmaWeatherProvider()
     if p in ("kweather", "wellbian"):
@@ -473,7 +558,7 @@ def compare(
     db: Session, tenant: Tenant, device_sn: str,
     start: datetime | None, end: datetime | None, interval: int,
 ) -> WeatherCompareOut:
-    provider = get_provider()
+    provider = _provider_for(tenant)
     dev = db.get(Device, device_sn)
     if dev is None or dev.tenant_id != tenant.id:
         raise ValueError("해당 기기에 접근 권한이 없습니다.")
@@ -489,10 +574,11 @@ def compare(
     t0 = indoor.points[0].t
     t1 = indoor.points[-1].t
 
-    # 단일 일자: 기상청 시간자료(체감온도 포함) 최우선 — 측정 당시의 외부값 시간 매칭.
-    # (실황 1점이 잡혀도 시간 매칭을 건너뛰지 않도록 KMA 경로를 먼저 시도)
+    # 단일 일자: 기상청 API허브 시간자료(체감온도 포함)를 우선 시도 — KMA 프로바이더일 때만.
+    # (apihub.kma.go.kr 가 막힌 서버에서 불필요한 타임아웃 행을 피하려 provider 게이트를 둠.
+    #  → option B로 apihub 를 열면 WEATHER_PROVIDER=kma 로 전환해 다시 사용)
     ext_hourly = None
-    if settings.KMA_API_KEY and t0.date() == t1.date():
+    if provider.name == "kma" and appsettings.get("KMA_API_KEY") and t0.date() == t1.date():
         ext_hourly = kma_hourly_cached(db, dev, t0.strftime("%Y%m%d"))
 
     hourly: dict = {}
@@ -515,16 +601,23 @@ def compare(
     for p in indoor.points:
         ot = None
         of = None
+        oh = None
         if ext_hourly is not None:
             slot = ext_hourly.get(pd.Timestamp(p.t).hour)
             if slot:
                 ot = slot.get("ta")
                 of = slot.get("feels")
+                oh = slot.get("hm")
         elif not outdoor.empty:
             nearest = outdoor.index.get_indexer([pd.Timestamp(p.t)], method="nearest")
             if nearest[0] != -1:
                 v = outdoor.iloc[nearest[0]]
                 ot = None if pd.isna(v) else round(float(v), 1)
+                # mock(데모/시뮬레이션): 기온만 제공하므로 외부 습도·공식 체감을 합성
+                # 해 비교 그래프(기상청 체감/습도)와 보고서가 채워 보이도록 한다.
+                if ot is not None and provider.name == "mock":
+                    oh = round(max(35.0, min(85.0, 80.0 - (ot - 22.0) * 1.6)), 1)
+                    of = kma_feels_like(ot, oh)
         delta = None
         base = of if of is not None else ot
         if p.feels_like is not None and base is not None:
@@ -534,7 +627,7 @@ def compare(
         points.append(
             WeatherComparePoint(
                 t=p.t, indoor_feels_like=p.feels_like, outdoor_temperature=ot,
-                outdoor_feels=of, delta=delta
+                outdoor_feels=of, outdoor_humidity=(round(float(oh), 1) if oh is not None else None), delta=delta
             )
         )
 
@@ -551,7 +644,7 @@ def current_external(db: Session, tenant: Tenant, device_sn: str) -> CurrentWeat
     dev = db.get(Device, device_sn)
     if dev is None or dev.tenant_id != tenant.id:
         raise ValueError("해당 기기에 접근 권한이 없습니다.")
-    provider = get_provider()
+    provider = _provider_for(tenant)
 
     cur = None
     if hasattr(provider, "current"):

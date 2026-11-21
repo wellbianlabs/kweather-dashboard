@@ -4,6 +4,7 @@ export interface AuthData {
   company_name: string;
   has_data: boolean;
   is_admin?: boolean;
+  is_demo?: boolean;
 }
 
 export interface AdminDaily {
@@ -38,6 +39,14 @@ export interface AdminEvent {
   status: number;
 }
 
+export interface AdminLogs {
+  total: number;
+  page: number;
+  per: number;
+  days: number;
+  items: AdminEvent[];
+}
+
 export interface AdminOverview {
   generated_at: string;
   totals: { members: number; devices: number; rows: number };
@@ -45,6 +54,55 @@ export interface AdminOverview {
   daily: AdminDaily[];
   tenants: AdminTenant[];
   recent: AdminEvent[];
+}
+
+export interface AdminSystem {
+  generated_at: string;
+  db: {
+    engine: string;
+    engine_label: string;
+    size_bytes?: number;
+    max_connections?: number;
+    connections?: number;
+    tables?: { name: string; bytes: number }[];
+    row_counts: Record<string, number | null>;
+    error?: string;
+  };
+  server: {
+    disk?: { total: number; used: number; free: number; pct: number };
+    memory?: { total: number; available: number; used: number; pct: number | null };
+    load?: number[];
+    cpu_count?: number;
+    uptime_sec?: number;
+  };
+  external: {
+    provider: string;
+    cached_days: number | null;
+    daily_quota: number;
+    api_requests_total?: number;
+    api_requests_today?: number;
+  };
+  logs: { access_rows: number | null; retention_days: number; oldest?: string | null };
+  backup: {
+    dir: string;
+    count?: number;
+    total_bytes?: number;
+    latest?: string;
+    latest_bytes?: number;
+    latest_at?: string;
+    error?: string;
+  };
+}
+
+export interface AdminSettingStatus {
+  set: boolean;
+  source: "db" | "env" | "none";
+  masked?: string;  // 비밀키
+  value?: string;   // 비밀 아님(provider/url)
+}
+export interface AdminSettings {
+  keys: string[];
+  status: Record<string, AdminSettingStatus>;
 }
 
 export interface Device {
@@ -100,6 +158,7 @@ export interface WeatherComparePoint {
   indoor_feels_like: number | null;
   outdoor_temperature: number | null;
   outdoor_feels: number | null;
+  outdoor_humidity: number | null;
   delta: number | null;
 }
 
@@ -140,6 +199,7 @@ export interface DailyReport {
   date: string;
   company_name: string | null;
   location_name: string | null;
+  address: string | null;
   max_feels_like: number | null;
   max_feels_like_time: string | null;
   max_temperature: number | null;

@@ -112,11 +112,12 @@ def parse_dataframe(raw: bytes, default_sn: str | None = None) -> tuple[pd.DataF
 def _interpolate_and_clean(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     """기기·시간 정렬 후 선형 보간. 핵심 지표가 여전히 결측이면 행 제외."""
     before = len(df)
-    df = df.sort_values(["sn", "measured_at"])
-    df[["temperature", "feels_like", "humidity"]] = (
-        df.groupby("sn")[["temperature", "feels_like", "humidity"]]
-        .apply(lambda g: g.interpolate(method="linear", limit_direction="both"))
-        .reset_index(drop=True)
+    df = df.sort_values(["sn", "measured_at"]).reset_index(drop=True)
+    cols = ["temperature", "feels_like", "humidity"]
+    # transform 은 결과를 원본 인덱스에 정렬해 돌려주므로, 파싱실패 행 제거로 인덱스에
+    # 구멍이 생겨도 값-시각 오정렬이 발생하지 않는다(과거 apply+reset_index 는 오정렬 버그).
+    df[cols] = df.groupby("sn")[cols].transform(
+        lambda s: s.interpolate(method="linear", limit_direction="both")
     )
     # 보간 후에도 온도/체감온도가 비면 제외
     df = df.dropna(subset=["temperature", "feels_like"])

@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Paper, Title, Table, TextInput, Button, Text } from "@mantine/core";
+import { modals } from "@mantine/modals";
 import { api } from "../api";
 import type { Device } from "../types";
 
-export function DeviceManager({ devices, onChange }: { devices: Device[]; onChange: () => void }) {
+export function DeviceManager({ devices, onChange, readOnly = false }: { devices: Device[]; onChange: () => void; readOnly?: boolean }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Device>>({});
   const [saving, setSaving] = useState(false);
@@ -30,73 +32,82 @@ export function DeviceManager({ devices, onChange }: { devices: Device[]; onChan
     }
   }
 
-  async function remove(sn: string) {
-    if (!confirm(`기기 ${sn} 와(과) 해당 측정 데이터를 모두 삭제할까요?`)) return;
-    await api.deleteDevice(sn);
-    onChange();
+  function remove(sn: string) {
+    modals.openConfirmModal({
+      title: "기기 삭제",
+      children: <Text size="sm">기기 {sn} 와(과) 해당 측정 데이터를 모두 삭제할까요?</Text>,
+      labels: { confirm: "삭제", cancel: "취소" },
+      confirmProps: { color: "red" },
+      onConfirm: async () => {
+        await api.deleteDevice(sn);
+        onChange();
+      },
+    });
   }
 
-  const inp = "w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-slate-400 focus:outline-none";
-
   return (
-    <div className="card">
-      <h3 className="mb-2 font-semibold text-slate-900">기기 / 사업장 메타데이터 관리</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-slate-500">
-              <th className="py-2 pr-2">기기명</th>
-              <th className="pr-2">회사명</th>
-              <th className="pr-2">설치 위치</th>
-              <th className="pr-2">주소</th>
-              <th className="pr-2">위도</th>
-              <th className="pr-2">경도</th>
-              <th className="pr-2">지역코드</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+    <Paper radius="lg" p="lg" withBorder shadow="xs">
+      <Title order={3} fz="md" c="#0f172a" mb="sm">기기 / 사업장 메타데이터 관리</Title>
+      <Table.ScrollContainer minWidth={760}>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>기기명</Table.Th>
+              <Table.Th>회사명</Table.Th>
+              <Table.Th>설치 위치</Table.Th>
+              <Table.Th>주소</Table.Th>
+              <Table.Th>위도</Table.Th>
+              <Table.Th>경도</Table.Th>
+              <Table.Th>지역코드</Table.Th>
+              <Table.Th></Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {devices.map((d) => {
               const ed = editing === d.device_sn;
               return (
-                <tr key={d.device_sn} className="border-b last:border-0">
-                  <td className="py-2 pr-2 font-semibold text-slate-800">{d.device_sn}</td>
+                <Table.Tr key={d.device_sn}>
+                  <Table.Td fw={600} c="#0f172a">{d.device_sn}</Table.Td>
                   {ed ? (
                     <>
-                      <td className="pr-2"><input className={inp} value={draft.company_name ?? ""} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} /></td>
-                      <td className="pr-2"><input className={inp} value={draft.location_name ?? ""} onChange={(e) => setDraft({ ...draft, location_name: e.target.value })} /></td>
-                      <td className="pr-2"><input className={inp} value={draft.address ?? ""} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></td>
-                      <td className="pr-2"><input className={inp} value={draft.latitude ?? ""} onChange={(e) => setDraft({ ...draft, latitude: e.target.value as any })} /></td>
-                      <td className="pr-2"><input className={inp} value={draft.longitude ?? ""} onChange={(e) => setDraft({ ...draft, longitude: e.target.value as any })} /></td>
-                      <td className="pr-2"><input className={inp} value={draft.region_code ?? ""} onChange={(e) => setDraft({ ...draft, region_code: e.target.value })} /></td>
-                      <td className="whitespace-nowrap">
-                        <button disabled={saving} onClick={() => save(d.device_sn)} className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-700">저장</button>
-                        <button onClick={() => setEditing(null)} className="ml-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">취소</button>
-                      </td>
+                      <Table.Td><TextInput size="xs" value={draft.company_name ?? ""} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} /></Table.Td>
+                      <Table.Td><TextInput size="xs" value={draft.location_name ?? ""} onChange={(e) => setDraft({ ...draft, location_name: e.target.value })} /></Table.Td>
+                      <Table.Td><TextInput size="xs" value={draft.address ?? ""} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></Table.Td>
+                      <Table.Td><TextInput size="xs" value={draft.latitude ?? ""} onChange={(e) => setDraft({ ...draft, latitude: e.target.value as any })} /></Table.Td>
+                      <Table.Td><TextInput size="xs" value={draft.longitude ?? ""} onChange={(e) => setDraft({ ...draft, longitude: e.target.value as any })} /></Table.Td>
+                      <Table.Td><TextInput size="xs" value={draft.region_code ?? ""} onChange={(e) => setDraft({ ...draft, region_code: e.target.value })} /></Table.Td>
+                      <Table.Td style={{ whiteSpace: "nowrap" }}>
+                        <Button size="xs" disabled={saving} onClick={() => save(d.device_sn)}>저장</Button>
+                        <Button size="xs" variant="default" ml="xs" onClick={() => setEditing(null)}>취소</Button>
+                      </Table.Td>
                     </>
                   ) : (
                     <>
-                      <td className="pr-2">{d.company_name || <span className="text-slate-300">-</span>}</td>
-                      <td className="pr-2">{d.location_name || <span className="text-slate-300">-</span>}</td>
-                      <td className="pr-2 text-slate-500">{d.address || "-"}</td>
-                      <td className="pr-2 text-slate-500">{d.latitude ?? "-"}</td>
-                      <td className="pr-2 text-slate-500">{d.longitude ?? "-"}</td>
-                      <td className="pr-2 text-slate-500">{d.region_code || "-"}</td>
-                      <td className="whitespace-nowrap">
-                        <button onClick={() => startEdit(d)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50">편집</button>
-                        <button onClick={() => remove(d.device_sn)} className="ml-1 rounded-lg px-2.5 py-1 text-xs text-red-500 hover:bg-red-50">삭제</button>
-                      </td>
+                      <Table.Td>{d.company_name || <Text span c="dimmed">-</Text>}</Table.Td>
+                      <Table.Td>{d.location_name || <Text span c="dimmed">-</Text>}</Table.Td>
+                      <Table.Td c="dimmed">{d.address || "-"}</Table.Td>
+                      <Table.Td c="dimmed">{d.latitude ?? "-"}</Table.Td>
+                      <Table.Td c="dimmed">{d.longitude ?? "-"}</Table.Td>
+                      <Table.Td c="dimmed">{d.region_code || "-"}</Table.Td>
+                      <Table.Td style={{ whiteSpace: "nowrap" }}>
+                        <Button size="xs" variant="default" disabled={readOnly} onClick={() => startEdit(d)}>편집</Button>
+                        <Button size="xs" color="red" variant="subtle" ml="xs" disabled={readOnly} onClick={() => remove(d.device_sn)}>삭제</Button>
+                      </Table.Td>
                     </>
                   )}
-                </tr>
+                </Table.Tr>
               );
             })}
             {devices.length === 0 && (
-              <tr><td colSpan={8} className="py-4 text-center text-slate-400">등록된 기기가 없습니다. 위 양식에서 기기명을 입력해 등록하세요.</td></tr>
+              <Table.Tr>
+                <Table.Td colSpan={8} ta="center" c="dimmed" py="md">
+                  등록된 기기가 없습니다. 위 양식에서 기기명을 입력해 등록하세요.
+                </Table.Td>
+              </Table.Tr>
             )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Paper>
   );
 }

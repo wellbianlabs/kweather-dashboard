@@ -244,6 +244,7 @@ def daily_report_data(db: Session, tenant: Tenant, device_sn: str, on_date: date
             device_sn=device_sn, date=on_date.isoformat(),
             company_name=dev.company_name if dev else None,
             location_name=dev.location_name if dev else None,
+            address=dev.address if dev else None,
             max_feels_like=None, max_feels_like_time=None, max_temperature=None,
             avg_humidity=None, minutes_over_31=0, minutes_over_33=0, minutes_over_35=0,
             minutes_over_38=0, hours=[],
